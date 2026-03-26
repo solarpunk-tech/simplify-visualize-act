@@ -1,49 +1,145 @@
-import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
 import { Send, Paperclip, ChevronDown } from "lucide-react";
 
-const contextChips = [
-  { id: "home", label: "HOME", path: "/" },
-  { id: "inbox", label: "INBOX", path: "/inbox" },
-  { id: "projects", label: "PROJECTS", path: "/projects" },
-  { id: "meetings", label: "MEETINGS", path: "/meetings" },
-  { id: "agents", label: "AGENTS", path: "/agents" },
+interface MentionSuggestion {
+  id: string;
+  label: string;
+  type: "tab" | "skill" | "agent" | "chat" | "artifact";
+}
+
+const mentionItems: MentionSuggestion[] = [
+  { id: "home", label: "home", type: "tab" },
+  { id: "inbox", label: "inbox", type: "tab" },
+  { id: "projects", label: "projects", type: "tab" },
+  { id: "meetings", label: "meetings", type: "tab" },
+  { id: "agents", label: "agents", type: "tab" },
+  { id: "research", label: "research", type: "skill" },
+  { id: "email-analysis", label: "email analysis", type: "skill" },
+  { id: "budget-report", label: "budget report", type: "skill" },
+  { id: "email-triage", label: "Email Triage Agent", type: "agent" },
+  { id: "rate-agent", label: "Rate Confirmation Agent", type: "agent" },
+  { id: "chat-maersk", label: "Rate confirmation — Maersk Q2", type: "chat" },
 ];
 
+const typeLabels: Record<string, string> = {
+  tab: "TABS",
+  skill: "SKILLS",
+  agent: "AGENTS",
+  chat: "CHATS",
+  artifact: "ARTIFACTS",
+};
+
 export function FloatingChat() {
-  const location = useLocation();
   const [message, setMessage] = useState("");
-  const [activeChip, setActiveChip] = useState<string | null>(null);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const currentChip = contextChips.find((c) => {
-    if (c.path === "/") return location.pathname === "/";
-    return location.pathname.startsWith(c.path);
-  });
+  const filtered = mentionFilter
+    ? mentionItems.filter((m) =>
+        m.label.toLowerCase().includes(mentionFilter.toLowerCase())
+      )
+    : mentionItems;
 
-  const effectiveChip = activeChip ?? currentChip?.id ?? null;
+  // Group by type
+  const grouped = filtered.reduce<Record<string, MentionSuggestion[]>>((acc, item) => {
+    if (!acc[item.type]) acc[item.type] = [];
+    acc[item.type].push(item);
+    return acc;
+  }, {});
 
-  const toggleChip = (chipId: string) => {
-    setActiveChip((prev) => (prev === chipId ? null : chipId));
+  const flatFiltered = Object.values(grouped).flat();
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [mentionFilter]);
+
+  const insertMention = (item: MentionSuggestion) => {
+    const atIndex = message.lastIndexOf("@");
+    if (atIndex !== -1) {
+      setMessage(message.slice(0, atIndex) + `@${item.label} `);
+    }
+    setShowMentions(false);
+    setMentionFilter("");
+    textareaRef.current?.focus();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setMessage(val);
+
+    const lastAt = val.lastIndexOf("@");
+    if (lastAt !== -1 && (lastAt === 0 || val[lastAt - 1] === " ")) {
+      const query = val.slice(lastAt + 1);
+      if (!query.includes(" ")) {
+        setShowMentions(true);
+        setMentionFilter(query);
+        return;
+      }
+    }
+    setShowMentions(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentions) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, flatFiltered.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (flatFiltered[selectedIndex]) insertMention(flatFiltered[selectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setShowMentions(false);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      setMessage("");
+    }
   };
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[640px] px-4">
-      {/* Context chips */}
-      <div className="flex items-center gap-1.5 mb-2 justify-center">
-        {contextChips.map((chip) => (
-          <button
-            key={chip.id}
-            onClick={() => toggleChip(chip.id)}
-            className={`font-mono text-[10px] tracking-wider px-2.5 py-1 border transition-all ${
-              effectiveChip === chip.id
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background/80 hover:border-foreground/30"
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
+      {/* @ Mention dropdown */}
+      {showMentions && flatFiltered.length > 0 && (
+        <div className="mb-1 border border-border bg-background max-h-[280px] overflow-y-auto shadow-[0_-8px_30px_-12px_hsl(var(--foreground)/0.12)]">
+          {Object.entries(grouped).map(([type, items]) => (
+            <div key={type}>
+              <div className="px-3 py-1.5 font-mono text-[9px] tracking-widest text-muted-foreground border-b border-border">
+                {typeLabels[type] || type.toUpperCase()}
+              </div>
+              {items.map((item) => {
+                const globalIdx = flatFiltered.indexOf(item);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => insertMention(item)}
+                    className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center gap-2 transition-colors ${
+                      globalIdx === selectedIndex
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent/10"
+                    }`}
+                  >
+                    <span className="text-[10px] text-muted-foreground">@</span>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Chat input */}
       <div className="border border-border bg-background shadow-[0_-4px_24px_-8px_hsl(var(--foreground)/0.08)] backdrop-blur-sm">
@@ -53,17 +149,13 @@ export function FloatingChat() {
           </button>
 
           <textarea
+            ref={textareaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask anything..."
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask anything... use @ to mention tabs, skills, agents"
             rows={1}
             className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground font-mono min-h-[32px] max-h-[120px] py-1.5"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                setMessage("");
-              }
-            }}
           />
 
           <div className="flex items-center gap-1.5 shrink-0 mb-0.5">

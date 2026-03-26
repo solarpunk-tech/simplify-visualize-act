@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Shell } from "@/components/Shell";
 import Index from "./pages/Index";
 import Agents from "./pages/Agents";
+import Inbox from "./pages/Inbox";
+import Projects from "./pages/Projects";
 import Placeholder from "./pages/Placeholder";
 import NotFound from "./pages/NotFound";
 
@@ -21,8 +23,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/agents" element={<Agents />} />
-            <Route path="/inbox" element={<Placeholder />} />
-            <Route path="/projects" element={<Placeholder />} />
+            <Route path="/inbox" element={<Inbox />} />
+            <Route path="/projects" element={<Projects />} />
             <Route path="/meetings" element={<Placeholder />} />
             <Route path="/settings" element={<Placeholder />} />
             <Route path="*" element={<NotFound />} />

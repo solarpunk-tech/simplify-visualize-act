@@ -254,3 +254,198 @@ export const agentPreferences = {
     digest: true,
   },
 };
+
+// ─── INBOX ───
+export const inboxThreads = [
+  {
+    id: 1,
+    from: "Sarah Kim",
+    email: "sarah.kim@maersk.com",
+    subject: "RE: Rate Confirmation — Q2 Mumbai-Rotterdam",
+    summary: "Confirmed revised rate of $2,850/TEU. Updated contract attached. Requires your signature by Friday.",
+    priority: "critical" as const,
+    time: "9:14 AM",
+    unread: true,
+    labels: ["RATE_CONFIRMATION", "ACTION_REQUIRED"],
+    agentSuggestion: "Auto-drafted acceptance reply with digital signature request",
+  },
+  {
+    id: 2,
+    from: "Raj Mehta",
+    email: "raj@thaituna.co.th",
+    subject: "Compliance Documents — Extension Request",
+    summary: "Requesting 5-day extension for HACCP certification renewal. Previous cert expires March 28.",
+    priority: "high" as const,
+    time: "8:42 AM",
+    unread: true,
+    labels: ["COMPLIANCE", "SUPPLIER"],
+    agentSuggestion: "Drafted conditional approval with clause 4.2 reference",
+  },
+  {
+    id: 3,
+    from: "Logistics Bot",
+    email: "alerts@ubik.ai",
+    subject: "Container YB-7221 — Delay Alert",
+    summary: "6hr delay at Mumbai port due to customs hold. ETA revised to March 28 14:00 UTC.",
+    priority: "high" as const,
+    time: "7:30 AM",
+    unread: true,
+    labels: ["SHIPMENT", "DELAY"],
+    agentSuggestion: "Notified downstream partners. Updated delivery schedule.",
+  },
+  {
+    id: 4,
+    from: "Finance Team",
+    email: "finance@company.com",
+    subject: "Q2 Budget Variance Report Ready",
+    summary: "March variance shows 4.2% overspend on logistics. Cold chain costs up 12% vs forecast.",
+    priority: "normal" as const,
+    time: "Yesterday",
+    unread: false,
+    labels: ["FINANCE", "REPORT"],
+    agentSuggestion: null,
+  },
+  {
+    id: 5,
+    from: "Yokohama Auction",
+    email: "notifications@yha.jp",
+    subject: "Auction Results — Lot #4421 Bluefin",
+    summary: "Your bid on Grade A Bluefin lot was outbid. Final price: $48.20/kg. Next auction: April 2.",
+    priority: "normal" as const,
+    time: "Yesterday",
+    unread: false,
+    labels: ["PROCUREMENT", "AUCTION"],
+    agentSuggestion: "Set auto-bid for next lot at $45/kg ceiling",
+  },
+  {
+    id: 6,
+    from: "Port Authority Rotterdam",
+    email: "inspections@portofrotterdam.nl",
+    subject: "Inspection Slot Confirmation — March 29",
+    summary: "Cold storage inspection confirmed for Bay 12, 09:00 CET. Inspector: J. van der Berg.",
+    priority: "normal" as const,
+    time: "2 days ago",
+    unread: false,
+    labels: ["COMPLIANCE", "INSPECTION"],
+    agentSuggestion: null,
+  },
+];
+
+export const inboxStats = {
+  critical: 1,
+  actionRequired: 3,
+  unread: 3,
+  agentProcessed: 4,
+};
+
+// ─── PROJECTS (EXPANDED) ───
+export const projectsDetailed = [
+  {
+    id: 1,
+    name: "Mumbai-Rotterdam Q2",
+    code: "MR-Q2",
+    progress: 68,
+    status: "ON_TRACK" as const,
+    owner: "You",
+    team: ["Sarah K.", "Raj M.", "Logistics Bot"],
+    lastActivity: "Rate confirmation received — 2 hrs ago",
+    tasks: { total: 12, done: 8, inProgress: 2, todo: 2 },
+    milestones: [
+      { name: "Contract Signed", done: true },
+      { name: "Rate Confirmed", done: true },
+      { name: "Cargo Loaded", done: false },
+      { name: "In Transit", done: false },
+      { name: "Delivered", done: false },
+    ],
+    kpis: {
+      budget: { spent: 142000, total: 210000 },
+      containers: 24,
+      daysRemaining: 18,
+    },
+  },
+  {
+    id: 2,
+    name: "Supplier Compliance Audit",
+    code: "SCA-26",
+    progress: 35,
+    status: "AT_RISK" as const,
+    owner: "You",
+    team: ["Raj M.", "Compliance Bot"],
+    lastActivity: "Thai Union docs uploaded — 5 hrs ago",
+    tasks: { total: 9, done: 3, inProgress: 4, todo: 2 },
+    milestones: [
+      { name: "Audit Initiated", done: true },
+      { name: "Docs Collected", done: false },
+      { name: "Review Complete", done: false },
+      { name: "Report Filed", done: false },
+    ],
+    kpis: {
+      budget: { spent: 8500, total: 15000 },
+      suppliers: 6,
+      daysRemaining: 5,
+    },
+  },
+  {
+    id: 3,
+    name: "Atlantic Fresh Q3",
+    code: "AF-Q3",
+    progress: 92,
+    status: "ON_TRACK" as const,
+    owner: "Sarah K.",
+    team: ["You", "Finance Agent"],
+    lastActivity: "Final logistics approved — 1 day ago",
+    tasks: { total: 7, done: 6, inProgress: 1, todo: 0 },
+    milestones: [
+      { name: "Planning", done: true },
+      { name: "Procurement", done: true },
+      { name: "Logistics", done: true },
+      { name: "Delivery", done: false },
+    ],
+    kpis: {
+      budget: { spent: 89000, total: 95000 },
+      containers: 12,
+      daysRemaining: 3,
+    },
+  },
+];
+
+// ─── DATA VIZ (HOME WIDGETS) ───
+export const shipmentVolume = [
+  { month: "Oct", volume: 142 },
+  { month: "Nov", volume: 168 },
+  { month: "Dec", volume: 135 },
+  { month: "Jan", volume: 189 },
+  { month: "Feb", volume: 201 },
+  { month: "Mar", volume: 178 },
+];
+
+export const complianceScores = [
+  { supplier: "Thai Union", score: 72, trend: "down" as const },
+  { supplier: "Maersk", score: 94, trend: "up" as const },
+  { supplier: "Nordic Fish", score: 88, trend: "stable" as const },
+  { supplier: "Pacific Blue", score: 91, trend: "up" as const },
+];
+
+export const portActivity = [
+  { port: "Mumbai", active: 8, delayed: 2 },
+  { port: "Rotterdam", active: 5, delayed: 0 },
+  { port: "Yokohama", active: 3, delayed: 1 },
+  { port: "Singapore", active: 6, delayed: 0 },
+];
+
+// ─── COMMAND PALETTE ───
+export const commandItems = [
+  { id: "ask", label: "Ask anything...", category: "ACTIONS", shortcut: "↵", icon: "Search" },
+  { id: "research", label: "Deep Research", category: "SKILLS", shortcut: "⇧R", icon: "Brain" },
+  { id: "email", label: "Analyze Emails", category: "SKILLS", shortcut: "⇧E", icon: "Mail" },
+  { id: "budget", label: "Generate Report", category: "SKILLS", shortcut: "⇧B", icon: "BarChart3" },
+  { id: "project-mr", label: "Mumbai-Rotterdam Q2", category: "PROJECTS", shortcut: "", icon: "FolderKanban" },
+  { id: "project-sca", label: "Supplier Compliance Audit", category: "PROJECTS", shortcut: "", icon: "FolderKanban" },
+  { id: "agent-email", label: "Email Triage Agent", category: "AGENTS", shortcut: "", icon: "Bot" },
+  { id: "agent-rate", label: "Rate Confirmation Agent", category: "AGENTS", shortcut: "", icon: "Bot" },
+  { id: "chat-1", label: "Rate confirmation — Maersk Q2", category: "RECENT_CHATS", shortcut: "", icon: "MessageSquare" },
+  { id: "chat-2", label: "Supplier compliance check", category: "RECENT_CHATS", shortcut: "", icon: "MessageSquare" },
+  { id: "scrape", label: "Scrape page → Add to library", category: "CONTEXT_ACTIONS", shortcut: "", icon: "Globe" },
+  { id: "meeting-prep", label: "Prepare for next meeting", category: "CONTEXT_ACTIONS", shortcut: "", icon: "Calendar" },
+  { id: "task-create", label: "Create task from selection", category: "CONTEXT_ACTIONS", shortcut: "⇧T", icon: "CheckSquare" },
+];

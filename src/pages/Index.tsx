@@ -6,6 +6,9 @@ import {
   tasks,
   projects,
   contextIntelligence,
+  shipmentVolume,
+  complianceScores,
+  portActivity,
 } from "@/lib/mock-data";
 import {
   Mail,
@@ -22,7 +25,19 @@ import {
   Bell,
   CalendarDays,
   TrendingUp,
+  TrendingDown,
+  Minus,
+  Anchor,
+  Ship,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 const iconMap: Record<string, React.ReactNode> = {
   Mail: <Mail className="h-4 w-4" />,
@@ -35,6 +50,12 @@ const statusIcon: Record<string, React.ReactNode> = {
   TODO: <Circle className="h-3.5 w-3.5" />,
   IN_PROGRESS: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
   DONE: <CheckCircle2 className="h-3.5 w-3.5 text-primary" />,
+};
+
+const trendIcon: Record<string, React.ReactNode> = {
+  up: <TrendingUp className="h-3 w-3 text-primary" />,
+  down: <TrendingDown className="h-3 w-3 text-primary" />,
+  stable: <Minus className="h-3 w-3 text-muted-foreground" />,
 };
 
 function getGreeting() {
@@ -57,16 +78,101 @@ export default function Index() {
             <span className="text-primary">.</span>
           </h1>
           <p className="font-mono text-[11px] tracking-wider text-muted-foreground mt-1">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            }).toUpperCase()}
+            {new Date()
+              .toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })
+              .toUpperCase()}
           </p>
         </div>
 
+        {/* ── DATA VIZ WIDGETS ── */}
+        {/* Shipment Volume Chart */}
+        <div className="border border-border p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-mono text-[10px] tracking-widest font-semibold">SHIPMENT_VOLUME</span>
+            <span className="font-mono text-[9px] text-muted-foreground">6MO TREND</span>
+          </div>
+          <ResponsiveContainer width="100%" height={100}>
+            <BarChart data={shipmentVolume} barCategoryGap="20%">
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 9, fontFamily: "JetBrains Mono", fill: "hsl(var(--foreground))" }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis hide />
+              <Bar dataKey="volume" radius={0}>
+                {shipmentVolume.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={
+                      i === shipmentVolume.length - 1
+                        ? "hsl(8, 87%, 36%)"
+                        : "hsl(var(--foreground) / 0.15)"
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Port Activity */}
+        <div className="border border-border p-4 mb-3">
+          <span className="font-mono text-[10px] tracking-widest font-semibold block mb-3">PORT_ACTIVITY</span>
+          <div className="space-y-2">
+            {portActivity.map((port) => (
+              <div key={port.port} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Anchor className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-mono text-[10px]">{port.port.toUpperCase()}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <Ship className="h-3 w-3" />
+                    <span className="font-mono text-[10px] font-bold">{port.active}</span>
+                  </div>
+                  {port.delayed > 0 && (
+                    <span className="font-mono text-[9px] text-primary border border-primary px-1 py-0.5">
+                      {port.delayed} DELAYED
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Compliance Scores */}
+        <div className="border border-border p-4 mb-6">
+          <span className="font-mono text-[10px] tracking-widest font-semibold block mb-3">SUPPLIER_COMPLIANCE</span>
+          <div className="space-y-2">
+            {complianceScores.map((s) => (
+              <div key={s.supplier} className="flex items-center justify-between">
+                <span className="text-[11px]">{s.supplier}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1.5 bg-border">
+                    <div
+                      className={`h-full ${s.score < 80 ? "bg-primary" : "bg-foreground"}`}
+                      style={{ width: `${s.score}%` }}
+                    />
+                  </div>
+                  <span className={`font-mono text-[10px] font-bold ${s.score < 80 ? "text-primary" : ""}`}>
+                    {s.score}
+                  </span>
+                  {trendIcon[s.trend]}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Visual Feed Cards */}
+        <h3 className="font-mono text-[11px] tracking-widest font-semibold mb-3">LIVE_FEED</h3>
         <div className="space-y-3 mb-8">
           {feedCards.map((card, i) => (
             <button
@@ -79,7 +185,7 @@ export default function Index() {
               }`}
               style={{ animationDelay: `${i * 80}ms` }}
             >
-              <div className="relative overflow-hidden h-32">
+              <div className="relative overflow-hidden h-28">
                 <img
                   src={card.image}
                   alt={card.title}
@@ -98,28 +204,6 @@ export default function Index() {
               </div>
             </button>
           ))}
-        </div>
-
-        {/* Recent Chats */}
-        <div>
-          <h3 className="font-mono text-[11px] tracking-widest font-semibold mb-3">MY_CHATS</h3>
-          <div className="space-y-2">
-            {recentChats.map((chat) => (
-              <button
-                key={chat.id}
-                className="w-full text-left p-3 border border-border hover:border-foreground/30 transition-colors group"
-              >
-                <p className="text-xs font-medium truncate">{chat.title}</p>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[10px] text-muted-foreground truncate">{chat.participants}</span>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
-                    <Clock className="h-2.5 w-2.5" />
-                    {chat.time}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -230,7 +314,6 @@ export default function Index() {
                     {project.status}
                   </span>
                 </div>
-                {/* Progress bar */}
                 <div className="w-full h-1 bg-border mb-2">
                   <div
                     className="h-full bg-primary transition-all"
@@ -310,6 +393,28 @@ export default function Index() {
                 </div>
                 <span className="text-[10px] text-muted-foreground">{meeting.attendees} attendees</span>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Chats */}
+        <div className="mb-6">
+          <h3 className="font-mono text-[10px] tracking-widest font-semibold mb-3">RECENT_CHATS</h3>
+          <div className="space-y-1.5">
+            {recentChats.map((chat) => (
+              <button
+                key={chat.id}
+                className="w-full text-left p-2.5 border border-border hover:border-foreground/30 transition-colors"
+              >
+                <p className="text-xs font-medium truncate">{chat.title}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] text-muted-foreground truncate">{chat.participants}</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
+                    <Clock className="h-2.5 w-2.5" />
+                    {chat.time}
+                  </span>
+                </div>
+              </button>
             ))}
           </div>
         </div>
