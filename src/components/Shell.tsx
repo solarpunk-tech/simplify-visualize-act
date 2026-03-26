@@ -2,6 +2,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { FloatingChat } from "./FloatingChat";
+import { CommandPalette } from "./CommandPalette";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -20,6 +21,7 @@ export function Shell({ children }: ShellProps) {
           <FloatingChat />
         </div>
       </div>
+      <CommandPalette />
     </SidebarProvider>
   );
 }
