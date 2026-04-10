@@ -1,107 +1,73 @@
 
 
-## UBIK — Phase 1 Build: Shell + Home + Agents (Nav-by-Nav)
+## UBIK Enterprise Sidebar — Full Rebuild
 
-Since nothing is built yet, this is a full foundation build. Per your request to go "nav by nav," this phase covers the **shell layout**, **Home feed**, and **Agents view** — the two most complex surfaces. Remaining nav items (Inbox, Projects, Meetings, Settings) will follow in subsequent phases.
+Complete rewrite of `AppSidebar.tsx` to match the executive command center specification. Also update `TopBar.tsx` route labels and `App.tsx` routes to align with the new navigation structure.
 
-### Design System
+### What Changes
 
-- **Palette**: `#000000` black, `#ffffff` white, `#af2309` red. No greys. Use `rgba(0,0,0,0.5)` for secondary text in light mode, `rgba(255,255,255,0.5)` in dark mode
-- **Dark mode**: Pure black base, white text, same red accent. Borders `rgba(255,255,255,0.12)`
-- **Typography**: JetBrains Mono (nav, labels, system text), Inter (body, descriptions)
-- **Zero border-radius**, 1px borders, zero decorative shadows
-- **CSS variables** updated in `index.css` for both modes
+**1. `src/components/AppSidebar.tsx`** — Full rewrite
 
-### Shell Layout (all pages)
+The sidebar becomes a structured, sectioned executive navigation with:
 
-- **Left sidebar** (~56px collapsed / ~200px expanded): `[UBIK]` wordmark, nav icons for Home, Inbox, Projects, Meetings, Agents, Settings. Active = red left border + red icon/text
-- **Top bar** (48px): Breadcrumb left, contextual label showing active tab (e.g. `UBIK_HOME` / `UBIK_AGENTS`), dark/light toggle right
-- **Floating chat bar** at bottom center of main content area — textarea with send button. Context chips show active tab highlighted (e.g. "HOME" chip is red when on home). Can be toggled to "all-purpose" mode by removing chip selection
+- **Header**: UBIK wordmark + collapse/expand toggle button (right-aligned)
+- **Search bar**: "Search anything" input with `⌘K` hint badge, clicking opens CommandPalette
+- **+ Create button**: Uses shadcn DropdownMenu with options: Ask Ubik, Start Research, New Project, New Workflow, Schedule Monitor, Add Note
+- **Notifications bell icon**: Subtle, next to search area
 
-### Home Page (`/`)
+**Section 1 — NAVIGATE** (collapsible):
+- Briefing (`/`, icon: LayoutDashboard)
+- Inbox (`/inbox`, icon: Inbox) — red unread badge "3"
+- Meetings (`/meetings`, icon: Calendar)
+- Projects (`/projects`, icon: FolderKanban)
+- Intelligence (`/intelligence`, icon: Radar) — small active dot
+- Approvals (`/approvals`, icon: ShieldCheck) — red pending badge "2"
 
-Three-column layout: Feed | Quick Actions | Context Intelligence
+**Section 2 — EXECUTION** (collapsible):
+- Workflows (`/workflows`, icon: Workflow) — running status dot
+- Agents (`/agents`, icon: Bot) — health status dot
 
-**Left column — Feed**
-- "GOOD MORNING." heading with red period, date/time
-- **Engagement feed**: Rotating visual cards (like MidJourney-style generated images based on user's industry — seafood shipments, ports, containers) with subtle animation. Behavioral hook to draw users in
-- Recent conversation threads with timestamps
+**Section 3 — PINNED** (collapsible):
+- 5 static mock items with type icons (chat, research, project, workflow, meeting)
+- "View all" link
 
-**Center column — Quick Actions + Task Tracker**
-- "ASK ANYTHING." input (connects to floating chat bar)
-- 4 quick action cards: Email Analysis, Budget Report, Research, Project Status
-- **Inline task tracker**: Pre-filled intelligent tasks extracted from emails/meetings. Shows deduplication indicators ("3 duplicates merged"), tasks grouped by project. Status chips: TODO / IN_PROGRESS / DONE
+**Section 4 — RECENTS** (collapsible):
+- 6 static mock items with type icons
+- "View all" link
 
-**Right column — Context Intelligence Panel**
-- Active workflows count + status (running/stopped)
-- Pending approvals with urgency badges
-- Calendar snapshot (next 3 meetings)
-- Unread inbox count
-- AI-surfaced insights ("3 rate confirmations pending > 48hrs")
+**Bottom utility**:
+- Archive, Settings, Help as nav links
+- Profile row: avatar initial circle + "Arjun M." + chevron
+- Metadata line: `Business • Prod • v1.0.4` in small muted text
 
-**Project cards** at bottom of center column: 2-3 cards showing active projects (e.g. "Mumbai-Rotterdam Q2", "Supplier Compliance Audit") with progress indicators and last activity
+**Collapse behavior**:
+- Full sidebar collapse to icon-only rail using shadcn `collapsible="icon"`
+- In collapsed state: search becomes search icon, +Create becomes + icon, section labels hide, pinned/recents hide, badges stay as small dots on icons, tooltips on hover
+- Each section (Navigate, Execution, Pinned, Recents) independently collapsible via chevron toggle
+- Active item: red left border + red text/icon
 
-### Agents Page (`/agents`)
+**Styling**: 0px border-radius, 1px borders, JetBrains Mono for all labels, no greys (use opacity on black/white), red accent `#af2309` for active states and badges.
 
-Three sections in a flexible panel layout:
+**2. `src/components/TopBar.tsx`** — Update route labels
 
-**1. My Agents — Workflow Configuration**
-- List of agent workflows, each as an expandable card:
-  - Agent name, description, ON/OFF toggle
-  - **Workflow steps** shown as a pipeline: e.g. `Figma MCP → Browser Use → Computer Use → Notify`
-  - Each step shows: tool icon, name, status (connected/disconnected), last run
-  - "Add Step" button to extend pipeline
-- Pre-built agent templates: "Email Triage Agent", "Rate Confirmation Agent", "Document Extractor", "Meeting Follow-up Agent"
+Add new route labels:
+- `/` → `UBIK_BRIEFING`
+- `/intelligence` → `UBIK_INTELLIGENCE`
+- `/approvals` → `UBIK_APPROVALS`
+- `/workflows` → `UBIK_WORKFLOWS`
 
-**2. Approvals Queue**
-- Cards showing pending agent actions needing human sign-off
-- Each card: agent name, action summary, confidence score, context preview, APPROVE / REJECT / MODIFY buttons
-- Red left border for urgent items
-- Provenance block showing what context the agent used to reach its recommendation
+**3. `src/App.tsx`** — Add new routes
 
-**3. Preferences & App Connections**
-- Connected apps list with status indicators: Gmail, Slack, WhatsApp, Figma, Calendar, Telegram
-- Per-app permissions: read/write/execute toggles
-- Agent behavior preferences: aggressiveness level (conservative/balanced/autonomous), notification preferences, auto-approve thresholds
-- "Connected Tools" grid showing MCP integrations with connect/disconnect buttons
+Add placeholder routes for `/intelligence`, `/approvals`, `/workflows`.
 
-### Floating Chat Bar (global component)
+**4. `src/lib/mock-data.ts`** — Add pinned/recents data
 
-- Fixed bottom-center, ~600px wide
-- Textarea + attachment + send button
-- **Context chips row** above input: HOME, INBOX, PROJECTS, MEETINGS, AGENTS — active tab chip highlighted in red. Clicking a chip scopes the chat context. Clicking active chip again removes scope (all-purpose mode)
-- Model selector dropdown (subtle, right side)
-
-### Routing
-
-| Route | Page |
-|-------|------|
-| `/` | Home |
-| `/inbox` | Placeholder |
-| `/projects` | Placeholder |
-| `/meetings` | Placeholder |
-| `/agents` | Agents |
-| `/settings` | Placeholder |
-
-### Files to Create/Modify
-
-1. `src/index.css` — Design system variables (red/black/white, dark mode)
-2. `src/components/Shell.tsx` — Sidebar + topbar + floating chat bar wrapper
-3. `src/components/Sidebar.tsx` — Navigation
-4. `src/components/TopBar.tsx` — Breadcrumb + toggle
-5. `src/components/FloatingChat.tsx` — Global chat input with context chips
-6. `src/components/ThemeToggle.tsx` — Dark/light mode
-7. `src/pages/Index.tsx` — Home feed (3-column)
-8. `src/pages/Agents.tsx` — Agents view (workflows, approvals, preferences)
-9. `src/pages/Placeholder.tsx` — Stub for unbuilt nav items
-10. `src/App.tsx` — Routes + Shell wrapper
-11. `src/lib/mock-data.ts` — All dummy data for home feed, agents, tasks, projects
+Add `pinnedItems` and `recentItems` arrays with mixed object types (chat, research, project, workflow, meeting) and appropriate metadata.
 
 ### Implementation Order
 
-1. Design system + Shell (sidebar, topbar, theme toggle)
-2. Floating chat bar component
-3. Home page — feed column, quick actions, context intelligence panel, project cards, task tracker
-4. Agents page — workflows, approvals, preferences
-5. Wire routing + placeholder pages
+1. Add mock data for pinned/recents
+2. Rebuild AppSidebar with all sections, badges, collapse behavior, profile row
+3. Update TopBar route labels
+4. Add new routes in App.tsx
 
