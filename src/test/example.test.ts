@@ -11,6 +11,8 @@ describe("Ubik shell", () => {
 
     expect(await screen.findByText("Start with a question or a task.")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Start with an operator task, a thread to continue, or a decision that needs context.")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search threads, notes, approvals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recent Work")).not.toBeInTheDocument();
   });
 
   it("preserves Chat composer state when switching tabs", async () => {
@@ -38,6 +40,31 @@ describe("Ubik shell", () => {
         screen.getByDisplayValue("Prepare the operator note for the Thai Union review."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("supports chat modes and source chips on Know Anything", async () => {
+    window.history.pushState({}, "", "/");
+    render(createElement(App));
+
+    fireEvent.click(await screen.findByText("Max"));
+    fireEvent.click(screen.getByText("Internet"));
+
+    fireEvent.click(screen.getByLabelText("Run prompt"));
+
+    expect(await screen.findByText("Know Anything runtime")).toBeInTheDocument();
+    expect(screen.getByText("MAX")).toBeInTheDocument();
+    expect(screen.getByText("Internet")).toBeInTheDocument();
+  });
+
+  it("opens the plus menu and adds connector context", async () => {
+    window.history.pushState({}, "", "/");
+    render(createElement(App));
+
+    const trigger = await screen.findByLabelText("Open context menu");
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Salesforce" }));
+
+    expect(await screen.findByText("Salesforce")).toBeInTheDocument();
   });
 
   it("opens the command palette from Create", async () => {
