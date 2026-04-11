@@ -52,6 +52,7 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
   const [activeTabId, setActiveTabId] = useState(initialWorkbenchTabs[0].id);
   const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
   const [runtimeContent, setRuntimeContent] = useState<RuntimeContent | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [pageState, setPageStateMap] = useState<ShellPageStateMap>({});
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
 
   const createTab = (pathname: string) => {
     const route = getRouteMeta(pathname);
-    if (!route) return;
+    if (!route) return null;
 
     const nextTab: WorkbenchTab =
       pathname === "/"
@@ -116,6 +117,7 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
       pathname: route.path,
       search: `tab=${nextTab.id}`,
     });
+    return nextTab.id;
   };
 
   const navigateCurrentTab = (pathname: string) => {
@@ -250,6 +252,8 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
     closedTabs,
     drawerContent,
     runtimeContent,
+    commandPaletteOpen,
+    setCommandPaletteOpen,
     selectTab,
     createTab,
     navigateCurrentTab,

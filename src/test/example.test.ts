@@ -39,4 +39,54 @@ describe("Ubik shell", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("opens the command palette from Create", async () => {
+    window.history.pushState({}, "", "/");
+    render(createElement(App));
+
+    const createButtons = await screen.findAllByLabelText("Open command palette");
+    fireEvent.click(createButtons[0]);
+
+    expect(await screen.findByPlaceholderText("Type a command or search...")).toBeInTheDocument();
+    expect(screen.getByText("SUGGESTED")).toBeInTheDocument();
+  });
+
+  it("runs Summarize priorities into a new Know Anything tab", async () => {
+    window.history.pushState({}, "", "/");
+    render(createElement(App));
+
+    const createButtons = await screen.findAllByLabelText("Open command palette");
+    fireEvent.click(createButtons[0]);
+
+    fireEvent.click(await screen.findByText("Summarize today's priorities"));
+
+    const composer = await screen.findByPlaceholderText(
+      "Start with an operator task, a thread to continue, or a decision that needs context.",
+    );
+
+    await waitFor(() => {
+      expect(composer).toHaveValue(
+        "Summarize today's priorities using Inbox, Approvals, and Meetings. Output top 5 priorities with next action, owner, and ETA.",
+      );
+    });
+  });
+
+  it("runs approvals fetch into drawer and runtime and navigates to Approvals", async () => {
+    window.history.pushState({}, "", "/");
+    render(createElement(App));
+
+    const createButtons = await screen.findAllByLabelText("Open command palette");
+    fireEvent.click(createButtons[0]);
+
+    fireEvent.click(await screen.findByText("Fetch pending approvals from agents"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Approvals keep recommendations direct, auditable, and easy to inspect."),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Pending approvals")).toBeInTheDocument();
+    expect(screen.getByText("Approvals fetch")).toBeInTheDocument();
+  });
 });

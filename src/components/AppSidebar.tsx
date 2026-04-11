@@ -96,7 +96,7 @@ function SectionToggle({
 
 export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
-  const { openDrawer, navigateCurrentTab } = useShellState();
+  const { openDrawer, navigateCurrentTab, setCommandPaletteOpen } = useShellState();
   const location = useLocation();
   const collapsed = state === "collapsed";
   const [recentSearch, setRecentSearch] = useWorkbenchState("recent-search", "");
@@ -158,9 +158,17 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="px-6 py-4">
-            <button className="flex w-full items-center justify-center gap-2 border border-sidebar-border bg-sidebar-primary px-3 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-primary-foreground">
+            <button
+              className="flex w-full items-center justify-center gap-2 border border-sidebar-border bg-sidebar-primary px-3 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-primary-foreground"
+              type="button"
+              onClick={() => setCommandPaletteOpen(true)}
+              aria-label="Open command palette"
+            >
               <Sparkles className="h-3.5 w-3.5" />
               Create
+              <kbd className="ml-2 border border-sidebar-border px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-sidebar-primary-foreground/80">
+                ⌘K
+              </kbd>
             </button>
           </div>
         )}

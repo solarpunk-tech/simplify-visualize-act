@@ -10,8 +10,10 @@ export type ShellStateContextValue = {
   closedTabs: WorkbenchTab[];
   drawerContent: DrawerContent | null;
   runtimeContent: RuntimeContent | null;
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
   selectTab: (id: string) => void;
-  createTab: (pathname: string) => void;
+  createTab: (pathname: string) => string | null;
   navigateCurrentTab: (pathname: string) => void;
   closeTab: (id: string) => void;
   duplicateTab: (id: string) => void;

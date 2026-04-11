@@ -566,53 +566,22 @@ export const portActivity = [
 export const commandSections = [
   {
     id: "quick",
-    label: "QUICK_ACTIONS",
-    layout: "horizontal" as const,
-    items: [
-      { id: "ask", label: "Ask anything...", shortcut: "↵", icon: "Search" },
-      { id: "research", label: "Deep Research", shortcut: "⇧R", icon: "Brain" },
-      { id: "email", label: "Analyze Emails", shortcut: "⇧E", icon: "Mail" },
-      { id: "budget", label: "Generate Report", shortcut: "⇧B", icon: "BarChart3" },
-    ],
-  },
-  {
-    id: "agents",
-    label: "CUSTOM_AGENTS",
-    layout: "horizontal" as const,
-    items: [
-      { id: "scrape-exim", label: "Scrape EXIM Data", shortcut: "", icon: "Globe" },
-      { id: "revenue-est", label: "Update Revenue Estimates", shortcut: "", icon: "BarChart3" },
-      { id: "competitor", label: "Competitor Analysis", shortcut: "", icon: "Brain" },
-      { id: "market-scan", label: "Market Rate Scan", shortcut: "", icon: "Search" },
-    ],
-  },
-  {
-    id: "projects",
-    label: "PROJECTS",
+    label: "QUICK ACTIONS",
     layout: "vertical" as const,
     items: [
-      { id: "project-mr", label: "Mumbai-Rotterdam Q2", shortcut: "", icon: "FolderKanban" },
-      { id: "project-sca", label: "Supplier Compliance Audit", shortcut: "", icon: "FolderKanban" },
-      { id: "project-af", label: "Atlantic Fresh Q3", shortcut: "", icon: "FolderKanban" },
+      { id: "priorities_summarize", label: "Summarize today's priorities", shortcut: "", icon: "Brain" },
+      { id: "delay_notice_draft", label: "Draft delay notice", shortcut: "", icon: "Mail" },
+      { id: "compliance_check_run", label: "Run compliance check across all shipments", shortcut: "", icon: "CheckSquare" },
+      { id: "market_digest_weekly", label: "Generate weekly market digest", shortcut: "", icon: "BarChart3" },
     ],
   },
   {
-    id: "recent",
-    label: "RECENT_CHATS",
+    id: "data",
+    label: "DATA",
     layout: "vertical" as const,
     items: [
-      { id: "chat-1", label: "Rate confirmation — Maersk Q2", shortcut: "", icon: "MessageSquare" },
-      { id: "chat-2", label: "Supplier compliance check", shortcut: "", icon: "MessageSquare" },
-    ],
-  },
-  {
-    id: "context",
-    label: "CONTEXT_ACTIONS",
-    layout: "vertical" as const,
-    items: [
-      { id: "scrape", label: "Scrape page → Add to library", shortcut: "", icon: "Globe" },
-      { id: "meeting-prep", label: "Prepare for next meeting", shortcut: "", icon: "Calendar" },
-      { id: "task-create", label: "Create task from selection", shortcut: "⇧T", icon: "CheckSquare" },
+      { id: "approvals_fetch_pending", label: "Fetch pending approvals from agents", shortcut: "", icon: "Bot" },
+      { id: "schedule_pull_today", label: "Pull today's schedule from Gmail", shortcut: "", icon: "Calendar" },
     ],
   },
 ];

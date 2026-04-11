@@ -1,4 +1,5 @@
 import { AppSidebar } from "./AppSidebar";
+import { CommandPalette } from "./CommandPalette";
 import { RightDrawer, RuntimePanel } from "./ShellPanels";
 import { TopBar } from "./TopBar";
 import { WorkbenchTabs } from "./WorkbenchTabs";
@@ -26,6 +27,7 @@ export function Shell({ children }: ShellProps) {
           <SidebarInset className="min-h-screen border-l border-border">
             <WorkbenchTabs />
             <TopBar />
+            <CommandPalette />
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <main className="min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
               <RightDrawer />

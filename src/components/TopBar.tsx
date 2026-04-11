@@ -7,7 +7,7 @@ import { getRouteMeta } from "@/lib/ubik-data";
 
 export function TopBar() {
   const location = useLocation();
-  const { openDrawer } = useShellState();
+  const { openDrawer, setCommandPaletteOpen } = useShellState();
   const route = getRouteMeta(location.pathname);
 
   return (
@@ -47,9 +47,16 @@ export function TopBar() {
             </button>
           ))}
 
-          <button className="border border-border bg-foreground px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-background">
+          <button
+            className="border border-border bg-foreground px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-background"
+            onClick={() => setCommandPaletteOpen(true)}
+            aria-label="Open command palette"
+          >
             <Sparkles className="mr-2 inline h-3.5 w-3.5" />
             Create
+            <kbd className="ml-2 border border-current/25 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-background/80">
+              ⌘K
+            </kbd>
           </button>
         </div>
       </div>
