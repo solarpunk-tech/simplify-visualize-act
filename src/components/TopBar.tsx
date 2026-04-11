@@ -12,21 +12,17 @@ export function TopBar() {
 
   return (
     <header className="border-b border-border bg-background">
-      <div className="flex flex-col gap-4 px-4 py-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
           <SidebarTrigger className="border border-border md:hidden" />
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Ubik Workspace</p>
-            <h1 className="mt-2 font-mono text-[2.3rem] font-semibold tracking-tight leading-none">{route?.title ?? "Ubik"}</h1>
-            <p className="mt-3 max-w-2xl text-base text-muted-foreground">{route?.description}</p>
-          </div>
+          <p className="max-w-3xl text-sm text-muted-foreground lg:text-[15px]">{route?.description}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {route?.actions.map((action) => (
             <button
               key={action.label}
-              className={`border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] ${
+              className={`border px-3 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.14em] ${
                 action.kind === "primary"
                   ? "border-foreground bg-foreground text-background"
                   : "border-border bg-card text-foreground"
@@ -48,13 +44,13 @@ export function TopBar() {
           ))}
 
           <button
-            className="border border-border bg-foreground px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-background"
+            className="flex items-center gap-2 border border-border bg-foreground px-4 py-2.5 text-left font-mono text-[10.5px] uppercase tracking-[0.14em] text-background"
             onClick={() => setCommandPaletteOpen(true)}
             aria-label="Open command palette"
           >
-            <Sparkles className="mr-2 inline h-3.5 w-3.5" />
-            Create
-            <kbd className="ml-2 border border-current/25 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-background/80">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Create</span>
+            <kbd className="ml-auto border border-current/25 px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-background/80">
               ⌘K
             </kbd>
           </button>

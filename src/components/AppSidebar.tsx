@@ -159,14 +159,14 @@ export function AppSidebar() {
         ) : (
           <div className="px-6 py-4">
             <button
-              className="flex w-full items-center justify-center gap-2 border border-sidebar-border bg-sidebar-primary px-3 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-primary-foreground"
+              className="flex w-full items-center gap-2 border border-sidebar-border bg-sidebar-primary px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-primary-foreground"
               type="button"
               onClick={() => setCommandPaletteOpen(true)}
               aria-label="Open command palette"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Create
-              <kbd className="ml-2 border border-sidebar-border px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-sidebar-primary-foreground/80">
+              <span>Create</span>
+              <kbd className="ml-auto border border-sidebar-border px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-sidebar-primary-foreground/80">
                 ⌘K
               </kbd>
             </button>
