@@ -25,7 +25,7 @@ export function WorkbenchTabs() {
 
   return (
     <div className="border-b border-border bg-[#f6f3ed]">
-      <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {tabs.map((tab) => {
             const active = tab.id === activeTabId;
@@ -51,21 +51,21 @@ export function WorkbenchTabs() {
                 className={`group flex shrink-0 items-center ${dragging ? "opacity-60" : ""}`}
               >
                 <div
-                  className={`flex h-10 items-stretch overflow-hidden rounded-sm border transition-colors ${
+                  className={`flex h-9 items-stretch overflow-hidden rounded-sm border transition-colors ${
                     active
                       ? "border-[#1f1f1f] bg-[#1f1f1f] text-[#f7f5f0]"
                       : "border-[#ddd7cf] bg-[#fbfaf7] text-[#494741] hover:border-[#c9c1b6] hover:bg-white"
                   }`}
                 >
                   <button
-                    className="flex h-10 max-w-[168px] items-center truncate px-4 font-mono text-[11px] font-medium uppercase tracking-[0.16em]"
+                    className="flex h-9 max-w-[156px] items-center truncate px-3.5 font-mono text-[10.5px] font-medium uppercase tracking-[0.16em]"
                     onClick={() => selectTab(tab.id)}
                   >
                     {tab.title}
                   </button>
                   {tab.closable === false ? null : (
                     <button
-                      className={`flex h-10 w-10 items-center justify-center border-l border-current/20 transition-opacity ${
+                      className={`flex h-9 w-9 items-center justify-center border-l border-current/20 transition-opacity ${
                         active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                       }`}
                       onClick={() => closeTab(tab.id)}
@@ -81,8 +81,8 @@ export function WorkbenchTabs() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="ml-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground transition-colors hover:brightness-95">
-                <Plus className="h-4 w-4" />
+              <button className="ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground transition-colors hover:brightness-95">
+                <Plus className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52 font-mono text-[11px] uppercase tracking-[0.14em]">
@@ -95,9 +95,9 @@ export function WorkbenchTabs() {
           </DropdownMenu>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
-            className="relative flex h-10 w-10 items-center justify-center border border-primary bg-primary text-primary-foreground transition-colors hover:brightness-95"
+            className="relative flex h-9 w-9 items-center justify-center border border-primary bg-primary text-primary-foreground transition-colors hover:brightness-95"
             onClick={() =>
               openDrawer({
                 title: "Notifications",
@@ -112,8 +112,8 @@ export function WorkbenchTabs() {
             }
             aria-label="Open notifications"
           >
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 bg-primary" />
+            <Bell className="h-3.5 w-3.5" />
+            <span className="absolute right-1 top-1 h-2.5 w-2.5 bg-primary" />
           </button>
           <ThemeToggle />
         </div>
