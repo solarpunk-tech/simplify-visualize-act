@@ -100,7 +100,7 @@ export type MeetingRecord = {
 
 export type LinkedItem = {
   label: string;
-  kind: "workflow" | "report" | "approval" | "file" | "chat";
+  kind: "workflow" | "report" | "approval" | "file" | "chat" | "meeting";
 };
 
 export type ProjectRecord = {
