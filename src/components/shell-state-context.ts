@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import type { DrawerContent, RuntimeContent, WorkbenchTab } from "@/lib/ubik-types";
+import type { DrawerSurfaceContent, RuntimeContent, WorkbenchTab } from "@/lib/ubik-types";
 
 type PageStateMap = Record<string, unknown>;
 
@@ -8,7 +8,7 @@ export type ShellStateContextValue = {
   activeTabId: string;
   tabs: WorkbenchTab[];
   closedTabs: WorkbenchTab[];
-  drawerContent: DrawerContent | null;
+  drawerContent: DrawerSurfaceContent | null;
   runtimeContent: RuntimeContent | null;
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -23,7 +23,7 @@ export type ShellStateContextValue = {
   reorderTab: (id: string, targetId: string) => void;
   togglePin: (id: string) => void;
   reopenTab: (id: string) => void;
-  openDrawer: (content: DrawerContent | null) => void;
+  openDrawer: (content: DrawerSurfaceContent | null) => void;
   openRuntime: (content: RuntimeContent | null) => void;
   getPageState: <T>(key: string, fallback: T) => T;
   setPageState: <T>(key: string, value: T) => void;

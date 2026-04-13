@@ -210,4 +210,173 @@ describe("Ubik shell", () => {
     expect(screen.getByText("Pending approvals")).toBeInTheDocument();
     expect(screen.getByText("Approvals fetch")).toBeInTheDocument();
   });
+
+  it("renders the inbox decision queue and workspace by default", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    expect(await screen.findByText("Decision queue")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Q2 rate confirmation requires executive response" })).toBeInTheDocument();
+    expect(screen.getByText("Thread timeline")).toBeInTheDocument();
+    expect(screen.getByText("Action rail")).toBeInTheDocument();
+  });
+
+  it("filters inbox threads and supports keyboard navigation", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    fireEvent.keyDown(await screen.findByLabelText("Open thread Q2 rate confirmation requires executive response"), {
+      key: "ArrowDown",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Cold-chain delay at Mumbai port" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Follow-up risk" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Still waiting on revised delivery note" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("Search threads, company, account, task"), {
+      target: { value: "Harbor Retail" },
+    });
+
+    expect(screen.getByRole("heading", { name: "Still waiting on revised delivery note" })).toBeInTheDocument();
+  });
+
+  it("moves threads through reviewed, watching, and archive transitions", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    expect(await screen.findByRole("heading", { name: "Q2 rate confirmation requires executive response" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Mark current thread reviewed"));
+    fireEvent.click(screen.getByRole("button", { name: "Watching" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Q2 rate confirmation requires executive response" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText("Archive Q2 rate confirmation requires executive response"));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Q2 rate confirmation requires executive response" })).toBeInTheDocument();
+    });
+  });
+
+  it("supports watch transitions from the queue", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Follow-up risk" }));
+    fireEvent.click(screen.getByLabelText("Watch Still waiting on revised delivery note"));
+    fireEvent.click(screen.getByRole("button", { name: "Watching" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Still waiting on revised delivery note" })).toBeInTheDocument();
+    });
+  });
+
+  it("opens approval, task, and provenance drawers from the workspace", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Request approval" }));
+
+    expect(await screen.findByText("Proposed action")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByText("Editing")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Dismiss drawer"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Proposed action")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create or update task" }));
+
+    expect(await screen.findByText("Task packet")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Release rate confirmation")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Dismiss drawer"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Open drawer" }));
+
+    expect(await screen.findByText("Recommendation inputs")).toBeInTheDocument();
+  });
+
+  it("renders loading and empty inbox scenarios from seeded fixtures", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main&scenario=loading");
+    render(createElement(App));
+
+    expect(await screen.findByLabelText("Queue loading state")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workspace loading state")).toBeInTheDocument();
+  });
+
+  it("renders the empty inbox scenario from seeded fixtures", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main&scenario=empty");
+    render(createElement(App));
+
+    expect(await screen.findByText("No priority threads")).toBeInTheDocument();
+  });
+
+  it("renders the error inbox scenario from seeded fixtures", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main&scenario=error");
+    render(createElement(App));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ranking degraded");
+    expect(screen.getByText(/CRM context is currently unavailable/)).toBeInTheDocument();
+  });
+
+  it("renders the permissions-limited inbox scenario from seeded fixtures", async () => {
+    window.history.pushState({}, "", "/inbox?tab=inbox-main&scenario=permissions");
+    render(createElement(App));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("permissions-limited");
+    expect(screen.getByText(/CRM and ERP fields are partially unavailable/)).toBeInTheDocument();
+  });
+
+  it("uses queue-first behavior on narrow widths", async () => {
+    const originalWidth = window.innerWidth;
+    const originalMatchMedia = window.matchMedia;
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 500,
+    });
+
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes("max-width: 767px"),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => {},
+      }),
+    });
+
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    expect(screen.queryByText("Thread timeline")).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByLabelText("Open thread Q2 rate confirmation requires executive response"));
+
+    expect(await screen.findByRole("button", { name: "Back to queue" })).toBeInTheDocument();
+    expect(screen.getByText("Thread timeline")).toBeInTheDocument();
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: originalWidth,
+    });
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: originalMatchMedia,
+    });
+  });
 });

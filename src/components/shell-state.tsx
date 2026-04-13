@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { getRouteMeta, initialWorkbenchTabs } from "@/lib/ubik-data";
 import { ShellStateContext, type ShellPageStateMap } from "@/components/shell-state-context";
-import type { DrawerContent, RuntimeContent, WorkbenchTab } from "@/lib/ubik-types";
+import type { DrawerSurfaceContent, RuntimeContent, WorkbenchTab } from "@/lib/ubik-types";
 
 let tabSequence = 10;
 const MAX_WORKBENCH_TABS = 8;
@@ -107,7 +107,7 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
   const [tabs, setTabs] = useState<WorkbenchTab[]>(initialWorkbenchTabs);
   const [closedTabs, setClosedTabs] = useState<WorkbenchTab[]>([]);
   const [activeTabId, setActiveTabId] = useState(initialWorkbenchTabs[0].id);
-  const [drawerContent, setDrawerContent] = useState<DrawerContent | null>(null);
+  const [drawerContent, setDrawerContent] = useState<DrawerSurfaceContent | null>(null);
   const [runtimeContent, setRuntimeContent] = useState<RuntimeContent | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [pageState, setPageStateMap] = useState<ShellPageStateMap>({});

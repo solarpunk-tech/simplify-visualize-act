@@ -68,21 +68,134 @@ export type SignalItem = {
   tone?: "default" | "alert";
 };
 
+export type InboxSource = "Email" | "Slack" | "WhatsApp" | "System";
+
+export type InboxPriority = "Critical" | "High" | "Medium";
+
+export type InboxPriorityBand =
+  | "needs_attention"
+  | "review_today"
+  | "waiting_on_you"
+  | "follow_up_risk"
+  | "awaiting_approval"
+  | "delegated"
+  | "watching"
+  | "auto_handled"
+  | "archive";
+
+export type InboxActionKey =
+  | "generate_reply"
+  | "request_approval"
+  | "set_follow_up"
+  | "create_task"
+  | "run_workflow"
+  | "suggest_delegate"
+  | "open_systems"
+  | "analyze_attachments"
+  | "mark_reviewed"
+  | "watch"
+  | "archive";
+
+export type InboxRecommendationAction = {
+  key: InboxActionKey;
+  label: string;
+  kind: "primary" | "secondary" | "tertiary";
+  description: string;
+};
+
+export type InboxTimelineMessage = {
+  id: string;
+  sender: string;
+  role: string;
+  time: string;
+  body: string;
+  summary?: string;
+  attachments?: string[];
+};
+
+export type InboxContextModule = {
+  id: string;
+  title: string;
+  items: { label: string; value: string }[];
+};
+
+export type InboxLinkedReference = {
+  id: string;
+  label: string;
+  status: string;
+};
+
+export type InboxProvenanceItem = {
+  label: string;
+  value: string;
+};
+
+export type InboxApprovalPacket = {
+  actionType: string;
+  riskLevel: string;
+  whyApprovalNeeded: string;
+  businessImpact: string;
+  target: string;
+  editableOutput: string;
+  sourceThread: string;
+  trace: string[];
+};
+
+export type InboxTaskPacket = {
+  mode: "create" | "update";
+  taskTitle: string;
+  owner: string;
+  dueDate: string;
+  nextAction: string;
+  sourceThread: string;
+  workflowLinkage: string;
+  approvalRequirement: string;
+  currentStatus: string;
+  delegationHistory: string[];
+  followUpPlan: string;
+  linkedPlaybook: string;
+  linkedAgent: string;
+};
+
 export type InboxThread = {
   id: string;
-  source: "Email" | "Slack" | "WhatsApp" | "System";
+  source: InboxSource;
   sender: string;
+  company: string;
   subject: string;
   preview: string;
-  priority: "Critical" | "High" | "Medium";
+  priority: InboxPriority;
+  priorityBand: InboxPriorityBand;
   owner: string;
-  status: "Action required" | "Waiting" | "Reviewed";
+  waitingState: string;
+  dueRisk: string;
+  lastMaterialChangeAt: string;
+  lastReviewedAt: string;
+  whyThisMatters: string;
+  whatChanged: string;
+  whatIsBlocked: string;
+  nextAction: string;
+  account: string;
+  project: string;
+  participants: string[];
+  approvalStatus: "approval_required" | "not_required" | "approved";
+  followUpStatus: "none" | "recommended" | "due_soon" | "overdue" | "auto_handled" | "blocked_by_approval";
+  delegationStatus: "none" | "suggested" | "delegated";
+  attachmentPresence: boolean;
+  linkedTask?: InboxLinkedReference;
+  linkedWorkflow?: InboxLinkedReference & { nextStep: string };
+  tags: string[];
   time: string;
   extractedTasks: string[];
   recommendedReply: string;
-  provenance: string[];
+  timeline: InboxTimelineMessage[];
+  contextModules: InboxContextModule[];
+  actionRecommendations: InboxRecommendationAction[];
+  provenance: InboxProvenanceItem[];
   attachments: string[];
-  approvalRequired?: boolean;
+  approvalPacket?: InboxApprovalPacket;
+  taskPacket: InboxTaskPacket;
+  permissionsLimited?: boolean;
 };
 
 export type MeetingRecord = {
@@ -195,6 +308,7 @@ export type HelpResource = {
 };
 
 export type DrawerContent = {
+  kind?: "generic";
   title: string;
   eyebrow?: string;
   description?: string;
@@ -202,6 +316,37 @@ export type DrawerContent = {
   timeline?: string[];
   actions?: string[];
 };
+
+export type ApprovalDrawerContent = {
+  kind: "approval";
+  title: string;
+  eyebrow?: string;
+  description?: string;
+  approval: InboxApprovalPacket;
+};
+
+export type TaskWorkflowDrawerContent = {
+  kind: "task_workflow";
+  title: string;
+  eyebrow?: string;
+  description?: string;
+  task: InboxTaskPacket;
+};
+
+export type ProvenanceDrawerContent = {
+  kind: "provenance";
+  title: string;
+  eyebrow?: string;
+  description?: string;
+  items: InboxProvenanceItem[];
+  supportingTrace?: string[];
+};
+
+export type DrawerSurfaceContent =
+  | DrawerContent
+  | ApprovalDrawerContent
+  | TaskWorkflowDrawerContent
+  | ProvenanceDrawerContent;
 
 export type RuntimeContent = {
   title: string;
