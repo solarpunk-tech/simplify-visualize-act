@@ -22,9 +22,9 @@ export function Shell({ children }: ShellProps) {
       }
     >
       <ShellStateProvider>
-        <div className="flex min-h-screen w-full bg-background text-foreground">
+        <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
           <AppSidebar />
-          <SidebarInset className="min-h-screen border-l border-border">
+          <SidebarInset className="min-h-0 min-w-0 border-l border-border">
             <WorkbenchTabs />
             <TopBar />
             <CommandPalette />

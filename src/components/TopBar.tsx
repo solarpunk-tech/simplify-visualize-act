@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Check, Ghost, Globe, Link2, Lock, X } from "lucide-react";
+import { Check, Ghost, Globe, Link2, Lock, Mail, SquareArrowOutUpRight, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Surface } from "@/components/ubik-primitives";
 import { useShellState } from "@/hooks/use-shell-state";
-import { getRouteMeta } from "@/lib/ubik-data";
+import { getRouteMeta, inboxThreads, settingsSections } from "@/lib/ubik-data";
+import type { InboxThread, PageAction } from "@/lib/ubik-types";
 
 const shareOptions = [
   {
@@ -34,13 +35,70 @@ const shareOptions = [
 
 type ShareOptionId = (typeof shareOptions)[number]["id"];
 
+type MailProvider = "gmail" | "outlook";
+
+function resolveMailProvider(preferredConnector: string | null) {
+  if (preferredConnector === "outlook" || preferredConnector === "outlook_drive") {
+    return "outlook" as const;
+  }
+
+  if (preferredConnector === "gmail") {
+    return "gmail" as const;
+  }
+
+  const connectorSection = settingsSections.find((section) => section.title === "Connectors");
+  const messagingValue = connectorSection?.values.find((value) => value.label === "Messaging")?.value.toLowerCase() ?? "";
+
+  if (messagingValue.includes("outlook")) {
+    return "outlook" as const;
+  }
+
+  return "gmail" as const;
+}
+
+function buildInboxSearchQuery(thread: InboxThread | null) {
+  if (!thread) return "";
+  return [thread.subject, thread.sender, thread.company].filter(Boolean).join(" ");
+}
+
+function buildComposeUrl(provider: MailProvider) {
+  if (provider === "outlook") {
+    return "https://outlook.office.com/mail/deeplink/compose";
+  }
+
+  const params = new URLSearchParams({ view: "cm", fs: "1", tf: "1" });
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+function buildOpenMailboxUrl(provider: MailProvider, thread: InboxThread | null) {
+  const query = buildInboxSearchQuery(thread);
+
+  if (provider === "outlook") {
+    if (!query) return "https://outlook.office.com/mail/";
+    return `https://outlook.office.com/mail/?q=${encodeURIComponent(query)}`;
+  }
+
+  if (!query) return "https://mail.google.com/mail/u/0/#inbox";
+  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query)}`;
+}
+
 export function TopBar() {
   const location = useLocation();
-  const { openDrawer, openFreshKnowAnything, openTemporaryKnowAnything } = useShellState();
+  const { activeTabId, getPageState, openDrawer, openFreshKnowAnything, openTemporaryKnowAnything } = useShellState();
   const route = getRouteMeta(location.pathname);
   const shareWrapRef = useRef<HTMLDivElement | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareAccess, setShareAccess] = useState<ShareOptionId>("team");
+  const preferredConnector = getPageState<string | null>(`${activeTabId}:mail-connector`, null);
+  const mailProvider = resolveMailProvider(preferredConnector);
+  const inboxThreadState = getPageState<InboxThread[]>(`${activeTabId}:inbox-threads`, inboxThreads);
+  const selectedInboxThreadId = getPageState<string>(`${activeTabId}:inbox-thread`, inboxThreadState[0]?.id ?? "");
+  const selectedInboxThread = inboxThreadState.find((thread) => thread.id === selectedInboxThreadId) ?? inboxThreadState[0] ?? null;
+  const inboxActions: PageAction[] = [
+    { label: "Compose", kind: "primary" },
+    { label: mailProvider === "outlook" ? "Open Outlook" : "Open Gmail", kind: "secondary" },
+  ];
+  const actions = route?.key === "inbox" ? inboxActions : route?.actions ?? [];
 
   const handleAction = (label: string) => {
     if (route?.key === "chat" && label === "New Thread") {
@@ -50,6 +108,21 @@ export function TopBar() {
 
     if (route?.key === "chat" && label === "Share") {
       setShareOpen((current) => !current);
+      return;
+    }
+
+    if (route?.key === "inbox" && label === "Compose") {
+      window.open(buildComposeUrl(mailProvider), "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (route?.key === "inbox" && label === "Open Outlook") {
+      window.open(buildOpenMailboxUrl("outlook", selectedInboxThread), "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (route?.key === "inbox" && label === "Open Gmail") {
+      window.open(buildOpenMailboxUrl("gmail", selectedInboxThread), "_blank", "noopener,noreferrer");
       return;
     }
 
@@ -90,10 +163,10 @@ export function TopBar() {
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <div className="relative flex flex-wrap items-center gap-2" ref={shareWrapRef}>
-            {route?.actions.map((action) => (
+            {actions.map((action) => (
               <button
                 key={action.label}
-                className={`h-9 border px-3.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
+                className={`inline-flex h-9 items-center justify-center border px-3.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
                   action.kind === "primary"
                     ? "border-foreground bg-foreground text-background"
                     : "border-border bg-card text-foreground"
@@ -101,6 +174,8 @@ export function TopBar() {
                 onClick={() => handleAction(action.label)}
                 type="button"
               >
+                {route?.key === "inbox" && action.label === "Compose" ? <Mail className="mr-1.5 h-3.5 w-3.5" /> : null}
+                {route?.key === "inbox" && action.label !== "Compose" ? <SquareArrowOutUpRight className="mr-1.5 h-3.5 w-3.5" /> : null}
                 {action.label}
               </button>
             ))}

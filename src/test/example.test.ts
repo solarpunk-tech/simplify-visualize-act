@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
 
@@ -219,6 +219,33 @@ describe("Ubik shell", () => {
     expect(screen.getByRole("heading", { name: "Q2 rate confirmation requires executive response" })).toBeInTheDocument();
     expect(screen.getByText("Thread timeline")).toBeInTheDocument();
     expect(screen.getByText("Action rail")).toBeInTheDocument();
+  });
+
+  it("replaces inbox header sort and filter actions with mail actions", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    window.history.pushState({}, "", "/inbox?tab=inbox-main");
+    render(createElement(App));
+
+    expect(await screen.findByText("Decision queue")).toBeInTheDocument();
+    expect(screen.queryByText("Sort")).not.toBeInTheDocument();
+    expect(screen.queryByText("Filter")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Compose" }));
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://mail.google.com/mail/?view=cm&fs=1&tf=1",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Gmail" }));
+    expect(openSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("mail.google.com/mail/u/0/#search/"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    openSpy.mockRestore();
   });
 
   it("filters inbox threads and supports keyboard navigation", async () => {

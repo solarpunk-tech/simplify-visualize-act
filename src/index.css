@@ -96,11 +96,28 @@
 
   html {
     font-feature-settings: "ss01" on;
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+  }
+
+  #root {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
   }
 
   button,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, FileStack, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, Clock3, FileStack, Search, ShieldCheck } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { Input } from "@/components/ui/input";
@@ -23,16 +23,16 @@ type InboxSortKey = "priority" | "recent_change" | "due_risk";
 type InboxScenario = "default" | "loading" | "empty" | "error" | "permissions";
 
 const priorityFilters: { key: InboxPriorityFilter; label: string }[] = [
-  { key: "all", label: "All priority" },
-  { key: "needs_attention", label: "Needs attention" },
+  { key: "all", label: "All" },
+  { key: "needs_attention", label: "Attention" },
   { key: "review_today", label: "Review today" },
   { key: "waiting_on_you", label: "Waiting on you" },
   { key: "follow_up_risk", label: "Follow-up risk" },
-  { key: "awaiting_approval", label: "Awaiting approval" },
+  { key: "awaiting_approval", label: "Approval" },
   { key: "delegated", label: "Delegated" },
   { key: "watching", label: "Watching" },
-  { key: "auto_handled", label: "Auto-handled" },
-  { key: "archive", label: "Archive" },
+  { key: "auto_handled", label: "Auto" },
+  { key: "archive", label: "Triage" },
 ];
 
 const priorityBandLabel: Record<InboxPriorityBand, string> = {
@@ -66,7 +66,7 @@ const priorityOrder: Record<InboxThread["priority"], number> = {
 };
 
 const selectClassName =
-  "h-10 rounded-none border border-border bg-card px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-foreground outline-none transition-colors focus:border-foreground/45";
+  "h-9 min-w-0 rounded-none border border-border bg-card px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground outline-none transition-colors focus:border-foreground/45 sm:h-10 sm:px-3 sm:text-[11px] sm:tracking-[0.14em]";
 
 function readScenario(search: string): InboxScenario {
   const scenario = new URLSearchParams(search).get("scenario");
@@ -82,6 +82,10 @@ function matchesPriorityFilter(thread: InboxThread, filter: InboxPriorityFilter)
   }
 
   return thread.priorityBand === filter;
+}
+
+function countThreadsForFilter(threads: InboxThread[], filter: InboxPriorityFilter) {
+  return threads.filter((thread) => matchesPriorityFilter(thread, filter)).length;
 }
 
 function matchesSearch(thread: InboxThread, search: string) {
@@ -165,6 +169,85 @@ function cloneTaskPacket(task: InboxTaskPacket) {
   };
 }
 
+function categoryForThread(thread: InboxThread) {
+  const haystack = `${thread.subject} ${thread.project} ${thread.account}`.toLowerCase();
+
+  if (haystack.includes("rate") || haystack.includes("pricing") || haystack.includes("quote") || haystack.includes("renewal")) {
+    return "Sales";
+  }
+
+  if (haystack.includes("delivery") || haystack.includes("shipment") || haystack.includes("port") || haystack.includes("container")) {
+    return "Logistics";
+  }
+
+  if (haystack.includes("invoice") || haystack.includes("po") || haystack.includes("purchase") || haystack.includes("supplier")) {
+    return "Purchase";
+  }
+
+  if (haystack.includes("approval") || haystack.includes("budget") || haystack.includes("contract")) {
+    return "Operations";
+  }
+
+  return "General";
+}
+
+function displayContextTitle(title: string) {
+  if (title === "People and Company") return "People & Company";
+  if (title === "Account and Project Context") return "Commitments";
+  if (title === "CRM and ERP Context") return "CRM / ERP";
+  if (title === "Linked Tasks and Workflow") return "Linked Tasks";
+  return title;
+}
+
+function quickAnalysisBullets(thread: InboxThread) {
+  return [
+    `${priorityBandLabel[thread.priorityBand]}. ${thread.dueRisk}.`,
+    thread.whyThisMatters,
+    thread.whatChanged,
+    thread.whatIsBlocked,
+    thread.nextAction,
+  ];
+}
+
+function visibleMessageParagraphs(thread: InboxThread, body: string) {
+  const paragraphs = body.split("\n").map((paragraph) => paragraph.trim()).filter(Boolean);
+  if (!paragraphs.length) return [];
+
+  const firstParagraph = paragraphs[0].toLowerCase();
+  const subjectHint = thread.subject.toLowerCase();
+  const whyHint = thread.whyThisMatters.toLowerCase();
+
+  // Drop the lead line when it just restates the summary already shown above.
+  if (
+    firstParagraph.includes("following up") ||
+    firstParagraph.includes("still do not have") ||
+    subjectHint.includes("waiting on revised delivery note") ||
+    whyHint.includes("missed commitment")
+  ) {
+    return paragraphs.slice(1);
+  }
+
+  return paragraphs;
+}
+
+function ContextSection({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+  return (
+    <Surface className="overflow-hidden border-[#ded9cf] bg-[#fffdfa] shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+      <div className="border-b border-[#ece6dc] px-4 py-3">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{displayContextTitle(title)}</p>
+      </div>
+      <div className="space-y-0">
+        {items.map((item) => (
+          <div key={`${title}-${item.label}`} className="border-b border-[#ece7de] px-4 py-3 last:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </Surface>
+  );
+}
+
 function QueueRow({
   active,
   buttonRef,
@@ -187,55 +270,65 @@ function QueueRow({
   onOpenInNewTab: () => void;
 }) {
   return (
-    <div className="group border-b border-border last:border-b-0">
+    <div className="group border-b border-[#ece7de] last:border-b-0">
       <button
         ref={buttonRef}
         aria-label={`Open thread ${thread.subject}`}
-        className={`w-full border-l-2 px-4 py-4 text-left transition-colors ${
-          active ? "border-l-primary bg-background" : "border-l-transparent bg-card hover:bg-[#fbfaf7]"
+        className={`w-full border-l-[3px] px-3 py-3 text-left transition-colors ${
+          active
+            ? "border-l-primary bg-[#f5f7fb]"
+            : thread.priorityBand === "needs_attention" || thread.priority === "Critical"
+              ? "border-l-transparent bg-[#fffdfa] hover:bg-[#fbfaf7]"
+              : "border-l-transparent bg-card hover:bg-[#fbfaf7]"
         }`}
         onClick={onSelect}
         onKeyDown={onKeyDown}
         type="button"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                {thread.sender} · {thread.company}
-              </p>
-              <StatusPill tone={toneForThread(thread)}>{priorityBandLabel[thread.priorityBand]}</StatusPill>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  {(thread.priorityBand === "needs_attention" || thread.priority === "Critical") && !active ? (
+                    <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                  ) : null}
+                  <p className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {thread.sender}
+                  </p>
+                  <span className="truncate text-[12px] text-muted-foreground">{thread.company}</span>
+                </div>
+                <p className={`mt-1 line-clamp-2 font-mono text-[13px] leading-6 ${active || thread.priorityBand === "needs_attention" || thread.priority === "Critical" ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                  {thread.subject}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{thread.lastMaterialChangeAt}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{thread.attachments.length} files</p>
+              </div>
             </div>
-            <p className="mt-2 font-mono text-[15px] font-semibold leading-snug text-foreground">{thread.subject}</p>
-            <p className="mt-2 text-sm leading-6 text-foreground">{thread.whyThisMatters}</p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">{thread.nextAction}</p>
-          </div>
-          <div className="shrink-0 text-right">
-            <StatusPill tone={thread.priority === "Critical" ? "alert" : "default"}>{thread.priority}</StatusPill>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              {thread.lastMaterialChangeAt}
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">{thread.waitingState}</p>
-            <p className="mt-1 text-xs text-primary">{thread.dueRisk}</p>
-          </div>
-        </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-          <span>{thread.account}</span>
-          <span>·</span>
-          <span>{thread.project}</span>
-          <span>·</span>
-          <span>{thread.participants.length} participants</span>
-          <span>·</span>
-          <span>{thread.attachmentPresence ? `${thread.attachments.length} attachment${thread.attachments.length > 1 ? "s" : ""}` : "No attachments"}</span>
-          <span>·</span>
-          <span>{thread.linkedTask ? thread.linkedTask.label : "No linked task"}</span>
-          <span>·</span>
-          <span>{thread.linkedWorkflow ? thread.linkedWorkflow.label : "No linked workflow"}</span>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <StatusPill tone={toneForThread(thread)}>{priorityBandLabel[thread.priorityBand]}</StatusPill>
+              <StatusPill tone={thread.priority === "Critical" ? "alert" : "muted"}>{thread.priority}</StatusPill>
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">{categoryForThread(thread)}</span>
+            </div>
+
+            <p className="mt-2 line-clamp-2 text-[13px] leading-6 text-muted-foreground">{thread.preview}</p>
+
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                <span>{thread.project}</span>
+                <span>·</span>
+                <span>{thread.account}</span>
+              </div>
+              <p className="text-[11px] text-primary">{thread.waitingState}</p>
+            </div>
+          </div>
         </div>
       </button>
 
-      <div className="flex flex-wrap gap-2 px-4 pb-4 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+      <div className="flex flex-wrap gap-3 px-3 pb-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
         <button
           className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
           onClick={onMarkReviewed}
@@ -354,13 +447,14 @@ function Workspace({
   const secondaryActions = activeThread.actionRecommendations.filter((action) => action.kind !== "primary");
   const latestMessage = activeThread.timeline[0];
   const olderMessages = activeThread.timeline.slice(1);
+  const [expandedOlderMessageId, setExpandedOlderMessageId] = useState<string | null>(olderMessages[0]?.id ?? null);
 
   return (
-    <div className="space-y-4">
-      <Surface className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-3">
+      <Surface className="overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {showBackButton ? (
                 <button
                   className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-foreground"
@@ -371,192 +465,236 @@ function Workspace({
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               ) : null}
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {activeThread.sender} · {activeThread.company}
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                {activeThread.sender} · {activeThread.company} · {categoryForThread(activeThread)}
               </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <StatusPill tone={toneForThread(activeThread)}>{priorityBandLabel[activeThread.priorityBand]}</StatusPill>
-              <StatusPill tone={activeThread.approvalStatus === "approval_required" ? "alert" : "default"}>
-                {activeThread.waitingState}
-              </StatusPill>
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{latestMessage.time}</p>
             </div>
-            <h2 className="mt-3 font-mono text-[1.65rem] font-semibold leading-tight tracking-tight text-foreground">
-              {activeThread.subject}
-            </h2>
-            <p className="mt-3 max-w-4xl text-sm leading-6 text-muted-foreground">{activeThread.preview}</p>
-          </div>
-          <div className="space-y-2">
-            <StatusPill tone={activeThread.priority === "Critical" ? "alert" : "default"}>{activeThread.priority}</StatusPill>
-            <p className="text-right font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Last reviewed
-            </p>
-            <p className="text-right text-xs text-muted-foreground">{activeThread.lastReviewedAt}</p>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="border border-border p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Why this matters</p>
-            <p className="mt-3 text-sm leading-6 text-foreground">{activeThread.whyThisMatters}</p>
-          </div>
-          <div className="border border-border p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">What changed</p>
-            <p className="mt-3 text-sm leading-6 text-foreground">{activeThread.whatChanged}</p>
-          </div>
-          <div className="border border-border p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">What is blocked</p>
-            <p className={`mt-3 text-sm leading-6 ${summaryTone(activeThread.whatIsBlocked)}`}>{activeThread.whatIsBlocked}</p>
-          </div>
-          <div className="border border-border p-4">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Recommended next step</p>
-            <p className="mt-3 text-sm leading-6 text-foreground">{activeThread.nextAction}</p>
+        <div className="border-b border-border px-4 py-3.5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[1.15rem] font-semibold leading-7 text-foreground md:text-[1.25rem]">{activeThread.subject}</h2>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+                <span>{activeThread.project}</span>
+                <span>·</span>
+                <span>{activeThread.attachments.length} files</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <StatusPill tone={activeThread.priority === "Critical" ? "alert" : "default"}>{activeThread.priority}</StatusPill>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Due risk</p>
+              </div>
+              <p className="mt-1.5 text-[13px] text-primary">{activeThread.dueRisk}</p>
+            </div>
           </div>
         </div>
-      </Surface>
 
-      <Surface className="p-5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Thread timeline</p>
-          <StatusPill>{latestMessage.time}</StatusPill>
+        <div className="grid gap-0 border-b border-border md:grid-cols-2 xl:grid-cols-4">
+          <div className="border-b border-border px-4 py-3 md:border-r xl:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Why this matters</p>
+            <p className="mt-2 text-[13px] leading-5 text-foreground">{activeThread.whyThisMatters}</p>
+          </div>
+          <div className="border-b border-border px-4 py-3 md:border-b-0 xl:border-r">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">What changed</p>
+            <p className="mt-2 text-[13px] leading-5 text-foreground">{activeThread.whatChanged}</p>
+          </div>
+          <div className="border-b border-border px-4 py-3 md:border-r xl:border-b-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">What is blocked</p>
+            <p className={`mt-2 text-[13px] leading-5 ${summaryTone(activeThread.whatIsBlocked)}`}>{activeThread.whatIsBlocked}</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Recommended next step</p>
+            <p className="mt-2 text-[13px] leading-5 text-foreground">{activeThread.nextAction}</p>
+          </div>
         </div>
 
-        <div className="mt-4 border border-border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Latest message</p>
-              <p className="mt-2 font-mono text-[13px] uppercase tracking-[0.14em] text-foreground">
-                {latestMessage.sender} · {latestMessage.role}
-              </p>
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 border-r border-border">
+            <div className="h-[calc(100vh-21.5rem)] min-h-[28rem] overflow-auto">
+              <div className="px-5 py-4">
+                <div className="mb-5 border border-border bg-[#f1f1ef]">
+                  <div className="border-b border-border px-4 py-3">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Ubik analysis</p>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto px-4 py-3">
+                    <ul className="space-y-1.5 text-sm leading-6 text-foreground">
+                      {quickAnalysisBullets(activeThread).map((bullet) => (
+                        <li key={`note-${bullet}`} className="flex gap-2">
+                          <span className="mt-[0.55rem] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/60" />
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="max-w-3xl space-y-4 text-[15px] leading-7 text-foreground md:text-[16px] md:leading-8">
+                  {visibleMessageParagraphs(activeThread, latestMessage.body).map((paragraph, index) => (
+                    <p key={`${latestMessage.id}-${index}`}>{paragraph}</p>
+                  ))}
+                </div>
+
+                {latestMessage.attachments?.length ? (
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {latestMessage.attachments.map((attachment) => (
+                      <button
+                        key={attachment}
+                        className="inline-flex items-center gap-2 border border-border bg-card px-3 py-2 text-sm text-foreground"
+                        onClick={() => onAnalyzeAttachment(attachment)}
+                        type="button"
+                      >
+                        <FileStack className="h-4 w-4" />
+                        {attachment}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {olderMessages.length ? (
+                  <div className="mt-7 border-t border-border pt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d8d2c8] bg-white text-muted-foreground">
+                          <Clock3 className="h-4 w-4" />
+                        </span>
+                        <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-foreground">
+                          Older messages in thread ({olderMessages.length})
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-0 border-t border-[#ece7de]">
+                      {olderMessages.map((message) => {
+                        const expanded = expandedOlderMessageId === message.id;
+
+                        return (
+                          <div key={message.id} className="border-b border-[#ece7de] py-4">
+                            <button
+                              className="flex w-full items-start justify-between gap-4 text-left"
+                              onClick={() => setExpandedOlderMessageId((current) => (current === message.id ? null : message.id))}
+                              type="button"
+                              aria-expanded={expanded}
+                            >
+                              <div className="flex min-w-0 items-start gap-3">
+                                <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfd4dc] bg-white text-[#5f6b7e]">
+                                  <Clock3 className="h-3.5 w-3.5" />
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="font-mono text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground">{message.sender}</p>
+                                    <p className="text-[12px] text-muted-foreground">{message.time}</p>
+                                  </div>
+                                  <p className="mt-1 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{activeThread.subject}</p>
+                                </div>
+                              </div>
+                              <ChevronDown className={`mt-0.5 h-5 w-5 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                            </button>
+
+                            {expanded ? (
+                              <div className="ml-11 mt-4 rounded-[1.25rem] border border-[#dde2ea] bg-white px-5 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-mono text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground">{message.sender}</p>
+                                  <p className="text-[12px] text-muted-foreground">{message.time}</p>
+                                </div>
+                                <div className="mt-4 max-w-3xl space-y-3 text-[14px] leading-7 text-foreground">
+                                  {message.body.split("\n").filter(Boolean).map((paragraph, index) => (
+                                    <p key={`${message.id}-${index}`}>{paragraph}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">{latestMessage.time}</p>
           </div>
-          <p className="mt-4 text-sm leading-7 text-foreground">{latestMessage.body}</p>
-          {latestMessage.summary ? (
-            <div className="mt-4 border-l border-border pl-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Ubik support summary</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{latestMessage.summary}</p>
-            </div>
-          ) : null}
-          {latestMessage.attachments?.length ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {latestMessage.attachments.map((attachment) => (
+
+          <div className="grid content-start gap-3 bg-[#fcfbf8] p-3">
+            <Surface className="overflow-hidden border-[#ded9cf] bg-[#fffdfa]">
+              <div className="flex items-center justify-between border-b border-[#ece6dc] px-4 py-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Actions</p>
                 <button
-                  key={attachment}
-                  className="inline-flex items-center gap-2 border border-border bg-card px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground"
-                  onClick={() => onAnalyzeAttachment(attachment)}
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+                  onClick={onOpenTaskDrawer}
                   type="button"
                 >
-                  <FileStack className="h-3.5 w-3.5" />
-                  {attachment}
+                  Assign
                 </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+              </div>
+              <div className="space-y-2 px-4 py-4">
+                {primaryAction ? (
+                  <button
+                    className="inline-flex w-full items-center justify-center gap-2 border border-primary bg-primary px-3 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    onClick={() => onPrimaryAction(primaryAction.key)}
+                    type="button"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {primaryAction.label}
+                  </button>
+                ) : null}
+                {secondaryActions.map((action) => (
+                  <button
+                    key={action.key}
+                    className="inline-flex w-full items-center justify-center gap-2 border border-[#e5dfd5] bg-white px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground"
+                    onClick={() => onSecondaryAction(action.key)}
+                    type="button"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </Surface>
 
-        {olderMessages.length ? (
-          <div className="mt-4 border border-border p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Older messages</p>
-              <StatusPill>{olderMessages.length} items</StatusPill>
-            </div>
-            <div className="mt-4 space-y-4">
-              {olderMessages.map((message) => (
-                <div key={message.id} className="border-l border-border pl-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                      {message.sender} · {message.role}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{message.time}</p>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{message.body}</p>
-                  {message.summary ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{message.summary}</p> : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </Surface>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <Surface className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Action rail</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                One action carries the primary signal. The rest stay quieter and operational.
-              </p>
-            </div>
-            <button
-              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
-              onClick={onOpenTaskDrawer}
-              type="button"
-            >
-              Assign
-            </button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {primaryAction ? (
-              <button
-                className="inline-flex items-center gap-2 border border-primary bg-primary px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-primary-foreground"
-                onClick={() => onPrimaryAction(primaryAction.key)}
-                type="button"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {primaryAction.label}
-              </button>
-            ) : null}
-            {secondaryActions.map((action) => (
-              <button
-                key={action.key}
-                className={`inline-flex items-center gap-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] ${
-                  action.kind === "secondary"
-                    ? "border border-border bg-card text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                onClick={() => onSecondaryAction(action.key)}
-                type="button"
-              >
-                {action.label}
-              </button>
+            {activeThread.contextModules.map((module) => (
+              <ContextSection key={module.id} title={module.title} items={module.items} />
             ))}
-          </div>
-        </Surface>
 
-        <Surface className="p-5 lg:min-w-[20rem]">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
-              onClick={onToggleProvenance}
-              type="button"
-            >
-              Provenance
-              {provenanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            <button
-              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
-              onClick={onOpenProvenanceDrawer}
-              type="button"
-            >
-              Open drawer
-            </button>
-          </div>
-          {provenanceExpanded ? (
-            <div className="mt-4 space-y-3">
-              {activeThread.provenance.map((item) => (
-                <div key={`${item.label}-${item.value}`} className="border-l border-border pl-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{item.label}</p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">{item.value}</p>
+            <Surface className="overflow-hidden border-[#ded9cf] bg-[#fffdfa]">
+              <div className="flex items-center justify-between border-b border-[#ece6dc] px-4 py-3">
+                <button
+                  className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground"
+                  onClick={onToggleProvenance}
+                  type="button"
+                >
+                  Provenance
+                  {provenanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                <button
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+                  onClick={onOpenProvenanceDrawer}
+                  type="button"
+                >
+                  Open drawer
+                </button>
+              </div>
+              {provenanceExpanded ? (
+                <div className="space-y-0">
+                  {activeThread.provenance.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="border-b border-border px-4 py-3 last:border-b-0">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-1 text-sm leading-6 text-foreground">{item.value}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">
-              Keep recommendation sources inspectable without turning the workspace into an explanation wall.
-            </p>
-          )}
-        </Surface>
-      </div>
+              ) : (
+                <p className="px-4 py-4 text-sm leading-6 text-muted-foreground">
+                  Keep recommendation sources inspectable without turning the reading pane into a workflow wall.
+                </p>
+              )}
+            </Surface>
+          </div>
+        </div>
+      </Surface>
     </div>
   );
 }
@@ -588,6 +726,14 @@ export default function Inbox() {
         sortKey,
       ),
     [baseThreads, priorityFilter, search, sortKey],
+  );
+  const filterCounts = useMemo(
+    () =>
+      Object.fromEntries(priorityFilters.map((filter) => [filter.key, countThreadsForFilter(baseThreads, filter.key)])) as Record<
+        InboxPriorityFilter,
+        number
+      >,
+    [baseThreads],
   );
 
   const activeThread = filteredThreads.find((thread) => thread.id === selectedId) ?? filteredThreads[0] ?? null;
@@ -858,11 +1004,11 @@ export default function Inbox() {
     <div className="px-0 py-0">
       <div className="mx-auto max-w-none space-y-3">
         <div className="space-y-3 px-0 pt-0">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_180px_180px] xl:grid-cols-[minmax(0,1fr)_200px_200px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="rounded-none border-border bg-card pl-9 font-sans text-sm shadow-none focus-visible:ring-0"
+                className="h-9 rounded-none border-border bg-card pl-9 font-sans text-sm shadow-none focus-visible:ring-0 sm:h-10"
                 placeholder="Search threads, company, account"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -874,7 +1020,7 @@ export default function Inbox() {
               <option value="due_risk">Sort due risk</option>
             </select>
             <button
-              className="inline-flex items-center justify-center gap-2 border border-border bg-card px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-foreground"
+              className="inline-flex h-9 items-center justify-center gap-2 border border-border bg-card px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground sm:h-10 sm:px-3 sm:text-[11px] sm:tracking-[0.14em]"
               onClick={() => markReviewed(activeThread?.id ?? "")}
               type="button"
               aria-label="Mark current thread reviewed"
@@ -885,43 +1031,31 @@ export default function Inbox() {
             </button>
           </div>
 
-          <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center gap-2">
+          <div className="overflow-hidden pb-1">
+            <div className="flex flex-nowrap items-center gap-1.5">
               {priorityFilters.map((filter) => (
                 <SmallButton
                   key={filter.key}
                   active={filter.key === priorityFilter}
                   onClick={() => setPriorityFilter(filter.key)}
-                  className="shrink-0"
+                  className="h-8 shrink-0 px-2 py-1 text-[9px] tracking-[0.08em] sm:h-8 sm:px-2.5 sm:text-[10px] sm:tracking-[0.1em]"
                 >
-                  {filter.label}
+                  {filter.label} {filterCounts[filter.key]}
                 </SmallButton>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[348px_minmax(0,1fr)]">
-          <Surface className="overflow-hidden">
-            <div className="border-b border-border px-4 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Decision queue</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    New and changed email threads that need attention now.
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Threads in view</p>
-                  <p className="mt-2 font-mono text-2xl font-semibold text-foreground">{filteredThreads.length}</p>
-                </div>
-              </div>
-              {queueAlert ? (
-                <div className="mt-4 border border-primary px-3 py-3" role="alert">
+        <div className="grid gap-3 xl:grid-cols-[332px_minmax(0,1fr)]">
+          <Surface className="overflow-hidden xl:h-[calc(100vh-13.5rem)]">
+            {queueAlert ? (
+              <div className="border-b border-border px-4 py-4">
+                <div className="border border-primary px-3 py-3" role="alert">
                   <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">{queueAlert}</p>
                 </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
             {scenario === "loading" ? <QueueSkeleton /> : null}
 
@@ -940,7 +1074,7 @@ export default function Inbox() {
             ) : null}
 
             {scenario !== "loading" && filteredThreads.length ? (
-              <div>
+              <div className="h-full overflow-auto">
                 {filteredThreads.map((thread) => (
                   <div key={thread.id}>
                     <QueueRow
