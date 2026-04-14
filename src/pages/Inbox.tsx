@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CheckCheck, ChevronDown, ChevronUp, Clock3, FileStack, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Clock3, FileStack, Search, ShieldCheck } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import type {
 type InboxPriorityFilter = "all" | InboxPriorityBand;
 type InboxSortKey = "priority" | "recent_change" | "due_risk";
 type InboxScenario = "default" | "loading" | "empty" | "error" | "permissions";
+type InboxDensity = "default" | "compact";
 
 const priorityFilters: { key: InboxPriorityFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -297,86 +298,103 @@ function ContextSection({ title, items }: { title: string; items: { label: strin
 function QueueRow({
   active,
   buttonRef,
+  density,
   thread,
   onSelect,
   onKeyDown,
   onMarkReviewed,
   onWatch,
   onArchive,
-  onOpenInNewTab,
+  onOpenInEmail,
 }: {
   active: boolean;
   buttonRef: (node: HTMLButtonElement | null) => void;
+  density: InboxDensity;
   thread: InboxThread;
   onSelect: () => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
   onMarkReviewed: () => void;
   onWatch: () => void;
   onArchive: () => void;
-  onOpenInNewTab: () => void;
+  onOpenInEmail: () => void;
 }) {
+  const compact = density === "compact";
+
   return (
-    <div className="group border-b border-[#ece7de] last:border-b-0">
+    <div className="group border-b border-[#e7dfd3] bg-white last:border-b-0">
       <button
         ref={buttonRef}
         aria-label={`Open thread ${thread.subject}`}
-        className={`w-full border-l-[3px] px-3 py-3 text-left transition-colors ${
+        className={`w-full border-l-[3px] px-3 text-left transition-colors ${compact ? "py-2" : "py-3"} ${
           active
-            ? "border-l-primary bg-[#f5f7fb]"
+            ? "border-l-primary bg-[#f8f9fc]"
             : thread.priorityBand === "needs_attention" || thread.priority === "Critical"
-              ? "border-l-transparent bg-[#fffdfa] hover:bg-[#fbfaf7]"
-              : "border-l-transparent bg-card hover:bg-[#fbfaf7]"
+              ? "border-l-transparent bg-[#fffdfa] hover:bg-[#fcfaf6]"
+              : "border-l-transparent bg-white hover:bg-[#fcfaf6]"
         }`}
         onClick={onSelect}
         onKeyDown={onKeyDown}
         type="button"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className={`flex items-start justify-between gap-4 ${compact ? "pb-1.5" : "pb-3"}`}>
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
+                <div className={`flex min-w-0 items-center ${compact ? "gap-2" : "gap-2.5"}`}>
                   {(thread.priorityBand === "needs_attention" || thread.priority === "Critical") && !active ? (
-                    <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
                   ) : null}
-                <p className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {thread.sender}
-                </p>
-                  <span className="truncate text-[clamp(11px,1vw,12px)] text-muted-foreground">{thread.company}</span>
+                  <p className={`truncate font-mono uppercase text-muted-foreground ${compact ? "text-[10px] tracking-[0.09em]" : "text-[11px] tracking-[0.11em]"}`}>
+                    {thread.sender}
+                  </p>
+                  <span className={`truncate text-muted-foreground ${compact ? "text-[12px]" : "text-[13px]"}`}>{thread.company}</span>
                 </div>
-                <p className={`mt-1 line-clamp-2 font-mono text-[clamp(12px,1.2vw,13px)] leading-[1.45] ${active || thread.priorityBand === "needs_attention" || thread.priority === "Critical" ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                <p
+                  className={`line-clamp-2 text-foreground ${
+                    compact
+                      ? "mt-1 text-[clamp(13px,1vw,14px)] font-semibold leading-[1.3] line-clamp-1"
+                      : "mt-2 text-[clamp(15px,1.35vw,17px)] leading-[1.38]"
+                  } ${
+                    active || thread.priorityBand === "needs_attention" || thread.priority === "Critical"
+                      ? "font-semibold text-foreground"
+                      : "font-medium text-foreground"
+                  }`}
+                >
                   {thread.subject}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{thread.lastMaterialChangeAt}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{thread.attachments.length} files</p>
+                <p className={`font-mono uppercase text-muted-foreground ${compact ? "text-[10px] tracking-[0.09em]" : "text-[11px] tracking-[0.11em]"}`}>{thread.lastMaterialChangeAt}</p>
+                <p className={`${compact ? "mt-0.5 text-[11px]" : "mt-2 text-[12px]"} text-muted-foreground`}>{thread.attachments.length} files</p>
               </div>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className={`${compact ? "mt-2" : "mt-3"} flex flex-wrap items-center gap-2`}>
               <StatusPill tone={toneForThread(thread)}>{priorityBandLabel[thread.priorityBand]}</StatusPill>
               <StatusPill tone={thread.priority === "Critical" ? "alert" : "muted"}>{thread.priority}</StatusPill>
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">{categoryForThread(thread)}</span>
+              <span className={`font-mono uppercase text-primary ${compact ? "text-[10px] tracking-[0.09em]" : "text-[11px] tracking-[0.11em]"}`}>{categoryForThread(thread)}</span>
             </div>
 
-            <p className="mt-2 line-clamp-2 text-[clamp(12px,1.15vw,13px)] leading-[1.45] text-muted-foreground">{thread.preview}</p>
+            {!compact ? (
+              <p className="mt-3 line-clamp-2 text-[clamp(13px,1.05vw,14px)] leading-[1.5] text-muted-foreground">{thread.preview}</p>
+            ) : null}
 
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            <div className={`${compact ? "mt-2" : "mt-4"} flex items-center justify-between gap-4`}>
+              <div className={`flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground ${compact ? "text-[10px]" : "text-[12px]"}`}>
                 <span>{thread.project}</span>
                 <span>·</span>
                 <span>{thread.account}</span>
               </div>
-              <p className="text-[11px] text-primary">{thread.waitingState}</p>
+              <p className={`${compact ? "text-[10px]" : "text-[12px]"} font-medium text-primary`}>{thread.waitingState}</p>
             </div>
           </div>
         </div>
       </button>
 
-      <div className="flex flex-wrap gap-3 px-3 pb-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+      <div className={`px-4 ${compact ? "pb-1 pt-0" : "pb-2 pt-0"} ${active ? "bg-[#f8f9fc]" : "bg-inherit"}`}>
+        <div className={`grid border-t border-[#e7dfd3] ${compact ? "grid-cols-4 pt-1" : "grid-cols-2 pt-1.5 sm:grid-cols-4"}`}>
         <button
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+          className={`inline-flex items-center justify-center border-[#e1dacc] px-1.5 font-medium text-muted-foreground transition-colors hover:text-foreground ${compact ? "border-r py-1 text-[10px]" : "border-b border-r py-2 text-[12px] sm:border-b-0"}`}
           onClick={onMarkReviewed}
           type="button"
           aria-label={`Mark reviewed ${thread.subject}`}
@@ -384,7 +402,7 @@ function QueueRow({
           Mark reviewed
         </button>
         <button
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+          className={`inline-flex items-center justify-center border-[#e1dacc] px-1.5 font-medium text-muted-foreground transition-colors hover:border-[#d6cebe] hover:text-foreground ${compact ? "border-r py-1 text-[10px]" : "border-b py-2 text-[12px] sm:border-b-0 sm:border-r"}`}
           onClick={onWatch}
           type="button"
           aria-label={`Watch ${thread.subject}`}
@@ -392,7 +410,7 @@ function QueueRow({
           Watch
         </button>
         <button
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+          className={`inline-flex items-center justify-center border-r border-[#e1dacc] px-1.5 font-medium text-muted-foreground transition-colors hover:border-[#d6cebe] hover:text-foreground ${compact ? "py-1 text-[10px]" : "py-2 text-[12px]"}`}
           onClick={onArchive}
           type="button"
           aria-label={`Archive ${thread.subject}`}
@@ -400,13 +418,14 @@ function QueueRow({
           Archive
         </button>
         <button
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
-          onClick={onOpenInNewTab}
+          className={`inline-flex items-center justify-center px-1.5 font-medium text-muted-foreground transition-colors hover:text-foreground ${compact ? "py-1 text-[10px]" : "py-2 text-[12px]"}`}
+          onClick={onOpenInEmail}
           type="button"
-          aria-label={`Open ${thread.subject} in new tab`}
+          aria-label={`Open ${thread.subject} in email`}
         >
-          Open in new tab
+          Open in Email
         </button>
+        </div>
       </div>
     </div>
   );
@@ -748,12 +767,13 @@ function Workspace({
 export default function Inbox() {
   const isMobile = useIsMobile();
   const location = useLocation();
-  const { createTab, openDrawer, openRuntime, setPageState } = useShellState();
+  const { openDrawer, openRuntime } = useShellState();
   const scenario = readScenario(location.search);
   const [threads, setThreads] = useWorkbenchState<InboxThread[]>("inbox-threads", inboxThreads);
   const [priorityFilter, setPriorityFilter] = useWorkbenchState<InboxPriorityFilter>("inbox-priority-filter", "all");
   const [search, setSearch] = useWorkbenchState<string>("inbox-search", "");
   const [sortKey, setSortKey] = useWorkbenchState<InboxSortKey>("inbox-sort", "priority");
+  const [density, setDensity] = useWorkbenchState<InboxDensity>("inbox-density", "default");
   const [selectedId, setSelectedId] = useWorkbenchState<string>("inbox-thread", inboxThreads[0]?.id ?? "");
   const [provenanceExpanded, setProvenanceExpanded] = useWorkbenchState<boolean>("inbox-provenance-expanded", false);
   const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false);
@@ -1002,14 +1022,9 @@ export default function Inbox() {
     });
   };
 
-  const handleOpenInNewTab = (thread: InboxThread) => {
-    const nextTabId = createTab("/inbox");
-    if (!nextTabId) return;
-
-    setPageState(`${nextTabId}:inbox-thread`, thread.id);
-    setPageState(`${nextTabId}:inbox-priority-filter`, priorityFilter);
-    setPageState(`${nextTabId}:inbox-search`, search);
-    setPageState(`${nextTabId}:inbox-sort`, sortKey);
+  const handleOpenInEmail = (thread: InboxThread) => {
+    const query = [thread.subject, thread.sender, thread.company].filter(Boolean).join(" ");
+    window.open(`https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
   };
 
   const handleRowKeyDown = (threadId: string, event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -1050,7 +1065,7 @@ export default function Inbox() {
     <div className="px-0 py-0">
       <div className="mx-auto max-w-none space-y-3">
         <div className="space-y-3 px-0 pt-0">
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_180px_180px] xl:grid-cols-[minmax(0,1fr)_200px_200px]">
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_200px_170px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -1066,14 +1081,30 @@ export default function Inbox() {
               <option value="due_risk">Sort due risk</option>
             </select>
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 border border-border bg-card px-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground sm:h-10 sm:px-3 sm:text-[11px] sm:tracking-[0.14em]"
-              onClick={() => markReviewed(activeThread?.id ?? "")}
+              className="inline-flex h-9 items-center gap-2 border border-border bg-card px-2.5 text-foreground transition-colors hover:border-foreground/20 sm:h-10 sm:px-3"
+              onClick={() => setDensity(density === "default" ? "compact" : "default")}
               type="button"
-              aria-label="Mark current thread reviewed"
-              disabled={!activeThread}
+              aria-label="Toggle compact email list view"
+              aria-pressed={density === "compact"}
+              title={`View: ${density === "compact" ? "Compact" : "Default"}`}
             >
-              <CheckCheck className="h-4 w-4" />
-              Mark reviewed
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:text-[11px] sm:tracking-[0.14em]">
+                Compact
+              </span>
+              <span
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  density === "compact" ? "bg-foreground" : "bg-[#d9d7d1]"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                    density === "compact" ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {density === "compact" ? "On" : "Off"}
+              </span>
             </button>
           </div>
 
@@ -1134,13 +1165,14 @@ export default function Inbox() {
                       buttonRef={(node) => {
                         rowRefs.current[thread.id] = node;
                       }}
+                      density={density}
                       thread={thread}
                       onSelect={() => openWorkspace(thread.id)}
                       onKeyDown={(event) => handleRowKeyDown(thread.id, event)}
                       onMarkReviewed={() => markReviewed(thread.id)}
                       onWatch={() => markWatching(thread.id)}
                       onArchive={() => archiveThread(thread.id)}
-                      onOpenInNewTab={() => handleOpenInNewTab(thread)}
+                      onOpenInEmail={() => handleOpenInEmail(thread)}
                     />
                   </div>
                 ))}

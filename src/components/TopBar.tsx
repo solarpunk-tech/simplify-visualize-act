@@ -70,16 +70,12 @@ function buildComposeUrl(provider: MailProvider) {
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
-function buildOpenMailboxUrl(provider: MailProvider, thread: InboxThread | null) {
-  const query = buildInboxSearchQuery(thread);
-
+function buildOpenMailboxUrl(provider: MailProvider) {
   if (provider === "outlook") {
-    if (!query) return "https://outlook.office.com/mail/";
-    return `https://outlook.office.com/mail/?q=${encodeURIComponent(query)}`;
+    return "https://outlook.office.com/mail/";
   }
 
-  if (!query) return "https://mail.google.com/mail/u/0/#inbox";
-  return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(query)}`;
+  return "https://mail.google.com/mail/u/0/#inbox";
 }
 
 export function TopBar() {
@@ -117,12 +113,12 @@ export function TopBar() {
     }
 
     if (route?.key === "inbox" && label === "Open Outlook") {
-      window.open(buildOpenMailboxUrl("outlook", selectedInboxThread), "_blank", "noopener,noreferrer");
+      window.open(buildOpenMailboxUrl("outlook"), "_blank", "noopener,noreferrer");
       return;
     }
 
     if (route?.key === "inbox" && label === "Open Gmail") {
-      window.open(buildOpenMailboxUrl("gmail", selectedInboxThread), "_blank", "noopener,noreferrer");
+      window.open(buildOpenMailboxUrl("gmail"), "_blank", "noopener,noreferrer");
       return;
     }
 
