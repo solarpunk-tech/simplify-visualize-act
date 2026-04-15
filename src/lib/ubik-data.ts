@@ -336,6 +336,45 @@ export const meetings: MeetingRecord[] = [
       "Bring latest compliance expiry sheet before joining.",
       "Confirm who sends the customer update if ETA changes.",
     ],
+    preReadContext: {
+      whyThisMatters: "Supplier extension terms will directly impact PO release timing for this lane.",
+      whatChanged: "Missing compliance docs are now tied to a hard customer handoff window this week.",
+      whatIsBlocked: "Outbound customer commitment cannot be finalized until legal wording and docs are verified.",
+      recommendedNextStep: "Align owner/date for extension terms, then send one clear customer update draft.",
+    },
+    schedulingSuggestions: {
+      timezoneLabel: "Pacific Time (UTC-08:00)",
+      seedDate: "Wed, 15 Apr",
+      suggestedSlots: ["9:30 - 10:00 AM", "11:15 - 11:45 AM", "2:30 - 3:00 PM"],
+      defaultDurationMinutes: 30,
+    },
+    landingHelper: {
+      relatedMeetings: ["Compliance docs late follow-up", "Supplier exception sign-off"],
+      folderHighlights: ["Compliance folder has 2 open risk threads", "Awaiting legal wording update"],
+      decisionCarryovers: ["Confirm who owns supplier update before EOD"],
+    },
+    attendeeBriefs: [
+      {
+        name: "Raj Mehta",
+        role: "Plant Ops Lead",
+        whatsOnMind:
+          "He wants exception handling to stay practical so operations can release goods without repeated legal loops.",
+        worthBringingUp:
+          "Offer him ownership of the extension communication timeline since he already coordinates supplier updates.",
+        headsUp:
+          "He tends to escalate quickly when blockers persist across two cycles. Keep next steps explicit and dated.",
+      },
+      {
+        name: "Thai Union Ops",
+        role: "Supplier Team",
+        whatsOnMind:
+          "They need clarity on exactly which files unlock PO progression and who signs off the exception.",
+        worthBringingUp:
+          "Propose a mini checklist they can send before each review to avoid repeated back-and-forth.",
+        headsUp:
+          "If wording stays vague, they may assume conditional approval and act early.",
+      },
+    ],
     generatedNotes:
       "## Pre-read\n- Missing compliance docs: HACCP + BL copy.\n- Goal: decide extension terms and owner.\n\n## Risks\n- PO release blocked if legal wording is not approved.\n- Customer communication delay could escalate.\n",
     linkedProject: "Supplier Compliance Audit · SCA-26",
@@ -368,6 +407,35 @@ export const meetings: MeetingRecord[] = [
       "Open thread thread-2 and thread-1 before call.",
       "Check transshipment update from Colombo run.",
     ],
+    preReadContext: {
+      whyThisMatters: "Buyer trust is at risk if ETA messaging drifts again before afternoon.",
+      whatChanged: "Inspection timing shifted and the revised container ETA is no longer aligned with yesterday’s note.",
+      whatIsBlocked: "Customer communication and project timeline update are blocked on final ops confirmation.",
+      recommendedNextStep: "Decide one external message owner and publish the updated ETA path in-call.",
+    },
+    schedulingSuggestions: {
+      timezoneLabel: "Pacific Time (UTC-08:00)",
+      seedDate: "Wed, 15 Apr",
+      suggestedSlots: ["1:00 - 1:30 PM", "3:30 - 4:00 PM", "5:00 - 5:30 PM"],
+      defaultDurationMinutes: 30,
+    },
+    landingHelper: {
+      relatedMeetings: ["Mumbai port handoff review", "Atlantic Fresh weekly logistics check"],
+      folderHighlights: ["Customer Calls folder has 3 ETA-sensitive meetings"],
+      decisionCarryovers: ["Lock customer-facing ETA owner in meeting"],
+    },
+    attendeeBriefs: [
+      {
+        name: "Sarah Kim",
+        role: "Logistics Manager",
+        whatsOnMind:
+          "She wants to avoid another reactive customer update and prefers one definitive timeline statement.",
+        worthBringingUp:
+          "Ask if she wants pricing monitor alerts wired into logistics updates so drift warnings are earlier.",
+        headsUp:
+          "She is sensitive to late handoffs from port ops when inspection notes arrive after promised time.",
+      },
+    ],
     linkedProject: "Mumbai-Rotterdam Q2 · MR-Q2",
     linkedClient: "Atlantic Fresh",
     clientDomain: "atlanticfreshseafood.com",
@@ -396,6 +464,35 @@ export const meetings: MeetingRecord[] = [
     summaryLines: [
       "Morning brief completed with two urgent decisions routed to approvals.",
       "Pricing monitor remains in daily cadence.",
+    ],
+    preReadContext: {
+      whyThisMatters: "This brief sets operator priority order for the next 6-8 hours.",
+      whatChanged: "Two urgent items moved from watchlist to active approvals.",
+      whatIsBlocked: "Supplier response and pricing escalation remain blocked until owner assignments are confirmed.",
+      recommendedNextStep: "Lock owner + ETA on top two actions before opening new threads.",
+    },
+    schedulingSuggestions: {
+      timezoneLabel: "Pacific Time (UTC-08:00)",
+      seedDate: "Thu, 16 Apr",
+      suggestedSlots: ["8:00 - 8:20 AM", "9:45 - 10:05 AM", "4:30 - 4:50 PM"],
+      defaultDurationMinutes: 20,
+    },
+    landingHelper: {
+      relatedMeetings: ["Operator brief handoff", "Pricing anomaly review standup"],
+      folderHighlights: ["Standups folder has 1 carryover action from yesterday"],
+      decisionCarryovers: ["Reconfirm owner for Sarah response draft"],
+    },
+    attendeeBriefs: [
+      {
+        name: "Hemanth",
+        role: "Operator",
+        whatsOnMind:
+          "Needs a compact execution order and fewer context switches before noon.",
+        worthBringingUp:
+          "Bundle related approvals into one review block to reduce thrash.",
+        headsUp:
+          "If thread priorities change mid-morning, downstream workflows can drift without a quick recalibration.",
+      },
     ],
     generatedNotes:
       "## Summary\n- Reviewed inbox risk, approvals queue, and pricing run outcomes.\n\n## Decisions\n- Escalate Thai Union exception to approval queue.\n- Keep pricing monitor cadence daily.\n\n## Actions\n- Reply to Sarah on rate confirmation.\n- Prepare supplier review packet.\n",

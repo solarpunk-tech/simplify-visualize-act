@@ -13,7 +13,6 @@ import {
   LayoutDashboard,
   Pin,
   Radar,
-  Search,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -102,7 +101,6 @@ export function AppSidebar() {
   const { navigateCurrentTab, setCommandPaletteOpen } = useShellState();
   const location = useLocation();
   const collapsed = state === "collapsed";
-  const [sidebarSearch, setSidebarSearch] = useWorkbenchState("sidebar-search", "");
   const [sectionState, setSectionState] = useState({
     navigate: true,
     playbooks: true,
@@ -128,13 +126,12 @@ export function AppSidebar() {
     setSectionState((current) => ({ ...current, [key]: !current[key] }));
   };
 
-  const navFilter = sidebarSearch.toLowerCase();
   const filteredGroupedNav = {
-    navigate: groupedNav.navigate.filter((item) => item.title.toLowerCase().includes(navFilter)),
-    playbooks: groupedNav.playbooks.filter((item) => item.title.toLowerCase().includes(navFilter)),
+    navigate: groupedNav.navigate.filter((item) => item.key !== "chat"),
+    playbooks: groupedNav.playbooks,
   };
 
-  const filteredRecents = recentItems.filter((item) => item.title.toLowerCase().includes(navFilter));
+  const filteredRecents = recentItems;
   const historyByType = {
     chat: filteredRecents.filter((item) => item.type === "chat"),
     meeting: filteredRecents.filter((item) => item.type === "meeting"),
@@ -189,15 +186,6 @@ export function AppSidebar() {
                 ⌘K
               </kbd>
             </button>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-sidebar-foreground/65" />
-              <input
-                value={sidebarSearch}
-                onChange={(event) => setSidebarSearch(event.target.value)}
-                placeholder="Search"
-                className="h-10 w-full border border-sidebar-border bg-transparent pl-9 pr-3 font-mono text-[10px] uppercase tracking-[0.12em] text-sidebar-foreground outline-none placeholder:text-sidebar-foreground/55 focus:border-sidebar-foreground/35"
-              />
-            </div>
           </div>
         )}
 

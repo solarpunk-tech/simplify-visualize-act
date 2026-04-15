@@ -1,9 +1,9 @@
 import { createElement } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import App from "@/App";
-import { inboxThreads } from "@/lib/ubik-data";
+import { inboxThreads, meetings } from "@/lib/ubik-data";
 
 const CHAT_PLACEHOLDER = "How can I help you today?";
 
@@ -211,4 +211,60 @@ describe("Ubik shell", () => {
       expect(screen.getByText(`${unreadCount - 1} threads`)).toBeInTheDocument();
     });
   });
+
+  it("matches Meetings v4.4 action rail and transcript behavior", async () => {
+    window.localStorage.clear();
+    window.history.pushState({}, "", `/meetings/${meetings[0]?.id ?? ""}`);
+    render(createElement(App));
+
+    expect(await screen.findByText("Actions")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open share meeting panel/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open add to project panel/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open create meeting panel/i })).toBeInTheDocument();
+    expect(screen.queryByText("Meeting chat")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Why this matters")).toBeInTheDocument();
+    expect(screen.getByText("What changed")).toBeInTheDocument();
+    expect(screen.getByText("What is blocked")).toBeInTheDocument();
+    expect(screen.getByText("Recommended next step")).toBeInTheDocument();
+
+    expect(screen.queryByText(/Decision:/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /transcript/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Show/i }));
+    expect(await screen.findByText(/Decision:/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Open share meeting panel/i }));
+    expect(await screen.findByText("App targets")).toBeInTheDocument();
+    expect(screen.getByLabelText("Also add to task")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Close share meeting panel/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /summary/i }));
+    const attendeeSection = screen.getByText("Attendees").closest("section");
+    expect(attendeeSection).toBeTruthy();
+    fireEvent.mouseEnter(within(attendeeSection as HTMLElement).getByText("Raj Mehta"));
+    expect(await screen.findByText("What’s on their mind")).toBeInTheDocument();
+    expect(screen.getByText("Worth bringing up")).toBeInTheDocument();
+    expect(screen.getByText("Heads up")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Open create meeting panel/i }));
+    expect(await screen.findByText("Create meeting request")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "9:30 - 10:00 AM" }));
+    fireEvent.click(screen.getByRole("button", { name: /Send request/i }));
+    expect(await screen.findByText(/Calendar preview:/i)).toBeInTheDocument();
+  }, 15000);
+
+  it("renders distinct meetings calendar modes on landing", async () => {
+    window.localStorage.clear();
+    window.history.pushState({}, "", "/meetings");
+    render(createElement(App));
+
+    expect(await screen.findByText("Schedule landing")).toBeInTheDocument();
+    expect(screen.getByText("Week agenda")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^day$/i }));
+    expect(await screen.findByText("Day agenda")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^month$/i }));
+    expect(await screen.findByText("Month buckets")).toBeInTheDocument();
+  }, 15000);
 });

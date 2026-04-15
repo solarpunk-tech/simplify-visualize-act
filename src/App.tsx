@@ -13,7 +13,6 @@ import Help from "./pages/Help";
 import Inbox from "./pages/Inbox";
 import Intelligence from "./pages/Intelligence";
 import Meetings from "./pages/Meetings";
-import MeetingDetail from "./pages/MeetingDetail";
 import Projects from "./pages/Projects";
 import Settings from "./pages/Settings";
 import Workflows from "./pages/Workflows";
@@ -40,7 +39,7 @@ const App = () => (
             <Route path="/inbox/:threadId" element={<Inbox />} />
             <Route path="/intelligence" element={<Intelligence />} />
             <Route path="/meetings" element={<Meetings />} />
-            <Route path="/meetings/:meetingId" element={<MeetingDetail />} />
+            <Route path="/meetings/:meetingId" element={<Meetings />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/workflows" element={<Workflows />} />

@@ -114,6 +114,30 @@ export type MeetingRecord = {
   summaryLines?: string[];
   preReadNudges?: string[];
   generatedNotes?: string;
+  preReadContext?: {
+    whyThisMatters?: string;
+    whatChanged?: string;
+    whatIsBlocked?: string;
+    recommendedNextStep?: string;
+  };
+  schedulingSuggestions?: {
+    timezoneLabel?: string;
+    seedDate?: string;
+    suggestedSlots?: string[];
+    defaultDurationMinutes?: number;
+  };
+  landingHelper?: {
+    relatedMeetings?: string[];
+    folderHighlights?: string[];
+    decisionCarryovers?: string[];
+  };
+  attendeeBriefs?: Array<{
+    name: string;
+    role?: string;
+    whatsOnMind: string;
+    worthBringingUp: string;
+    headsUp: string;
+  }>;
 };
 
 export type ActivityFeedItem = {
