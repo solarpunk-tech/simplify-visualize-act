@@ -26,6 +26,7 @@ import { meetings } from "@/lib/ubik-data";
 import type { MeetingRecord } from "@/lib/ubik-types";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 type MeetingSpaceId = "all" | "my-notes" | "thai-union" | "maersk" | "redwood-foods" | "harbor-retail";
 type FolderTab = "notes" | "files" | "people";
@@ -380,6 +381,9 @@ function computeEndClock(startClock: string, duration: string) {
 }
 
 export default function Meetings() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { meetingId } = useParams<{ meetingId: string }>();
   const { openDrawer, openFreshKnowAnything, setPageState } = useShellState();
   const [selectedSpaceId, setSelectedSpaceId] = useWorkbenchState<MeetingSpaceId>("meetings-space-id", "all");
   const [selectedMeetingId, setSelectedMeetingId] = useWorkbenchState<string>("meeting-id", workspaceMeetings[0].id);
@@ -408,6 +412,11 @@ export default function Meetings() {
       return haystack.includes(query);
     });
   }, [searchQuery, selectedSpaceId]);
+  const routeMeeting = useMemo(
+    () => (meetingId ? workspaceMeetings.find((meeting) => meeting.id === meetingId) ?? null : null),
+    [meetingId],
+  );
+  const isMeetingDetailView = Boolean(meetingId);
 
   useEffect(() => {
     if (!visibleMeetings.length) return;
@@ -415,8 +424,18 @@ export default function Meetings() {
       setSelectedMeetingId(visibleMeetings[0].id);
     }
   }, [selectedMeetingId, setSelectedMeetingId, visibleMeetings]);
+  useEffect(() => {
+    if (!routeMeeting) return;
+    if (selectedSpaceId !== routeMeeting.customerId) {
+      setSelectedSpaceId(routeMeeting.customerId);
+    }
+    if (selectedMeetingId !== routeMeeting.id) {
+      setSelectedMeetingId(routeMeeting.id);
+    }
+  }, [routeMeeting, selectedMeetingId, selectedSpaceId, setSelectedMeetingId, setSelectedSpaceId]);
 
   const selectedMeeting =
+    routeMeeting ??
     visibleMeetings.find((meeting) => meeting.id === selectedMeetingId) ??
     visibleMeetings[0] ??
     workspaceMeetings[0];
@@ -444,6 +463,7 @@ export default function Meetings() {
     count: workspaceMeetings.filter((meeting) => matchesSpace(meeting, space.id)).length,
   }));
   const suggestedNote = workspaceMeetings.find((meeting) => !matchesSpace(meeting, selectedSpaceId));
+  const showSuggestedNote = !isMeetingDetailView && !suggestionDismissed && suggestedNote;
 
   const askFolder = () => {
     const nextTabId = openFreshKnowAnything();
@@ -483,6 +503,19 @@ export default function Meetings() {
     setPageState(`${nextTabId}:chat-composer`, prompt);
     setPageState(`${nextTabId}:chat-sources`, ["org_knowledge", "files"]);
     setPageState(`${nextTabId}:chat-mode`, "speed");
+  };
+  const openMeetingDetail = (nextMeetingId: string) => {
+    setSelectedMeetingId(nextMeetingId);
+    navigate({
+      pathname: `/meetings/${nextMeetingId}`,
+      search: location.search,
+    });
+  };
+  const closeMeetingDetail = () => {
+    navigate({
+      pathname: "/meetings",
+      search: location.search,
+    });
   };
 
   return (
@@ -590,317 +623,125 @@ export default function Meetings() {
           </Surface>
 
           <Surface className="min-w-0 overflow-hidden">
-            <div className="border-b border-border px-5 py-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="inline-flex items-center gap-2 text-[2rem] leading-none text-foreground">
-                    <FolderClosed className="h-7 w-7 text-muted-foreground" />
-                    <span className="font-serif">{selectedSpace.name}</span>
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">Add description</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <SmallButton onClick={() => toast("Share ready", { description: `Sharing is prepared for ${selectedSpace.name}.` })}>
-                    <Share2 className="mr-2 h-3.5 w-3.5" /> Share
-                  </SmallButton>
-                  <SmallButton onClick={() => toast("Link copied", { description: "Folder link copied to clipboard." })}>
-                    <Link2 className="mr-2 h-3.5 w-3.5" /> Link
-                  </SmallButton>
-                  <SmallButton onClick={() => toast("Integrations", { description: "Folder integrations panel is ready." })}>
-                    <SearchCheck className="mr-2 h-3.5 w-3.5" /> Integrations
-                  </SmallButton>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-3xl border border-border bg-background p-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-foreground"
-                    type="button"
-                  >
-                    <Folder className="h-3.5 w-3.5" /> {selectedSpace.name}
-                  </button>
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <input
-                    aria-label="Ask about folder"
-                    className="h-11 flex-1 bg-transparent text-sm text-foreground outline-none"
-                    onChange={(event) => setFolderPrompt(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") askFolder();
-                    }}
-                    placeholder="Ask about folder"
-                    value={folderPrompt}
-                  />
-                  <button
-                    aria-label="Ask about folder in chat"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
-                    onClick={askFolder}
-                    type="button"
-                  >
-                    <Mic className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                <button
-                  className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={() =>
-                    openDrawer({
-                      title: `${selectedSpace.name} todos`,
-                      eyebrow: "Folder action",
-                      timeline: visibleMeetings.flatMap((meeting) => meeting.actionItems).slice(0, 10),
-                    })
-                  }
-                  type="button"
-                >
-                  <CheckSquare className="h-3.5 w-3.5" /> List recent todos
-                </button>
-                <button
-                  className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={() =>
-                    openDrawer({
-                      title: `${selectedSpace.name} summary`,
-                      eyebrow: "Folder action",
-                      timeline: visibleMeetings.slice(0, 8).map((meeting) => meeting.summary),
-                    })
-                  }
-                  type="button"
-                >
-                  <AudioLines className="h-3.5 w-3.5" /> Summarize this folder
-                </button>
-                <button
-                  className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={askFolder}
-                  type="button"
-                >
-                  <SearchCheck className="h-3.5 w-3.5" /> Show in-flight projects
-                </button>
-                <button
-                  className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={() => toast("Recipes", { description: "Folder recipes are ready for this space." })}
-                  type="button"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" /> All recipes
-                </button>
-              </div>
-
-              {!suggestionDismissed && suggestedNote ? (
-                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3">
-                  <p className="text-sm text-foreground">
-                    <span className="font-semibold">1 note might belong to this folder</span>
-                  </p>
-                  <div className="flex items-center gap-2">
+            {isMeetingDetailView ? (
+              routeMeeting ? (
+                <div className="flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col">
+                  <div className="border-b border-border px-5 py-5">
                     <button
-                      className="rounded-full bg-[hsl(var(--primary)/0.14)] px-3 py-1.5 text-sm text-primary"
-                      onClick={() => toast("Added note", { description: `${suggestedNote.title} moved into ${selectedSpace.name}.` })}
+                      className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={closeMeetingDetail}
                       type="button"
                     >
-                      Add 1 note
+                      <ChevronRight className="h-4 w-4 rotate-180" /> Back to {selectedSpace.name}
                     </button>
-                    <button
-                      aria-label="Dismiss suggestion"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
-                      onClick={() => setSuggestionDismissed(true)}
-                      type="button"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-4 border-b border-border px-1 pb-3">
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    ["notes", "Notes"],
-                    ["files", "Files"],
-                    ["people", "People"],
-                  ] as [FolderTab, string][]).map(([tabKey, tabLabel]) => (
-                    <button
-                      key={tabKey}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                        folderTab === tabKey
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground",
+                    <h3 className="mt-4 text-[2rem] leading-tight text-foreground">{selectedMeeting.title}</h3>
+                    <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                      <p className="inline-flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" /> {selectedMeeting.time}
+                      </p>
+                      <p className="inline-flex items-center gap-2">
+                        <Clock3 className="h-4 w-4" /> {selectedMeeting.duration}
+                      </p>
+                      <p className="inline-flex items-center gap-2">
+                        <Users className="h-4 w-4" /> {selectedMeeting.participantsCount} attendees
+                      </p>
+                      <p>Started: {selectedMeeting.startClock}</p>
+                      <p>Ended: {computeEndClock(selectedMeeting.startClock, selectedMeeting.duration)}</p>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {selectedMeeting.labels.length ? (
+                        selectedMeeting.labels.map((label) => (
+                          <StatusPill key={label} tone="muted">
+                            <Tag className="h-3.5 w-3.5" /> {label}
+                          </StatusPill>
+                        ))
+                      ) : (
+                        <StatusPill tone="muted">No labels</StatusPill>
                       )}
-                      onClick={() => setFolderTab(tabKey)}
-                      type="button"
-                    >
-                      {tabLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="max-h-[calc(100vh-22rem)] overflow-auto py-4">
-                {folderTab === "notes"
-                  ? groupedHistory.map((group) => (
-                      <div key={group.dayGroup} className="mb-5">
-                        <p className="px-1 pb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                          {group.dayGroup}
-                        </p>
-                        <div className="space-y-1">
-                          {group.meetings.map((meeting) => {
-                            const selected = meeting.id === selectedMeeting.id;
-                            return (
-                              <button
-                                key={meeting.id}
-                                className={cn(
-                                  "flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
-                                  selected
-                                    ? "border-foreground bg-background"
-                                    : "border-transparent hover:border-border hover:bg-background",
-                                )}
-                                onClick={() => setSelectedMeetingId(meeting.id)}
-                                type="button"
-                              >
-                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground">
-                                  <NotebookPen className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[1.05rem] leading-6 text-foreground">{meeting.title}</p>
-                                  <p className="truncate text-sm text-muted-foreground">
-                                    {meeting.owner}
-                                    {meeting.participants.length > 1 ? `, ${meeting.participants.slice(1).join(", ")}` : ""}
-                                  </p>
-                                </div>
-                                <div className="text-right text-sm text-muted-foreground">
-                                  <p>{meeting.startClock}</p>
-                                  <p className="mt-1 inline-flex items-center gap-1">
-                                    <Folder className="h-3.5 w-3.5" /> {meeting.customerName}
-                                  </p>
-                                </div>
-                              </button>
-                            );
-                          })}
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-auto px-5 py-5">
+                    <div className="space-y-6 pb-8">
+                      <section>
+                        <h4 className="text-xl text-foreground">Summary</h4>
+                        <p className="mt-2 text-base leading-8 text-foreground/90">{selectedMeeting.summary}</p>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xl text-foreground">Action Items</h4>
+                        <ul className="mt-2 space-y-2 text-base text-foreground/90">
+                          {selectedMeeting.actionItems.map((item) => (
+                            <li key={item} className="list-inside list-disc">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xl text-foreground">Decisions</h4>
+                        <ul className="mt-2 space-y-2 text-base text-foreground/90">
+                          {selectedMeeting.decisions.map((item) => (
+                            <li key={item} className="list-inside list-disc">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xl text-foreground">Risks and Blockers</h4>
+                        <ul className="mt-2 space-y-2 text-base text-foreground/90">
+                          {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
+                            <li key={item} className="list-inside list-disc">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xl text-foreground">Key Insights</h4>
+                        <ul className="mt-2 space-y-2 text-base text-foreground/90">
+                          {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
+                            <li key={item} className="list-inside list-disc">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+
+                      <section>
+                        <h4 className="text-xl text-foreground">Topics Covered</h4>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(selectedMeeting.topicsCovered ?? selectedMeeting.labels).map((item) => (
+                            <StatusPill key={item} tone="muted">
+                              {item}
+                            </StatusPill>
+                          ))}
                         </div>
-                      </div>
-                    ))
-                  : null}
+                      </section>
 
-                {folderTab === "files" ? (
-                  <div className="space-y-2">
-                    {folderFiles.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-3">
-                        <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                          <Files className="h-4 w-4 text-muted-foreground" /> {file.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{file.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {folderTab === "people" ? (
-                  <div className="space-y-2">
-                    {folderPeople.map((person) => (
-                      <div key={person} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-3">
-                        <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                          <Users className="h-4 w-4 text-muted-foreground" /> {person}
-                        </p>
-                        <p className="text-sm text-muted-foreground">Member</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {folderTab === "notes" ? (
-                  <div className="border-t border-border px-5 py-5">
-                  <h3 className="text-[1.7rem] leading-tight text-foreground">{selectedMeeting.title}</h3>
-
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                    <p className="inline-flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4" /> {selectedMeeting.time}
-                    </p>
-                    <p className="inline-flex items-center gap-2">
-                      <Clock3 className="h-4 w-4" /> {selectedMeeting.duration}
-                    </p>
-                    <p className="inline-flex items-center gap-2">
-                      <Users className="h-4 w-4" /> {selectedMeeting.participantsCount} attendees
-                    </p>
-                    <p>Started: {selectedMeeting.startClock}</p>
-                    <p>Ended: {computeEndClock(selectedMeeting.startClock, selectedMeeting.duration)}</p>
+                      <section>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xl text-foreground">Meeting Transcript</h4>
+                          <p className="text-sm text-muted-foreground">{selectedMeeting.transcript.length} entries</p>
+                        </div>
+                        <div className="mt-3 divide-y divide-border border border-border bg-background">
+                          {selectedMeeting.transcript.map((entry, index) => (
+                            <div key={`${entry.speaker}-${index}`} className="px-4 py-3">
+                              <p className="text-base text-foreground">
+                                <span className="font-semibold">{entry.speaker}:</span> {entry.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {selectedMeeting.labels.length ? selectedMeeting.labels.map((label) => (
-                      <StatusPill key={label} tone="muted">
-                        <Tag className="h-3.5 w-3.5" /> {label}
-                      </StatusPill>
-                    )) : <StatusPill tone="muted">No labels</StatusPill>}
-                  </div>
-
-                  <div className="mt-6 space-y-6">
-                    <section>
-                      <h4 className="text-xl text-foreground">Summary</h4>
-                      <p className="mt-2 text-base leading-8 text-foreground/90">{selectedMeeting.summary}</p>
-                    </section>
-
-                    <section>
-                      <h4 className="text-xl text-foreground">Action Items</h4>
-                      <ul className="mt-2 space-y-2 text-base text-foreground/90">
-                        {selectedMeeting.actionItems.map((item) => (
-                          <li key={item} className="list-inside list-disc">{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    <section>
-                      <h4 className="text-xl text-foreground">Decisions</h4>
-                      <ul className="mt-2 space-y-2 text-base text-foreground/90">
-                        {selectedMeeting.decisions.map((item) => (
-                          <li key={item} className="list-inside list-disc">{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    <section>
-                      <h4 className="text-xl text-foreground">Risks and Blockers</h4>
-                      <ul className="mt-2 space-y-2 text-base text-foreground/90">
-                        {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
-                          <li key={item} className="list-inside list-disc">{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    <section>
-                      <h4 className="text-xl text-foreground">Key Insights</h4>
-                      <ul className="mt-2 space-y-2 text-base text-foreground/90">
-                        {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
-                          <li key={item} className="list-inside list-disc">{item}</li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    <section>
-                      <h4 className="text-xl text-foreground">Topics Covered</h4>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(selectedMeeting.topicsCovered ?? selectedMeeting.labels).map((item) => (
-                          <StatusPill key={item} tone="muted">{item}</StatusPill>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="text-xl text-foreground">Meeting Transcript</h4>
-                        <p className="text-sm text-muted-foreground">{selectedMeeting.transcript.length} entries</p>
-                      </div>
-                      <div className="mt-3 divide-y divide-border border border-border bg-background">
-                        {selectedMeeting.transcript.map((entry, index) => (
-                          <div key={`${entry.speaker}-${index}`} className="px-4 py-3">
-                            <p className="text-base text-foreground">
-                              <span className="font-semibold">{entry.speaker}:</span> {entry.text}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  </div>
-
-                  <div className="mt-6 border-t border-border pt-4">
+                  <div className="border-t border-border bg-background px-5 py-4">
                     <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Ask about this meeting</p>
                     <div className="mt-3 flex flex-col gap-3 lg:flex-row">
                       <input
@@ -918,11 +759,243 @@ export default function Meetings() {
                       </SmallButton>
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="px-5 py-6">
+                  <button
+                    className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={closeMeetingDetail}
+                    type="button"
+                  >
+                    <ChevronRight className="h-4 w-4 rotate-180" /> Back to meetings
+                  </button>
+                  <p className="mt-4 text-sm text-muted-foreground">This meeting could not be found.</p>
+                </div>
+              )
+            ) : (
+              <div className="border-b border-border px-5 py-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="inline-flex items-center gap-2 text-[2rem] leading-none text-foreground">
+                      <FolderClosed className="h-7 w-7 text-muted-foreground" />
+                      <span className="font-serif">{selectedSpace.name}</span>
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">Add description</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <SmallButton onClick={() => toast("Share ready", { description: `Sharing is prepared for ${selectedSpace.name}.` })}>
+                      <Share2 className="mr-2 h-3.5 w-3.5" /> Share
+                    </SmallButton>
+                    <SmallButton onClick={() => toast("Link copied", { description: "Folder link copied to clipboard." })}>
+                      <Link2 className="mr-2 h-3.5 w-3.5" /> Link
+                    </SmallButton>
+                    <SmallButton onClick={() => toast("Integrations", { description: "Folder integrations panel is ready." })}>
+                      <SearchCheck className="mr-2 h-3.5 w-3.5" /> Integrations
+                    </SmallButton>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-3xl border border-border bg-background p-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-foreground"
+                      type="button"
+                    >
+                      <Folder className="h-3.5 w-3.5" /> {selectedSpace.name}
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <input
+                      aria-label="Ask about folder"
+                      className="h-11 flex-1 bg-transparent text-sm text-foreground outline-none"
+                      onChange={(event) => setFolderPrompt(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") askFolder();
+                      }}
+                      placeholder="Ask about folder"
+                      value={folderPrompt}
+                    />
+                    <button
+                      aria-label="Ask about folder in chat"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={askFolder}
+                      type="button"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                  <button
+                    className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() =>
+                      openDrawer({
+                        title: `${selectedSpace.name} todos`,
+                        eyebrow: "Folder action",
+                        timeline: visibleMeetings.flatMap((meeting) => meeting.actionItems).slice(0, 10),
+                      })
+                    }
+                    type="button"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" /> List recent todos
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() =>
+                      openDrawer({
+                        title: `${selectedSpace.name} summary`,
+                        eyebrow: "Folder action",
+                        timeline: visibleMeetings.slice(0, 8).map((meeting) => meeting.summary),
+                      })
+                    }
+                    type="button"
+                  >
+                    <AudioLines className="h-3.5 w-3.5" /> Summarize this folder
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={askFolder}
+                    type="button"
+                  >
+                    <SearchCheck className="h-3.5 w-3.5" /> Show in-flight projects
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-start gap-2 rounded-full border border-border px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => toast("Recipes", { description: "Folder recipes are ready for this space." })}
+                    type="button"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" /> All recipes
+                  </button>
+                </div>
+
+                {showSuggestedNote ? (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+                    <p className="text-sm text-foreground">
+                      <span className="font-semibold">1 note might belong to this folder</span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="rounded-full bg-[hsl(var(--primary)/0.14)] px-3 py-1.5 text-sm text-primary"
+                        onClick={() => toast("Added note", { description: `${suggestedNote.title} moved into ${selectedSpace.name}.` })}
+                        type="button"
+                      >
+                        Add 1 note
+                      </button>
+                      <button
+                        aria-label="Dismiss suggestion"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={() => setSuggestionDismissed(true)}
+                        type="button"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ) : null}
-              </div>
 
-            </div>
+                <div className="mt-4 border-b border-border px-1 pb-3">
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      ["notes", "Notes"],
+                      ["files", "Files"],
+                      ["people", "People"],
+                    ] as [FolderTab, string][]).map(([tabKey, tabLabel]) => (
+                      <button
+                        key={tabKey}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                          folderTab === tabKey
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                        onClick={() => setFolderTab(tabKey)}
+                        type="button"
+                      >
+                        {tabLabel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="max-h-[calc(100vh-22rem)] overflow-auto py-4">
+                  {folderTab === "notes"
+                    ? groupedHistory.map((group) => (
+                        <div key={group.dayGroup} className="mb-5">
+                          <p className="px-1 pb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {group.dayGroup}
+                          </p>
+                          <div className="space-y-1">
+                            {group.meetings.map((meeting) => {
+                              const selected = meeting.id === selectedMeeting.id;
+                              return (
+                                <button
+                                  key={meeting.id}
+                                  className={cn(
+                                    "flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
+                                    selected
+                                      ? "border-foreground bg-background"
+                                      : "border-transparent hover:border-border hover:bg-background",
+                                  )}
+                                  onClick={() => openMeetingDetail(meeting.id)}
+                                  type="button"
+                                >
+                                  <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground">
+                                    <NotebookPen className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-[1.05rem] leading-6 text-foreground">{meeting.title}</p>
+                                    <p className="truncate text-sm text-muted-foreground">
+                                      {meeting.owner}
+                                      {meeting.participants.length > 1 ? `, ${meeting.participants.slice(1).join(", ")}` : ""}
+                                    </p>
+                                  </div>
+                                  <div className="text-right text-sm text-muted-foreground">
+                                    <p>{meeting.startClock}</p>
+                                    <p className="mt-1 inline-flex items-center gap-1">
+                                      <Folder className="h-3.5 w-3.5" /> {meeting.customerName}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    : null}
+
+                  {folderTab === "notes" && !groupedHistory.length ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">No notes in this folder yet.</p>
+                  ) : null}
+
+                  {folderTab === "files" ? (
+                    <div className="space-y-2">
+                      {folderFiles.map((file) => (
+                        <div key={file.id} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-3">
+                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
+                            <Files className="h-4 w-4 text-muted-foreground" /> {file.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{file.time}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {folderTab === "people" ? (
+                    <div className="space-y-2">
+                      {folderPeople.map((person) => (
+                        <div key={person} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-3">
+                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
+                            <Users className="h-4 w-4 text-muted-foreground" /> {person}
+                          </p>
+                          <p className="text-sm text-muted-foreground">Member</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
           </Surface>
         </div>
       </div>

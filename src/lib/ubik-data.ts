@@ -1831,5 +1831,11 @@ export const helpResources: HelpResource[] = [
 ];
 
 export function getRouteMeta(pathname: string) {
-  return routeMetas.find((route) => route.path === pathname) ?? routeMetas.find((route) => route.path === "/");
+  const exactMatch = routeMetas.find((route) => route.path === pathname);
+  if (exactMatch) return exactMatch;
+
+  const nestedMatch = routeMetas.find((route) => route.path !== "/" && pathname.startsWith(`${route.path}/`));
+  if (nestedMatch) return nestedMatch;
+
+  return routeMetas.find((route) => route.path === "/");
 }
