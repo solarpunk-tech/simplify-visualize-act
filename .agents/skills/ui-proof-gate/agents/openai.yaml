@@ -1,0 +1,7 @@
+interface:
+  display_name: "UI Proof Gate"
+  short_description: "Enforce screenshot-backed completion proof for UI work"
+  default_prompt: "Run UI proof workflow: define scope, capture before/after artifacts, and report completion only with visual evidence."
+
+policy:
+  allow_implicit_invocation: false

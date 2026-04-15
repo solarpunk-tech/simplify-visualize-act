@@ -1,7 +1,7 @@
 interface:
   display_name: "Resume Session"
   short_description: "Reconstruct project state from the handoff and current git status"
-  default_prompt: "Resume this repository from the handoff, verify branch and git status, restate the goal, and continue from the next pending action."
+  default_prompt: "Resume from handoff, report completion state and blockers first, verify branch/git status, then continue from the next pending action."
 
 policy:
   allow_implicit_invocation: false
