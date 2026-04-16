@@ -10,9 +10,10 @@ describe("Ubik shell", () => {
     window.history.pushState({}, "", "/");
     render(createElement(App));
 
-    expect(await screen.findByText("Start with a question or a task")).toBeInTheDocument();
+    expect(await screen.findByText("Back at it, Hemanth")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Start with an operator task, a thread to continue, or a decision that needs context."),
+      screen.getByPlaceholderText("Ask anything about operations, projects, or follow-through."),
     ).toBeInTheDocument();
   });
 
@@ -20,9 +21,10 @@ describe("Ubik shell", () => {
     window.history.pushState({}, "", "/home");
     render(createElement(App));
 
-    expect(await screen.findByText("Operator Brief")).toBeInTheDocument();
-    expect(screen.getByText("Back at it, Hemanth")).toBeInTheDocument();
-    expect(screen.getByText("Activity Feed")).toBeInTheDocument();
+    expect(await screen.findByText("Morning brief")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Inbox" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand" })).toBeInTheDocument();
+    expect(screen.getByText("Revenue Pulse")).toBeInTheDocument();
   });
 
   it("opens chat from Home using the root route", async () => {

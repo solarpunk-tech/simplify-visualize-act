@@ -1,5 +1,6 @@
 import { archiveRecords } from "@/lib/ubik-data";
 import { SectionHeading, Surface } from "@/components/ubik-primitives";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Archive() {
   return (
@@ -8,24 +9,26 @@ export default function Archive() {
         <SectionHeading
           eyebrow="History"
           title="Archive holds prior work without changing the shell."
-          description="Older records remain accessible, typed, and readable so operators can pull context back into active tabs when needed."
         />
 
-        <Surface className="overflow-hidden">
-          <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr] border-b border-border bg-card px-4 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-            <span>Record</span>
-            <span>Type</span>
-            <span>Updated</span>
-            <span>Owner</span>
-          </div>
-          {archiveRecords.map((record) => (
-            <div key={record.id} className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr] border-b border-border px-4 py-4 text-sm last:border-b-0">
-              <span>{record.title}</span>
-              <span className="text-muted-foreground">{record.type}</span>
-              <span className="text-muted-foreground">{record.updatedAt}</span>
-              <span className="text-muted-foreground">{record.owner}</span>
-            </div>
-          ))}
+        <Surface className="gap-0 overflow-hidden">
+          <CardHeader className="border-b border-border/70">
+            <p className="section-label">Archive index</p>
+            <CardTitle>Historical records</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 py-4">
+            {archiveRecords.map((record) => (
+              <div
+                key={record.id}
+                className="grid gap-3 rounded-xl border border-border/70 bg-background px-4 py-4 text-sm md:grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr]"
+              >
+                <span className="font-medium text-foreground">{record.title}</span>
+                <span className="text-muted-foreground">{record.type}</span>
+                <span className="text-muted-foreground">{record.updatedAt}</span>
+                <span className="text-muted-foreground">{record.owner}</span>
+              </div>
+            ))}
+          </CardContent>
         </Surface>
       </div>
     </div>

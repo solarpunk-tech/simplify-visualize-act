@@ -1,27 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AudioLines,
-  CalendarDays,
-  CheckSquare,
-  ChevronsDown,
-  Clock3,
-  ChevronRight,
-  Files,
-  FolderPlus,
-  Folder,
-  FolderClosed,
-  Lock,
-  Link2,
-  Mic,
-  NotebookPen,
-  SearchCheck,
-  Search,
-  Send,
-  Share2,
-  Trash2,
-  Pin,
-  Users,
-} from "lucide-react";
+  CalendarBlankIcon,
+  CaretDownIcon,
+  CaretRightIcon,
+  CheckSquareIcon,
+  ClockIcon,
+  FilesIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+  LinkIcon,
+  LockIcon,
+  MagnifyingGlassIcon,
+  MicrophoneIcon,
+  NotePencilIcon,
+  PaperPlaneTiltIcon,
+  PushPinIcon,
+  ShareIcon,
+  TrashIcon,
+  UsersIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 
 import { SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
 import { PageContainer } from "@/components/page-container";
@@ -30,7 +29,29 @@ import { meetings } from "@/lib/ubik-data";
 import type { MeetingRecord } from "@/lib/ubik-types";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupTextarea,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { findContactCard, getInitials } from "@/lib/contact-helpers";
 
 type BuiltInMeetingSpaceId = "all" | "my-notes" | "thai-union" | "maersk" | "redwood-foods" | "harbor-retail";
 type MeetingSpaceId = BuiltInMeetingSpaceId | `custom-${string}`;
@@ -401,15 +422,13 @@ function LabelCreatorPlaceholder({ labels }: { labels: string[] }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       {labels.map((label) => (
-        <span
-          key={label}
-          className="inline-flex items-center rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1 text-[12px] text-foreground/62"
-        >
+        <Badge key={label} variant="outline">
           {label}
-        </span>
+        </Badge>
       ))}
-      <button
-        className="inline-flex h-7 items-center rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 text-[11px] text-foreground/52 transition-colors hover:bg-[hsl(var(--foreground)/0.1)] hover:text-foreground/72"
+      <Button
+        variant="outline"
+        size="sm"
         onClick={() =>
           toast("Labels coming next", {
             description: "This will open label creation once the meeting label system is wired in.",
@@ -418,7 +437,7 @@ function LabelCreatorPlaceholder({ labels }: { labels: string[] }) {
         type="button"
       >
         Add label
-      </button>
+      </Button>
     </div>
   );
 }
@@ -522,14 +541,23 @@ export default function Meetings() {
   }));
   const suggestedNote = workspaceMeetings.find((meeting) => !matchesSpace(meeting, selectedSpaceId));
   const showSuggestedNote = !isMeetingDetailView && !suggestionDismissed && suggestedNote;
-  const sectionLabelClass = "font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/70";
+  const sectionLabelClass = "section-label";
   const railButtonClass =
-    "inline-flex h-11 min-w-0 w-full items-center justify-start gap-2 overflow-hidden border border-border bg-background px-3 text-left text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--foreground)/0.03)]";
+    "h-11 min-w-0 w-full justify-start gap-2 overflow-hidden border-border/70 bg-background px-3 text-left text-[11px] hover:bg-secondary";
   const getFolderActionLabel = (kind: FolderActionKind) => {
     if (kind === "todos") return "follow-through note";
     if (kind === "projects") return "project snapshot";
     if (kind === "summary") return "folder summary";
     return "custom note";
+  };
+  const renderPersonAvatar = (name: string, size: "sm" | "default" = "default") => {
+    const contact = findContactCard(name);
+    return (
+      <Avatar key={name} size={size}>
+        <AvatarImage alt={name} src={contact?.avatarSrc} />
+        <AvatarFallback>{contact?.avatarFallback ?? getInitials(name)}</AvatarFallback>
+      </Avatar>
+    );
   };
   const buildFolderPrompt = (kind: FolderActionKind) => {
     const baseMeetingTitles = visibleMeetings.slice(0, 5).map((meeting) => meeting.title).join("; ");
@@ -717,9 +745,9 @@ export default function Meetings() {
   return (
     <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
       <PageContainer className="h-full min-h-0">
-        <div className="grid h-full min-h-0 gap-2 xl:grid-cols-[292px_minmax(0,1fr)]">
+        <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[304px_minmax(0,1fr)]">
           <Surface className="flex min-h-0 flex-col overflow-hidden bg-background">
-            <div className="border-b border-border px-3 py-3">
+              <div className="border-b border-border/60 px-4 py-4">
               <p className={sectionLabelClass}>Customer Spaces</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <SmallButton
@@ -730,7 +758,7 @@ export default function Meetings() {
                     })
                   }
                 >
-                  <Users className="mr-2 h-3.5 w-3.5" /> Invite
+                  <UsersIcon className="mr-2 h-3.5 w-3.5" /> Invite
                 </SmallButton>
                 <SmallButton
                   active
@@ -741,22 +769,25 @@ export default function Meetings() {
                     })
                   }
                 >
-                  <NotebookPen className="mr-2 h-3.5 w-3.5" /> Quick note
+                  <NotePencilIcon className="mr-2 h-3.5 w-3.5" /> Quick note
                 </SmallButton>
               </div>
             </div>
 
-            <div className="border-b border-border px-3 py-3">
-              <div className="flex items-center gap-2 border border-border bg-background px-3 py-2">
-                <Search className="h-4 w-4 text-foreground/70" />
-                <input
+            <div className="border-b border-border/60 px-4 py-4">
+              <InputGroup className="h-10 bg-background">
+                <InputGroupAddon>
+                  <InputGroupText>
+                    <MagnifyingGlassIcon />
+                  </InputGroupText>
+                </InputGroupAddon>
+                <InputGroupInput
                   aria-label="Search meetings"
-                  className="w-full bg-transparent text-sm text-foreground outline-none"
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search meetings, customers, or labels"
                   value={searchQuery}
                 />
-              </div>
+              </InputGroup>
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto">
@@ -769,10 +800,10 @@ export default function Meetings() {
                     <div
                       key={space.id}
                       className={cn(
-                        "group flex items-center gap-[var(--panel-row-gap)] border-b pl-3 pr-2 transition-colors",
+                        "group mx-2 mt-2 flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
                         active
-                          ? "border-b-foreground bg-foreground text-background"
-                          : "border-b-border bg-background text-foreground hover:bg-[hsl(var(--foreground)/0.03)]",
+                          ? "border-primary/25 bg-primary/5 text-foreground ring-1 ring-primary/10"
+                          : "border-border/70 bg-background text-foreground hover:bg-secondary/70",
                         isMovable && "cursor-grab active:cursor-grabbing",
                         draggingSpaceId === space.id && "opacity-60",
                       )}
@@ -793,51 +824,56 @@ export default function Meetings() {
                         setDraggingSpaceId(null);
                       }}
                     >
-                      <button
-                        className="flex min-w-0 flex-1 items-center gap-[var(--panel-row-content-gap)] py-[var(--panel-row-y)] text-left"
+                      <Button
+                        variant="ghost"
+                        className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-none px-0 py-2.5 text-left hover:bg-transparent"
                         onClick={() => setSelectedSpaceId(space.id)}
                         type="button"
                       >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em]">{space.name}</p>
-                          {space.locked ? <Lock className="h-3.5 w-3.5 shrink-0" /> : null}
-                          {space.shared ? <Users className="h-3.5 w-3.5 shrink-0" /> : null}
-                          {space.pinned ? <Pin className="h-3.5 w-3.5 shrink-0" /> : null}
+                          {space.locked ? <LockIcon className="h-3.5 w-3.5 shrink-0" /> : null}
+                          {space.shared ? <UsersIcon className="h-3.5 w-3.5 shrink-0" /> : null}
+                          {space.pinned ? <PushPinIcon className="h-3.5 w-3.5 shrink-0" /> : null}
                         </div>
                       </div>
-                      </button>
+                      </Button>
                       <div className="flex items-center gap-1">
                         {isMovable ? (
                           <div className="flex items-center gap-0.5">
-                            <button
+                            <Button
                               aria-label={space.pinned ? `Unpin ${space.name}` : `Pin ${space.name}`}
+                              variant="ghost"
+                              size="icon-sm"
                               className={cn(
-                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
+                                "opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
                                 active ? "text-background/80 hover:text-background" : "text-foreground/40 hover:text-foreground",
                               )}
                               onClick={() => togglePinSpace(space.id)}
                               type="button"
                             >
-                              <Pin className={cn("h-3.5 w-3.5", space.pinned && "fill-current")} />
-                            </button>
-                            <button
+                              <PushPinIcon className={cn("h-3.5 w-3.5", space.pinned && "fill-current")} />
+                            </Button>
+                            <Button
                               aria-label={`Delete ${space.name}`}
+                              variant="ghost"
+                              size="icon-sm"
                               className={cn(
-                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
+                                "opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
                                 active ? "text-background/80 hover:text-background" : "text-foreground/36 hover:text-destructive",
                               )}
                               onClick={() => deleteSpace(space.id)}
                               type="button"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         ) : null}
                         <span
                           className={cn(
-                            "shrink-0 border px-[var(--panel-chip-padding-x)] py-[var(--panel-chip-padding-y)] font-mono text-[10px] uppercase tracking-[0.12em]",
-                            active ? "border-background/30 text-background" : "border-border text-foreground/65",
+                            "shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                            active ? "border-primary/20 bg-primary/10 text-primary" : "border-border text-foreground/65",
                           )}
                         >
                           {space.count}
@@ -848,16 +884,17 @@ export default function Meetings() {
                 })}
               </div>
 
-              <button
-                className="flex w-full items-center justify-between border-b border-dashed border-border px-3 py-[var(--panel-add-row-y)] text-left text-sm text-foreground/72 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
+              <Button
+                variant="ghost"
+                className="m-2 w-auto justify-between rounded-xl border border-dashed border-border px-3 py-3 text-left text-sm text-foreground/72 hover:bg-secondary hover:text-foreground"
                 onClick={() => setIsCreateFolderOpen(true)}
                 type="button"
               >
                 <span className="inline-flex items-center gap-2">
-                  <FolderPlus className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" /> Add customer folder
+                  <FolderPlusIcon className="h-4 w-4" /> Add customer folder
                 </span>
-                <ChevronRight className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" />
-              </button>
+                <CaretRightIcon className="h-4 w-4" />
+              </Button>
             </div>
           </Surface>
 
@@ -865,39 +902,52 @@ export default function Meetings() {
             {isMeetingDetailView ? (
               routeMeeting ? (
                 <div className="flex h-full min-h-0 flex-col overflow-x-hidden">
-                  <div className="border-b border-border px-4 py-3 lg:px-4">
+                  <div className="border-b border-border/60 px-5 py-4 lg:px-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className={cn(sectionLabelClass)}>{selectedMeeting.customerName}</p>
                         <h2 className="mt-1 text-[22px] leading-tight text-foreground">{selectedMeeting.title}</h2>
                       </div>
-                      <button
-                        className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-foreground/58 transition-colors hover:text-foreground"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-0 text-[11px] uppercase tracking-[0.12em] text-foreground/58 hover:bg-transparent hover:text-foreground"
                         onClick={closeMeetingDetail}
                         type="button"
                       >
-                        Back to folder <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-                      </button>
+                        Back to folder <CaretRightIcon className="h-3.5 w-3.5 rotate-180" />
+                      </Button>
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/78">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <CalendarDays className="h-3.5 w-3.5" /> {selectedMeeting.time}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <Clock3 className="h-3.5 w-3.5" /> {selectedMeeting.duration}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <Users className="h-3.5 w-3.5" /> {selectedMeeting.participantsCount} attendees
-                      </span>
+                      <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                        <CalendarBlankIcon className="h-3.5 w-3.5" /> {selectedMeeting.time}
+                      </Badge>
+                      <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                        <ClockIcon className="h-3.5 w-3.5" /> {selectedMeeting.duration}
+                      </Badge>
+                      <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                        <UsersIcon className="h-3.5 w-3.5" /> {selectedMeeting.participantsCount} attendees
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <AvatarGroup>
+                        {selectedMeeting.participants.slice(0, 3).map((person) => renderPersonAvatar(person))}
+                        {selectedMeeting.participants.length > 3 ? (
+                          <AvatarGroupCount>+{selectedMeeting.participants.length - 3}</AvatarGroupCount>
+                        ) : null}
+                      </AvatarGroup>
+                      <p className="text-sm text-foreground/68">
+                        {selectedMeeting.participants.join(", ")}
+                      </p>
                     </div>
                     <LabelCreatorPlaceholder labels={selectedMeeting.labels} />
                   </div>
 
-                  <div className="min-h-0 flex-1 overflow-auto px-4 py-3 lg:px-4">
-                    <div className="grid gap-2 xl:grid-cols-[1.22fr_0.94fr]">
+                  <div className="min-h-0 flex-1 overflow-auto px-5 py-4 lg:px-5">
+                    <div className="grid gap-3 xl:grid-cols-[1.18fr_0.92fr]">
                       <div className="space-y-2">
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Decisions</p>
                           <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/86">
                             {selectedMeeting.decisions.map((item) => (
@@ -906,7 +956,7 @@ export default function Meetings() {
                           </div>
                         </section>
 
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Action Items</p>
                           <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/86">
                             {selectedMeeting.actionItems.map((item) => (
@@ -915,7 +965,7 @@ export default function Meetings() {
                           </div>
                         </section>
 
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Transcript</p>
                           <div className="mt-2 divide-y divide-border border border-border/80">
                             {selectedMeeting.transcript.map((entry, index) => (
@@ -928,12 +978,12 @@ export default function Meetings() {
                       </div>
 
                       <div className="space-y-2">
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Prep Summary</p>
                           <p className="mt-2 text-sm leading-6 text-foreground/82">{selectedMeeting.prepSummary}</p>
                         </section>
 
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Risks And Blockers</p>
                           <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/82">
                             {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
@@ -942,7 +992,7 @@ export default function Meetings() {
                           </div>
                         </section>
 
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Key Insights</p>
                           <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/82">
                             {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
@@ -951,7 +1001,7 @@ export default function Meetings() {
                           </div>
                         </section>
 
-                        <section className="border border-border/80 bg-background p-3">
+                        <section className="surface-card rounded-xl p-4">
                           <p className={sectionLabelClass}>Topics Covered</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {(selectedMeeting.topicsCovered ?? selectedMeeting.labels).map((item) => (
@@ -965,44 +1015,48 @@ export default function Meetings() {
                     </div>
                   </div>
 
-                  <div className="border-t border-border px-4 py-2.5 lg:px-4 overflow-x-hidden">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <input
+                  <div className="border-t border-border/60 px-5 py-3 lg:px-5 overflow-x-hidden">
+                    <InputGroup className="h-10 bg-background">
+                      <InputGroupInput
                         aria-label="Ask about this meeting"
-                        className="h-10 min-w-0 flex-1 border border-border bg-background px-3 text-sm text-foreground outline-none"
                         onChange={(event) => setMeetingChatPrompt(event.target.value)}
                         placeholder="Ask follow-up questions for this meeting..."
                         value={meetingChatPrompt}
                       />
-                      <SmallButton
-                        active
-                        className="shrink-0"
-                        onClick={() =>
-                          toast("Meeting prompt saved", {
-                            description: "Meeting follow-up prompts stay inside this workspace in the next pass.",
-                          })
-                        }
-                      >
-                        <AudioLines className="mr-2 h-3.5 w-3.5" /> Save prompt
-                      </SmallButton>
-                    </div>
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          variant="default"
+                          size="sm"
+                          onClick={() =>
+                            toast("Meeting prompt saved", {
+                              description: "Meeting follow-up prompts stay inside this workspace in the next pass.",
+                            })
+                          }
+                          type="button"
+                        >
+                          <WaveformIcon data-icon="inline-start" /> Save prompt
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
                   </div>
                 </div>
               ) : (
                 <div className="px-5 py-6">
-                  <button
-                    className="inline-flex items-center gap-2 text-sm text-foreground/65 transition-colors hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-0 text-sm text-foreground/65 hover:bg-transparent hover:text-foreground"
                     onClick={closeMeetingDetail}
                     type="button"
                   >
-                    <ChevronRight className="h-4 w-4 rotate-180" /> Back to meetings
-                  </button>
+                    <CaretRightIcon className="h-4 w-4 rotate-180" /> Back to meetings
+                  </Button>
                   <p className="mt-4 text-sm text-foreground/72">This meeting could not be found.</p>
                 </div>
               )
             ) : (
               <div className="flex h-[calc(100vh-12rem)] min-h-[30rem] flex-col overflow-hidden">
-                <div className="border-b border-border px-4 py-3 lg:px-4">
+                <div className="border-b border-border/60 px-5 py-4 lg:px-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className={sectionLabelClass}>Meeting Space</p>
@@ -1010,13 +1064,13 @@ export default function Meetings() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <SmallButton onClick={() => toast("Share ready", { description: `Sharing is prepared for ${selectedSpace.name}.` })}>
-                      <Share2 className="mr-2 h-3.5 w-3.5" /> Share
+                      <ShareIcon className="mr-2 h-3.5 w-3.5" /> Share
                     </SmallButton>
                     <SmallButton onClick={() => toast("Link copied", { description: "Folder link copied to clipboard." })}>
-                      <Link2 className="mr-2 h-3.5 w-3.5" /> Link
+                      <LinkIcon className="mr-2 h-3.5 w-3.5" /> Link
                     </SmallButton>
                     <SmallButton onClick={() => toast("Integrations", { description: "Folder integrations panel is ready." })}>
-                      <SearchCheck className="mr-2 h-3.5 w-3.5" /> Integrations
+                      <MagnifyingGlassIcon className="mr-2 h-3.5 w-3.5" /> Integrations
                     </SmallButton>
                   </div>
                 </div>
@@ -1030,7 +1084,7 @@ export default function Meetings() {
                 >
                 {folderCanvasMode === "note" && generatedFolderNote ? (
                   <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-                    <div className="border-b border-border px-4 py-1.5">
+                    <div className="border-b border-border/60 px-4 py-2">
                       <div className="flex items-start gap-2 text-[12px] leading-5 text-foreground/50">
                         <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-foreground/42">Prompt</span>
                         <span className="shrink-0 text-foreground/36">--</span>
@@ -1046,23 +1100,27 @@ export default function Meetings() {
                           </p>
                         </div>
                         {generatedFolderNote.prompt.length > 120 ? (
-                          <button
+                          <Button
                             aria-label={isGeneratedPromptExpanded ? "Collapse prompt" : "Expand prompt"}
-                            className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.08em] text-foreground/36 transition-colors hover:text-foreground/68"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-0.5 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em] text-foreground/36 hover:bg-transparent hover:text-foreground/68"
                             onClick={() => setIsGeneratedPromptExpanded((expanded) => !expanded)}
                             type="button"
                           >
-                            <ChevronsDown className={cn("h-3 w-3 transition-transform", isGeneratedPromptExpanded && "rotate-180")} />
-                          </button>
+                            <CaretDownIcon className={cn("h-3 w-3 transition-transform", isGeneratedPromptExpanded && "rotate-180")} />
+                          </Button>
                         ) : null}
-                        <button
-                          className="ml-1 inline-flex shrink-0 items-center gap-1 text-xs uppercase tracking-[0.1em] text-foreground/58 transition-colors hover:text-foreground"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-1 shrink-0 px-1 text-xs uppercase tracking-[0.1em] text-foreground/58 hover:bg-transparent hover:text-foreground"
                           onClick={() => setFolderCanvasMode("workspace")}
                           type="button"
                         >
-                          <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+                          <CaretRightIcon className="h-3.5 w-3.5 rotate-180" />
                           Back
-                        </button>
+                        </Button>
                       </div>
                     </div>
                     <div className="meeting-history-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3">
@@ -1088,11 +1146,11 @@ export default function Meetings() {
                         ))}
                       </div>
                     </div>
-                    <div className="border-t border-border px-4 py-1.5">
-                      <div className="relative">
-                        <textarea
+                    <div className="border-t border-border/60 px-4 py-2">
+                      <InputGroup className="h-11 bg-background">
+                        <InputGroupTextarea
                           aria-label="Continue generated note"
-                          className="h-11 min-w-0 w-full resize-none overflow-hidden bg-transparent py-2 pr-20 text-sm leading-6 text-foreground outline-none [field-sizing:fixed]"
+                          className="h-11 min-w-0 w-full resize-none overflow-hidden py-2 leading-6 [field-sizing:fixed]"
                           onChange={(event) => setGeneratedNoteFollowUpPrompt(event.target.value)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -1103,10 +1161,11 @@ export default function Meetings() {
                           rows={1}
                           value={generatedNoteFollowUpPrompt}
                         />
-                        <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
-                          <button
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupButton
                             aria-label="Record note follow-up"
-                            className="inline-flex h-8 w-8 items-center justify-center text-foreground/56 transition-colors hover:text-foreground"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() =>
                               toast("Voice capture", {
                                 description: "Voice capture can be connected into this follow-up field next.",
@@ -1114,32 +1173,33 @@ export default function Meetings() {
                             }
                             type="button"
                           >
-                            <Mic className="h-4 w-4" />
-                          </button>
-                          <button
+                            <MicrophoneIcon />
+                          </InputGroupButton>
+                          <InputGroupButton
                             aria-label="Send note follow-up"
-                            className="inline-flex h-8 w-8 items-center justify-center text-foreground/72 transition-colors hover:text-foreground"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={continueGeneratedNote}
                             type="button"
                           >
-                            <Send className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
+                            <PaperPlaneTiltIcon />
+                          </InputGroupButton>
+                        </InputGroupAddon>
+                      </InputGroup>
                     </div>
                   </div>
                 ) : (
                   <div className="flex h-full min-h-0 flex-col">
-                <div className="border border-border/80 bg-background p-3">
+                <div className="surface-card rounded-xl p-4">
                   <div className="inline-flex items-center gap-2 text-sm text-foreground/76">
-                      <Folder className="h-4 w-4 text-foreground/68" />
+                      <FolderIcon className="h-4 w-4 text-foreground/68" />
                       <span>{selectedSpace.name}</span>
                   </div>
                   <div className="mt-2.5">
-                    <div className="relative">
-                      <textarea
+                    <InputGroup className="h-auto min-h-[72px] bg-background">
+                      <InputGroupTextarea
                         aria-label="Ask about this folder and its meeting history"
-                        className="h-[64px] min-w-0 w-full resize-none overflow-y-auto bg-transparent py-1 pr-24 text-sm leading-6 text-foreground outline-none [field-sizing:fixed]"
+                        className="h-[64px] min-w-0 w-full resize-none overflow-y-auto py-1 leading-6 [field-sizing:fixed]"
                         onChange={(event) => setFolderPrompt(event.target.value)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -1150,10 +1210,11 @@ export default function Meetings() {
                         rows={2}
                         value={folderPrompt}
                       />
-                      <div className="absolute bottom-1.5 right-0 flex items-center gap-1">
-                        <button
+                      <InputGroupAddon align="block-end" className="justify-end">
+                        <InputGroupButton
                           aria-label="Record folder prompt"
-                          className="inline-flex h-8 w-8 items-center justify-center text-foreground/56 transition-colors hover:text-foreground"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() =>
                             toast("Voice capture", {
                               description: "Voice capture can be connected into this prompt field next.",
@@ -1161,50 +1222,54 @@ export default function Meetings() {
                           }
                           type="button"
                         >
-                          <Mic className="h-4 w-4" />
-                        </button>
-                        <button
+                          <MicrophoneIcon />
+                        </InputGroupButton>
+                        <InputGroupButton
                           aria-label="Send folder prompt"
-                          className="inline-flex h-8 w-8 items-center justify-center text-foreground/72 transition-colors hover:text-foreground"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={askFolder}
                           type="button"
                         >
-                          <Send className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                          <PaperPlaneTiltIcon />
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
                   </div>
                 </div>
 
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <button
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <Button
+                    variant="outline"
                     className={railButtonClass}
                     onClick={() => presetFolderPrompt("todos")}
                     type="button"
                   >
-                    <CheckSquare className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">List recent todos</span>
-                  </button>
-                  <button
+                    <CheckSquareIcon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">List recent todos</span>
+                  </Button>
+                  <Button
+                    variant="outline"
                     className={railButtonClass}
                     onClick={() => presetFolderPrompt("summary")}
                     type="button"
                   >
-                    <AudioLines className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Summarize this folder</span>
-                  </button>
-                  <button className={railButtonClass} onClick={() => presetFolderPrompt("projects")} type="button">
-                    <SearchCheck className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Show in-flight projects</span>
-                  </button>
-                  <button
+                    <WaveformIcon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Summarize this folder</span>
+                  </Button>
+                  <Button variant="outline" className={railButtonClass} onClick={() => presetFolderPrompt("projects")} type="button">
+                    <MagnifyingGlassIcon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Show in-flight projects</span>
+                  </Button>
+                  <Button
+                    variant="outline"
                     className={railButtonClass}
                     onClick={() => toast("Recipes", { description: "Folder recipes are ready for this space." })}
                     type="button"
                   >
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">All recipes</span>
-                  </button>
+                    <CaretRightIcon className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">All recipes</span>
+                  </Button>
                 </div>
 
                 {showSuggestedNote ? (
-                  <div className="mt-2 flex items-center justify-between gap-3 border border-border/80 bg-background px-4 py-3">
+                  <div className="surface-card mt-3 flex items-center justify-between gap-3 rounded-xl px-4 py-3">
                     <p className="text-sm text-foreground">
                       <span className="font-medium">1 note might belong to this folder.</span> Promote it into {selectedSpace.name} if this should become shared context.
                     </p>
@@ -1215,31 +1280,40 @@ export default function Meetings() {
                       >
                         Add 1 note
                       </SmallButton>
-                      <button
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
                         aria-label="Dismiss suggestion"
-                        className="inline-flex h-8 w-8 items-center justify-center border border-border text-foreground/65 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
                         onClick={() => setSuggestionDismissed(true)}
                         type="button"
                       >
                         ×
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : null}
 
-                <div className="mt-3 flex shrink-0 flex-wrap gap-2 border-b border-border pb-3">
-                  {([
-                    ["notes", "Notes"],
-                    ["files", "Files"],
-                    ["people", "People"],
-                  ] as [FolderTab, string][]).map(([tabKey, tabLabel]) => (
-                    <SmallButton key={tabKey} active={folderTab === tabKey} onClick={() => setFolderTab(tabKey)}>
-                      {tabLabel}
-                    </SmallButton>
-                  ))}
+                <div className="mt-4 shrink-0 border-b border-border/60 pb-4">
+                  <ToggleGroup
+                    type="single"
+                    value={folderTab}
+                    onValueChange={(value) => value && setFolderTab(value as FolderTab)}
+                    variant="outline"
+                    spacing={1}
+                  >
+                    {([
+                      ["notes", "Notes"],
+                      ["files", "Files"],
+                      ["people", "People"],
+                    ] as [FolderTab, string][]).map(([tabKey, tabLabel]) => (
+                      <ToggleGroupItem key={tabKey} value={tabKey} className="px-3 text-xs">
+                        {tabLabel}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-hidden border border-border/70">
+                <div className="surface-card min-h-0 flex-1 overflow-hidden rounded-xl">
                   <div className="meeting-history-scroll h-full overflow-y-auto overflow-x-hidden py-3">
                   {folderTab === "notes"
                     ? groupedHistory.map((group) => (
@@ -1249,26 +1323,35 @@ export default function Meetings() {
                             {group.meetings.map((meeting) => {
                               const selected = meeting.id === selectedMeeting.id;
                               return (
-                                <button
+                                <Button
                                   key={meeting.id}
+                                  variant={selected ? "secondary" : "outline"}
                                   className={cn(
-                                    "grid w-full gap-3 border px-3 py-3 text-left transition-colors md:grid-cols-[40px_minmax(0,1fr)_116px]",
+                                    "grid h-auto w-full justify-start gap-3 px-3 py-3 text-left transition-colors md:grid-cols-[40px_minmax(0,1fr)_116px]",
                                     selected
-                                      ? "border-foreground bg-[hsl(var(--foreground)/0.04)]"
-                                      : "border-border bg-background hover:bg-[hsl(var(--foreground)/0.03)]",
+                                      ? "border-primary/25 bg-primary/5 text-foreground ring-1 ring-primary/10"
+                                      : "border-border bg-background text-foreground hover:bg-secondary",
                                   )}
                                   onClick={() => openMeetingDetail(meeting.id)}
                                   type="button"
                                 >
                                   <div className="flex h-10 w-10 items-center justify-center border border-border bg-card text-foreground/72">
-                                    <NotebookPen className="h-4 w-4" />
+                                    <NotePencilIcon className="h-4 w-4" />
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-[15px] leading-6 text-foreground">{meeting.title}</p>
-                                    <p className="mt-1 text-sm text-foreground/68">
-                                      {meeting.owner}
-                                      {meeting.participants.length > 1 ? `, ${meeting.participants.slice(1).join(", ")}` : ""}
-                                    </p>
+                                    <div className="mt-2 flex items-center gap-3">
+                                      <AvatarGroup>
+                                        {meeting.participants.slice(0, 3).map((person) => renderPersonAvatar(person, "sm"))}
+                                        {meeting.participants.length > 3 ? (
+                                          <AvatarGroupCount className="size-6 text-xs">+{meeting.participants.length - 3}</AvatarGroupCount>
+                                        ) : null}
+                                      </AvatarGroup>
+                                      <p className="text-sm text-foreground/68">
+                                        {meeting.owner}
+                                        {meeting.participants.length > 1 ? `, ${meeting.participants.slice(1).join(", ")}` : ""}
+                                      </p>
+                                    </div>
                                     <div className="mt-2 flex flex-wrap gap-2">
                                       {meeting.labels.map((label) => (
                                         <StatusPill key={label} tone="muted">
@@ -1280,11 +1363,11 @@ export default function Meetings() {
                                   <div className="text-left text-sm text-foreground/68 md:text-right">
                                     <p>{meeting.startClock}</p>
                                     <p className="mt-1 inline-flex items-center gap-1 md:justify-end">
-                                      <Folder className="h-3.5 w-3.5" /> {meeting.customerName}
+                                      <FolderIcon className="h-3.5 w-3.5" /> {meeting.customerName}
                                     </p>
                                     <p className="mt-1">{meeting.duration}</p>
                                   </div>
-                                </button>
+                                </Button>
                               );
                             })}
                           </div>
@@ -1299,12 +1382,14 @@ export default function Meetings() {
                   {folderTab === "files" ? (
                     <div className="space-y-2 px-3">
                       {folderFiles.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between border border-border bg-background px-4 py-3">
-                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                            <Files className="h-4 w-4 text-foreground/60" /> {file.name}
-                          </p>
-                          <p className="text-sm text-foreground/68">{file.time}</p>
-                        </div>
+                        <Card key={file.id} size="sm" className="surface-card bg-background shadow-none">
+                          <CardContent className="flex items-center justify-between gap-3 pt-0">
+                            <p className="inline-flex items-center gap-2 text-sm text-foreground">
+                              <FilesIcon className="h-4 w-4 text-foreground/60" /> {file.name}
+                            </p>
+                            <p className="text-sm text-foreground/68">{file.time}</p>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   ) : null}
@@ -1312,12 +1397,18 @@ export default function Meetings() {
                   {folderTab === "people" ? (
                     <div className="space-y-2 px-3">
                       {folderPeople.map((person) => (
-                        <div key={person} className="flex items-center justify-between border border-border bg-background px-4 py-3">
-                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                            <Users className="h-4 w-4 text-foreground/60" /> {person}
-                          </p>
-                          <p className="text-sm text-foreground/68">Member</p>
-                        </div>
+                        <Card key={person} size="sm" className="surface-card bg-background shadow-none">
+                          <CardContent className="flex items-center justify-between gap-3 pt-0">
+                            <div className="inline-flex items-center gap-3 text-sm text-foreground">
+                              {renderPersonAvatar(person)}
+                              <div>
+                                <p>{person}</p>
+                                <p className="text-xs text-foreground/60">{findContactCard(person)?.role ?? "Participant"}</p>
+                              </div>
+                            </div>
+                            <p className="text-sm text-foreground/68">Member</p>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   ) : null}
@@ -1331,43 +1422,46 @@ export default function Meetings() {
           </Surface>
         </div>
       </PageContainer>
-      {isCreateFolderOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/10 px-4">
-          <div className="w-full max-w-md border border-border bg-background shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-            <div className="border-b border-border px-4 py-3">
-              <p className={sectionLabelClass}>Create Folder</p>
-              <h3 className="mt-1 text-base text-foreground">Add customer folder</h3>
-            </div>
-            <div className="px-4 py-4">
-              <input
-                aria-label="New customer folder name"
-                className="h-11 w-full border border-border bg-background px-3 text-sm text-foreground outline-none"
-                onChange={(event) => setNewFolderName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    createFolder();
-                  }
-                }}
-                placeholder="Folder name"
-                value={newFolderName}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-              <SmallButton
-                onClick={() => {
-                  setIsCreateFolderOpen(false);
-                  setNewFolderName("");
-                }}
-              >
-                Cancel
-              </SmallButton>
-              <SmallButton active onClick={createFolder}>
-                Create
-              </SmallButton>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Dialog
+        open={isCreateFolderOpen}
+        onOpenChange={(open) => {
+          setIsCreateFolderOpen(open);
+          if (!open) setNewFolderName("");
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <p className={sectionLabelClass}>Create Folder</p>
+            <DialogTitle>Add customer folder</DialogTitle>
+            <DialogDescription>Create a preset-native folder for meeting history, quick notes, and follow-through.</DialogDescription>
+          </DialogHeader>
+          <InputGroup className="h-11 bg-background">
+            <InputGroupInput
+              aria-label="New customer folder name"
+              onChange={(event) => setNewFolderName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  createFolder();
+                }
+              }}
+              placeholder="Folder name"
+              value={newFolderName}
+            />
+          </InputGroup>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCreateFolderOpen(false);
+                setNewFolderName("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={createFolder}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
