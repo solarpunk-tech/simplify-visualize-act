@@ -769,7 +769,7 @@ export default function Meetings() {
                     <div
                       key={space.id}
                       className={cn(
-                        "group flex items-center gap-2 border-b pl-3 pr-2 transition-colors",
+                        "group flex items-center gap-[var(--panel-row-gap)] border-b pl-3 pr-2 transition-colors",
                         active
                           ? "border-b-foreground bg-foreground text-background"
                           : "border-b-border bg-background text-foreground hover:bg-[hsl(var(--foreground)/0.03)]",
@@ -794,7 +794,7 @@ export default function Meetings() {
                       }}
                     >
                       <button
-                        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-[var(--panel-row-content-gap)] py-[var(--panel-row-y)] text-left"
                         onClick={() => setSelectedSpaceId(space.id)}
                         type="button"
                       >
@@ -813,7 +813,7 @@ export default function Meetings() {
                             <button
                               aria-label={space.pinned ? `Unpin ${space.name}` : `Pin ${space.name}`}
                               className={cn(
-                                "inline-flex h-7 w-7 items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
+                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
                                 active ? "text-background/80 hover:text-background" : "text-foreground/40 hover:text-foreground",
                               )}
                               onClick={() => togglePinSpace(space.id)}
@@ -824,7 +824,7 @@ export default function Meetings() {
                             <button
                               aria-label={`Delete ${space.name}`}
                               className={cn(
-                                "inline-flex h-7 w-7 items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
+                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
                                 active ? "text-background/80 hover:text-background" : "text-foreground/36 hover:text-destructive",
                               )}
                               onClick={() => deleteSpace(space.id)}
@@ -836,7 +836,7 @@ export default function Meetings() {
                         ) : null}
                         <span
                           className={cn(
-                            "shrink-0 border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                            "shrink-0 border px-[var(--panel-chip-padding-x)] py-[var(--panel-chip-padding-y)] font-mono text-[10px] uppercase tracking-[0.12em]",
                             active ? "border-background/30 text-background" : "border-border text-foreground/65",
                           )}
                         >
@@ -849,14 +849,14 @@ export default function Meetings() {
               </div>
 
               <button
-                className="flex w-full items-center justify-between border-b border-dashed border-border px-3 py-2.5 text-left text-sm text-foreground/72 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
+                className="flex w-full items-center justify-between border-b border-dashed border-border px-3 py-[var(--panel-add-row-y)] text-left text-sm text-foreground/72 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
                 onClick={() => setIsCreateFolderOpen(true)}
                 type="button"
               >
                 <span className="inline-flex items-center gap-2">
-                  <FolderPlus className="h-4 w-4" /> Add customer folder
+                  <FolderPlus className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" /> Add customer folder
                 </span>
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" />
               </button>
             </div>
           </Surface>

@@ -47,6 +47,15 @@
 
     --font-sans: "Inter", sans-serif;
     --font-mono: "JetBrains Mono", monospace;
+
+    --panel-row-y: 0.625rem;
+    --panel-row-gap: 0.5rem;
+    --panel-row-content-gap: 0.5rem;
+    --panel-chip-padding-x: 0.5rem;
+    --panel-chip-padding-y: 0.25rem;
+    --panel-icon-button-size: 1.75rem;
+    --panel-add-row-y: 0.625rem;
+    --panel-add-icon-size: 1rem;
   }
 
   .dark {
