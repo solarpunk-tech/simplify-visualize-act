@@ -24,8 +24,9 @@ Before committing a freshly installed component, walk through and replace hardco
 ## Tokens
 
 - CSS vars live in `src/index.css` (`:root` and `.dark`).
-- Red primary `hsl(4 62% 42%)`, mapped via `--primary` / `--accent` / `--destructive` / `--ring`.
-- Fonts: Inter (sans) + JetBrains Mono (mono), via `--font-sans` / `--font-mono`.
+- Blue primary `hsl(227 81% 56%)`, mapped via `--primary` / `--accent` / `--ring`.
+- Support accent uses `--support` / `--support-foreground`.
+- Fonts: Noto Sans Variable (sans), Montserrat Variable (heading), and JetBrains Mono (mono).
 - Do not hardcode colors or radii. Use Tailwind classes that read from the vars (`bg-primary`, `border-border`).
 
 ## Re-applying the preset
@@ -38,7 +39,7 @@ pnpm dlx shadcn@latest apply b6rrgQgiNt
 
 ## components.json
 
-Already configured for this stack (Tailwind v3 schema, `cssVariables: true`, `@/` aliases, lucide icons). Do not regenerate with `shadcn init` — it will overwrite the preset-applied CSS.
+Already configured for this stack (Tailwind v4, `cssVariables: true`, `@/` aliases, phosphor icons). Do not regenerate with `shadcn init` — it will overwrite the preset-applied CSS.
 
 ## Screenshots from the user
 

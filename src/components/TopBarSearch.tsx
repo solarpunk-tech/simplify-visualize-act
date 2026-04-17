@@ -160,23 +160,23 @@ export function TopBarSearch({
               }),
           },
           {
-            id: "widget-account-reliability",
+            id: "widget-pricing-ticker",
             section: "Widgets",
             kind: "record",
-            label: "Account Reliability",
-            supportingText: "91% renewal readiness · Top 3 accounts",
-            keywords: "account reliability renewal readiness",
+            label: "Pricing Ticker",
+            supportingText: "$6.84/kg optimal bid · 18h buy window",
+            keywords: "pricing ticker market intel commodity bid research",
             icon: <CheckSquareIcon className="h-4 w-4" />,
             onSelect: () =>
               openDrawer({
-                title: "Account Reliability",
-                eyebrow: "Account Mgmt",
-                description: "Signal stack for renewal readiness across the top accounts.",
+                title: "Pricing Ticker",
+                eyebrow: "Market Intel",
+                description: "Commodity bid guidance built from market range, cargo pressure, and buyer timing.",
                 metadata: [
-                  { label: "Readiness", value: "91%" },
-                  { label: "Signals", value: "3 tracked" },
+                  { label: "Optimal bid", value: "$6.84/kg" },
+                  { label: "Buy window", value: "18h" },
                 ],
-                actions: ["Open Projects", "Inspect accounts"],
+                actions: ["Open Projects", "Inspect pricing"],
               }),
           },
           {

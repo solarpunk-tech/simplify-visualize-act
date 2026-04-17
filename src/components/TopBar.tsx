@@ -6,7 +6,6 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTrigger } from "@/components/ui/popover";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { TopBarSearch } from "@/components/TopBarSearch";
 import { useShellState } from "@/hooks/use-shell-state";
 import { getRouteMeta, inboxThreads, settingsSections } from "@/lib/ubik-data";
 import type { InboxThread, PageAction } from "@/lib/ubik-types";
@@ -140,7 +139,12 @@ export function TopBar() {
       <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/90 px-3 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <SidebarTrigger className={`${state === "collapsed" ? "inline-flex" : "md:hidden"} border border-border`} />
-          <TopBarSearch route={route} onAction={handleAction} />
+          <div className="min-w-0">
+            <p className="section-label text-foreground">{route?.title ?? "Workspace"}</p>
+            <p className="hidden truncate text-xs text-muted-foreground sm:block">
+              {route?.description ?? "Operator surface"}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">

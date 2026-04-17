@@ -90,6 +90,7 @@ export type HomeUsageStat = {
   label: string;
   value: string;
   detail: string;
+  trend?: HomeUsageTrend;
 };
 
 export type HomeUsageActivityDay = {
@@ -98,22 +99,19 @@ export type HomeUsageActivityDay = {
   label: string;
 };
 
+export type HomeUsageTrend = {
+  direction: "up" | "down" | "flat";
+  label: string;
+  tone?: "positive" | "negative" | "neutral";
+};
+
 export type HomeUsageOverview = {
   stats: HomeUsageStat[];
   activity: HomeUsageActivityDay[];
   footer: string;
 };
 
-export type HomeModelUsage = {
-  id: string;
-  name: string;
-  inputTokens: number;
-  outputTokens: number;
-  share: number;
-  color: "chart-1" | "chart-2" | "chart-3";
-};
-
-export type UnifiedTaskPriority = "Urgent" | "High" | "Medium" | "Backlog";
+export type UnifiedTaskPriority = "Urgent" | "High" | "Medium" | "Low";
 
 export type UnifiedTaskSourceKey =
   | "inbox"
@@ -138,6 +136,8 @@ export type UnifiedTask = {
   section: UnifiedTaskSection;
   dueLabel: string;
   category: string;
+  timelineStart: string;
+  timelineEnd: string;
 };
 
 export type InboxSource = "Email" | "Slack" | "WhatsApp" | "System";

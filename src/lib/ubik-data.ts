@@ -5,7 +5,6 @@ import type {
   ArchiveRecord,
   ContactCard,
   HelpResource,
-  HomeModelUsage,
   HomeUsageOverview,
   InboxThread,
   IntelligenceRecord,
@@ -30,11 +29,11 @@ export const routeMetas: RouteMeta[] = [
     key: "home",
     title: "Home",
     path: "/home",
-    description: "Daily operating brief with widgets, actions, and execution signals.",
+    description: "Daily operating brief with compact usage intelligence and linked execution signals.",
     actions: [{ label: "Refresh", kind: "secondary" }],
     search: {
-      placeholder: "Search widgets, activity, and follow-through",
-      sections: ["Widgets", "Activity"],
+      placeholder: "Search home intelligence, activity, and follow-through",
+      sections: ["Usage", "Activity", "Tasks"],
     },
   },
   {
@@ -1812,12 +1811,48 @@ export const homeActivityFeed: ActivityFeedItem[] = [
 
 export const homeUsageOverview: HomeUsageOverview = {
   stats: [
-    { id: "usage-stat-1", label: "Workflow actions", value: "62", detail: "Automated handoffs this week" },
-    { id: "usage-stat-2", label: "Hours saved", value: "31.4h", detail: "Across follow-through and prep" },
-    { id: "usage-stat-3", label: "Decisions shipped", value: "18", detail: "Approvals and outbound actions" },
-    { id: "usage-stat-4", label: "Operator streak", value: "6d", detail: "Daily brief reviewed before noon" },
-    { id: "usage-stat-5", label: "Live threads", value: "14", detail: "Threads still tied to active work" },
-    { id: "usage-stat-6", label: "Favorite model", value: "Claude", detail: "Highest operator usage share" },
+    {
+      id: "usage-stat-1",
+      label: "Revenue influenced",
+      value: "$54.9K",
+      detail: "Commercial value kept inside the active operating loop",
+      trend: { direction: "up", label: "+12%", tone: "positive" },
+    },
+    {
+      id: "usage-stat-2",
+      label: "Working capital protected",
+      value: "$18.2K",
+      detail: "Cash release risk pulled back inside target payment terms",
+      trend: { direction: "up", label: "+$4.6K", tone: "positive" },
+    },
+    {
+      id: "usage-stat-3",
+      label: "Operating margin defended",
+      value: "+2.4 pts",
+      detail: "Pricing exceptions resolved before quote discipline slipped",
+      trend: { direction: "up", label: "+0.6 pts", tone: "positive" },
+    },
+    {
+      id: "usage-stat-4",
+      label: "Morning brief hit rate",
+      value: "87%",
+      detail: "Brief-linked actions cleared before noon",
+      trend: { direction: "up", label: "+9 pts", tone: "positive" },
+    },
+    {
+      id: "usage-stat-5",
+      label: "Decisions shipped",
+      value: "18",
+      detail: "Approvals, escalations, and outbound moves completed",
+      trend: { direction: "up", label: "+4", tone: "positive" },
+    },
+    {
+      id: "usage-stat-6",
+      label: "Hours returned",
+      value: "31.4h",
+      detail: "Operator capacity shifted out of trace work and into customer execution",
+      trend: { direction: "up", label: "+6.2h", tone: "positive" },
+    },
   ],
   activity: [
     { id: "activity-grid-1", level: 0, label: "Apr 1" },
@@ -1869,14 +1904,9 @@ export const homeUsageOverview: HomeUsageOverview = {
     { id: "activity-grid-47", level: 0, label: "May 17" },
     { id: "activity-grid-48", level: 1, label: "May 18" },
   ],
-  footer: "Usage intensity is up 18% week over week as morning briefs and workflow reviews are getting resolved in one pass.",
+  footer:
+    "UBIK is carrying more operating load without adding coordination drag: $54.9K of revenue, $18.2K of working capital, and 2.4 margin points stayed onside while 87% of brief-linked actions cleared before noon.",
 };
-
-export const homeModelUsage: HomeModelUsage[] = [
-  { id: "model-1", name: "Claude Sonnet 4.6", inputTokens: 57200, outputTokens: 783300, share: 80.8, color: "chart-1" },
-  { id: "model-2", name: "Gemini 2.5 Pro", inputTokens: 8090, outputTokens: 58400, share: 13.4, color: "chart-2" },
-  { id: "model-3", name: "GPT-5.2", inputTokens: 317, outputTokens: 59800, share: 5.8, color: "chart-3" },
-];
 
 export const activeOrders = [
   {
@@ -2228,6 +2258,17 @@ function getUnifiedTaskSection(task: UnifiedTask): number {
   return task.section === "Today" ? 0 : 1;
 }
 
+function buildTaskTimeline(dayOffset: number, startHour: number, durationHours: number) {
+  const start = new Date(2026, 3, 17 + dayOffset, startHour, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(end.getHours() + durationHours);
+
+  return {
+    timelineStart: start.toISOString(),
+    timelineEnd: end.toISOString(),
+  };
+}
+
 export const unifiedTasks: UnifiedTask[] = [
   ...meetings.flatMap((meeting, index) =>
     meeting.actionItems.map((action, actionIndex) => ({
@@ -2244,6 +2285,7 @@ export const unifiedTasks: UnifiedTask[] = [
       section: meeting.stage === "Upcoming" && index < 2 ? "Today" : "No deadline",
       dueLabel: meeting.time,
       category: "Meeting carry-forward",
+      ...buildTaskTimeline(index, 9 + actionIndex * 2, 4),
     })),
   ),
   ...approvals.map((approval, index) => ({
@@ -2260,6 +2302,7 @@ export const unifiedTasks: UnifiedTask[] = [
     section: index < 3 ? "Today" : "No deadline",
     dueLabel: approval.status,
     category: "Approval gating",
+    ...buildTaskTimeline(index === 0 ? 0 : index - 1, 11 + index, 6),
   })),
   ...inboxThreads
     .filter(
@@ -2285,6 +2328,7 @@ export const unifiedTasks: UnifiedTask[] = [
         thread.priority === "Critical" || thread.followUpStatus === "due_soon" || index < 2 ? "Today" : "No deadline",
       dueLabel: thread.dueRisk,
       category: "Follow-up",
+      ...buildTaskTimeline(index, 10 + (index % 3) * 2, 3),
     })),
   ...workflowRuns
     .filter((run) => run.status !== "Completed")
@@ -2294,7 +2338,7 @@ export const unifiedTasks: UnifiedTask[] = [
       summary: run.summary,
       project: run.owner,
       owner: run.owner,
-      priority: run.status === "Awaiting approval" ? "High" : "Backlog",
+      priority: run.status === "Awaiting approval" ? "High" : "Low",
       source: "workflows" as const,
       sourceLabel: "Workflow run",
       href: `/tasks?task=workflow-task-${run.id}`,
@@ -2302,6 +2346,7 @@ export const unifiedTasks: UnifiedTask[] = [
       section: run.status === "Awaiting approval" || index === 0 ? "Today" : "No deadline",
       dueLabel: run.startedAt,
       category: "Automation follow-through",
+      ...buildTaskTimeline(index + 1, 8 + index, 8),
     })),
 ]
   .sort((left, right) => {
