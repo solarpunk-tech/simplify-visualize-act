@@ -31,6 +31,14 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -49,6 +57,13 @@ import {
   InputGroupTextarea,
   InputGroupText,
 } from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { SidebarInput } from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { findContactCard, getInitials } from "@/lib/contact-helpers";
@@ -741,6 +756,343 @@ export default function Meetings() {
       search: location.search,
     });
   };
+  const visibleScopes = spacesWithCounts.filter((space) => space.count > 0);
+  const promotedScopes = visibleScopes.slice(0, 8);
+
+  return (
+    <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
+      <PageContainer className="h-full min-h-0">
+        <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 flex-col overflow-hidden border border-border/70 bg-card shadow-sm">
+            <div className="border-b border-border/60 px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={sectionLabelClass}>Meetings</p>
+                  <h2 className="mt-1 text-lg font-medium text-foreground">Previous meeting notes</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Continuity, decisions, and follow-through by customer scope.</p>
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <FolderOpenIcon data-icon="inline-start" /> Scope
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80">
+                    <div className="flex flex-col gap-3">
+                      <div className="space-y-1">
+                        <p className={sectionLabelClass}>Switch scope</p>
+                        <p className="text-sm text-muted-foreground">Focus the note rail on one customer space or your private notes.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {visibleScopes.map((space) => (
+                          <Button
+                            key={space.id}
+                            variant={space.id === selectedSpaceId ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSelectedSpaceId(space.id)}
+                            type="button"
+                          >
+                            {space.name}
+                            <span className="ml-2 text-[11px] text-current/72">{space.count}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <SidebarInput
+                aria-label="Search meeting notes"
+                className="mt-3 h-9"
+                placeholder="Search meetings, notes, customers, or labels"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </div>
+
+            <div className="border-b border-border/60 px-3 py-3">
+              <div className="flex flex-col gap-1">
+                {visibleScopes.slice(0, 6).map((space) => (
+                  <Button
+                    key={space.id}
+                    variant="ghost"
+                    className={cn(
+                      "h-auto w-full justify-between rounded-lg px-3 py-2.5 text-left",
+                      space.id === selectedSpaceId ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setSelectedSpaceId(space.id)}
+                    type="button"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{space.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{space.description}</span>
+                    </span>
+                    <span className="ml-3 rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]">
+                      {space.count}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <ScrollArea className="min-h-0 flex-1">
+              {groupedHistory.length ? (
+                <div className="flex flex-col gap-4 px-2 py-3">
+                  {groupedHistory.map((group) => (
+                    <div key={group.dayGroup} className="space-y-1.5">
+                      <p className={cn(sectionLabelClass, "px-2")}>{group.dayGroup}</p>
+                      {group.meetings.map((meeting) => {
+                        const selected = meeting.id === selectedMeeting.id;
+                        return (
+                          <Button
+                            key={meeting.id}
+                            variant="ghost"
+                            className={cn(
+                              "h-auto w-full flex-col items-start gap-2 rounded-xl border px-3 py-3 text-left",
+                              selected
+                                ? "border-primary/25 bg-primary/5 text-foreground shadow-sm"
+                                : "border-transparent hover:border-border/80 hover:bg-secondary/40",
+                            )}
+                            onClick={() => openMeetingDetail(meeting.id)}
+                            type="button"
+                          >
+                            <div className="flex w-full items-start gap-3">
+                              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground/72">
+                                <NotePencilIcon className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate text-sm font-medium text-foreground">{meeting.title}</p>
+                                  <span className="ml-auto text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{meeting.startClock}</span>
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{meeting.summary}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <Badge variant="outline">{meeting.customerName}</Badge>
+                                  {meeting.kind === "quick_note" ? <Badge variant="secondary">Quick note</Badge> : null}
+                                  {meeting.labels.slice(0, 1).map((label) => (
+                                    <Badge key={label} variant="outline">{label}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-6">
+                  <p className="text-sm text-muted-foreground">No notes match this scope yet.</p>
+                </div>
+              )}
+            </ScrollArea>
+          </aside>
+
+          <section className="flex min-h-0 flex-col overflow-hidden border border-border/70 bg-card shadow-sm">
+            <div className="border-b border-border/60 px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <Breadcrumb>
+                    <BreadcrumbList>
+                      <BreadcrumbItem className="hidden md:block">
+                        <BreadcrumbLink asChild>
+                          <button className="cursor-pointer" type="button" onClick={() => setSelectedSpaceId("all")}>
+                            Meeting notes
+                          </button>
+                        </BreadcrumbLink>
+                      </BreadcrumbItem>
+                      <BreadcrumbSeparator className="hidden md:block" />
+                      <BreadcrumbItem className="hidden md:block">
+                        <BreadcrumbPage>{selectedSpace.name}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                      <BreadcrumbSeparator className="hidden md:block" />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>{selectedMeeting.title}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </BreadcrumbList>
+                  </Breadcrumb>
+                  <h2 className="mt-3 text-[26px] leading-tight text-foreground">{selectedMeeting.title}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {selectedMeeting.customerName} · {selectedMeeting.time} · {selectedMeeting.duration}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() =>
+                      toast("Quick note created", {
+                        description: `A new scratchpad is ready in ${selectedSpace.name}.`,
+                      })
+                    }
+                    type="button"
+                  >
+                    <NotePencilIcon data-icon="inline-start" /> Quick note
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => presetFolderPrompt("summary")} type="button">
+                    Prep
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="mt-4 w-full whitespace-nowrap">
+                <div className="flex gap-2 pb-1">
+                  {promotedScopes.map((space) => (
+                    <Button
+                      key={space.id}
+                      variant={space.id === selectedSpaceId ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedSpaceId(space.id)}
+                      type="button"
+                    >
+                      {space.name}
+                      <span className="ml-2 rounded-sm bg-current/10 px-1.5 py-0.5 text-[10px] text-current/72">{space.count}</span>
+                    </Button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <div className="grid min-h-0 flex-1 gap-4 overflow-hidden px-4 py-4 xl:grid-cols-[minmax(0,1.18fr)_320px]">
+              <ScrollArea className="min-h-0">
+                <div className="space-y-4 pr-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                      <CalendarBlankIcon className="h-3.5 w-3.5" /> {selectedMeeting.time}
+                    </Badge>
+                    <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                      <ClockIcon className="h-3.5 w-3.5" /> {selectedMeeting.duration}
+                    </Badge>
+                    <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                      <UsersIcon className="h-3.5 w-3.5" /> {selectedMeeting.participantsCount} attendees
+                    </Badge>
+                    {selectedMeeting.kind === "quick_note" ? <StatusPill tone="muted">Quick note</StatusPill> : null}
+                  </div>
+
+                  <div className="surface-well rounded-xl p-4">
+                    <p className={sectionLabelClass}>Meeting summary</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground/84">{selectedMeeting.summary}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(selectedMeeting.topicsCovered ?? selectedMeeting.labels).map((item) => (
+                        <StatusPill key={item} tone="muted">
+                          {item}
+                        </StatusPill>
+                      ))}
+                    </div>
+                  </div>
+
+                  <section className="surface-card rounded-xl p-4">
+                    <p className={sectionLabelClass}>Notes</p>
+                    <div className="mt-2 flex flex-col gap-2 text-sm leading-6 text-foreground/86">
+                      {selectedMeeting.notes.map((item) => (
+                        <p key={item}>- {item}</p>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="surface-card rounded-xl p-4">
+                    <p className={sectionLabelClass}>Decisions</p>
+                    <div className="mt-2 flex flex-col gap-2 text-sm leading-6 text-foreground/86">
+                      {selectedMeeting.decisions.map((item) => (
+                        <p key={item}>- {item}</p>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="surface-card rounded-xl p-4">
+                    <p className={sectionLabelClass}>Action items</p>
+                    <div className="mt-2 flex flex-col gap-2 text-sm leading-6 text-foreground/86">
+                      {selectedMeeting.actionItems.map((item) => (
+                        <p key={item}>- {item}</p>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="surface-card rounded-xl p-4">
+                    <p className={sectionLabelClass}>Transcript</p>
+                    <div className="mt-2 divide-y divide-border border border-border/80">
+                      {selectedMeeting.transcript.map((entry, index) => (
+                        <div key={`${entry.speaker}-${index}`} className="px-3 py-3 text-sm leading-6 text-foreground/86">
+                          <span className="font-medium text-foreground">{entry.speaker}:</span> {entry.text}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </ScrollArea>
+
+              <ScrollArea className="min-h-0">
+                <div className="space-y-3 pr-2">
+                  <Surface className="p-4">
+                    <p className={sectionLabelClass}>Participants</p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <AvatarGroup>
+                        {selectedMeeting.participants.slice(0, 3).map((person) => renderPersonAvatar(person))}
+                        {selectedMeeting.participants.length > 3 ? (
+                          <AvatarGroupCount>+{selectedMeeting.participants.length - 3}</AvatarGroupCount>
+                        ) : null}
+                      </AvatarGroup>
+                      <p className="text-sm text-foreground/68">{selectedMeeting.participants.join(", ")}</p>
+                    </div>
+                    <LabelCreatorPlaceholder labels={selectedMeeting.labels} />
+                  </Surface>
+
+                  <Surface className="p-4">
+                    <p className={sectionLabelClass}>Prep summary</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground/82">{selectedMeeting.prepSummary}</p>
+                  </Surface>
+
+                  <Surface className="p-4">
+                    <p className={sectionLabelClass}>Risks and blockers</p>
+                    <div className="mt-2 flex flex-col gap-2 text-sm leading-6 text-foreground/82">
+                      {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
+                        <p key={item}>- {item}</p>
+                      ))}
+                    </div>
+                  </Surface>
+
+                  <Surface className="p-4">
+                    <p className={sectionLabelClass}>Key insights</p>
+                    <div className="mt-2 flex flex-col gap-2 text-sm leading-6 text-foreground/82">
+                      {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
+                        <p key={item}>- {item}</p>
+                      ))}
+                    </div>
+                  </Surface>
+
+                  <Surface className="p-4">
+                    <p className={sectionLabelClass}>Ask about this note</p>
+                    <InputGroup className="mt-2 h-10 bg-background">
+                      <InputGroupInput
+                        aria-label="Ask about this meeting"
+                        onChange={(event) => setMeetingChatPrompt(event.target.value)}
+                        placeholder="Ask follow-up questions for this meeting..."
+                        value={meetingChatPrompt}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          variant="default"
+                          size="sm"
+                          onClick={() =>
+                            toast("Meeting prompt saved", {
+                              description: "Meeting follow-up prompts stay inside this workspace in the next pass.",
+                            })
+                          }
+                          type="button"
+                        >
+                          <WaveformIcon data-icon="inline-start" /> Save prompt
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </Surface>
+                </div>
+              </ScrollArea>
+            </div>
+          </section>
+        </div>
+      </PageContainer>
+    </div>
+  );
 
   return (
     <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">

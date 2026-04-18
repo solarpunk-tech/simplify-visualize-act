@@ -5,6 +5,10 @@ This branch is the current consolidated unified UI pass for UBIK. It captures th
 ## Current state
 
 - Shell, Home, Inbox, Meetings, Projects, Approvals, Workflows, and Know Anything have been brought onto the same shadcn preset language.
+- Inbox has gone through another cleanup pass:
+  - the left rail header now relies only on the middle-panel collapse/expand affordance; the duplicate control inside the rail is gone
+  - the reply compose surface no longer repeats an extra `Reply / To` header row
+  - attachment/send actions now sit directly below the draft editor, before suggested insertions
 - `Know Anything` is now a composer-first operator workspace instead of a prototype-like utility dashboard.
 - The latest reset tightened `Know Anything` into a smaller AI-app composer with:
   - footer mode dropdown for `Plan`, `Research`, and `Model Council`
@@ -72,6 +76,13 @@ This branch is the current consolidated unified UI pass for UBIK. It captures th
 
 - Home and Projects no longer rely almost entirely on bar-family charts.
 - The UI now uses area, bar, donut, and radial patterns where the data shape actually justifies them.
+
+### 6. Inbox compose now follows the cleaner composer rhythm
+
+- The inbox thread experience is denser and less repetitive:
+  - no duplicate reply-state header inside the compose card
+  - no redundant inbox title inside the left list rail
+  - compose actions now sit closer to the draft area instead of being separated by insertion cards
 
 ## Key files and areas touched
 

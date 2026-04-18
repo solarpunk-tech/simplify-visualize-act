@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useShellState } from "@/hooks/use-shell-state";
 import { workbenchLauncherRoutes } from "@/lib/ubik-data";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,11 +25,17 @@ export function WorkbenchTabs() {
   } = useShellState();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const tabsAtLimit = tabs.length >= 8;
+  const { state } = useSidebar();
 
   return (
     <div className="border-b border-border/70 bg-background/95 px-3 py-2">
       <div className="flex items-center justify-between gap-3 rounded-none border border-border/70 bg-card/90 px-2 py-2 shadow-sm">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {state === "collapsed" ? (
+            <SidebarTrigger
+              className="mr-1 shrink-0 rounded-none border-border/70 bg-background hover:bg-secondary"
+            />
+          ) : null}
           {tabs.map((tab) => {
             const active = tab.id === activeTabId;
             const dragging = tab.id === draggingId;

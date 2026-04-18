@@ -1,6 +1,232 @@
 # Unified UI Handoff
 
 ## Status
+- Latest completed pass: **Inbox left-rail collapse cleanup pass**.
+- Verification is green:
+  - `pnpm build`
+  - `pnpm test`
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - remove the duplicate collapse button from the left inbox rail entirely
+  - rely on the middle-panel expand/collapse control as the only inbox hide/show affordance
+  - keep the rest of the left rail layout unchanged after removing that extra control
+- Spacing:
+  - keep the left rail header visually quiet with only the unread/sent toggle and search stack
+- Typography:
+  - no new copy; remove the redundant affordance instead of relabeling it
+- Color:
+  - stay on preset light/dark tokens instead of a copied black strip
+  - preserve the current inbox rail colors while changing only structure
+- Interactions:
+  - the inbox collapse/expand affordance now exists only in the middle-panel command rail
+- Responsive behavior:
+  - the left rail should not reserve vertical space for a redundant control row
+
+## Visual evidence
+- Before (duplicate collapse button still present): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-compose-cleanup-after-full.png`
+- After (left rail duplicate collapse button removed): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-left-rail-collapse-removed-after-full.png`
+
+## Visual delta summary
+- The left rail no longer contains its own collapse button.
+- The unread/sent toggle and search field now start immediately at the top of the inbox rail.
+- The middle-panel rail remains the only place where the inbox hide/show control lives.
+
+## Status
+- Latest completed pass: **Inbox command bar correction: dark auto-layout rail with persistent left-edge inbox toggle**.
+- Verification is green:
+  - `pnpm build`
+  - `pnpm test`
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - make the thread actions read like the compact dark command-bar reference, not a loose bordered toolbar
+  - keep the nested inbox toggle permanently at the far-left edge of the command component so its purpose is obvious even before collapse
+  - preserve the rest of the thread header layout while tightening only the command bar geometry
+- Spacing:
+  - use content-width auto-layout segments instead of wide button cells
+  - keep the command rail dense with uniform item height and small internal gaps
+- Typography:
+  - keep command labels short and the hotkey token compact
+  - avoid oversized command cells that create visual dead space
+- Color:
+  - use an inverted dark utility rail inside the light page shell
+  - keep the hotkey token darker and denser inside the rail
+- Interactions:
+  - left-most list icon toggles the inbox rail in both open and collapsed states
+  - keep only subtle hover/state transitions and respect reduced motion
+- Responsive behavior:
+  - allow the command rail to wrap only when it truly needs to; desktop should read as one compact command strip
+
+## Visual evidence
+- Before (user-shared problematic state, rail open): `/Users/shubhranshujha/Desktop/Screenshot 2026-04-18 at 3.52.53 AM.png`
+- Before (previous fix, command strip still too loose): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-refine-top-focus.png`
+- After (command bar focus): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-command-bar-fix-top-focus.png`
+- After (full page, rail collapsed): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-command-bar-fix-collapsed-full.png`
+- After (full page baseline, rail open): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-command-bar-fix-after-full.png`
+
+## Visual delta summary
+- The thread actions now sit in a single dark utility rail that tracks much closer to the shared command-bar example.
+- The inbox toggle is no longer buried in the middle of the actions; it is now the first control at the far-left edge of the rail in both states.
+- The command items now size to content, so the strip reads like auto-layout instead of a row of equally heavy bordered cells.
+- The hotkey chip is visually denser and nested inside the rail rather than floating as a separate oversized cell.
+
+## Status
+- Latest completed pass: **Inbox refinement pass: list-icon inbox restore, denser action strip, collapsed recipients, artifact-only insertions**.
+- Verification is green:
+  - `pnpm build`
+  - `pnpm test`
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - keep the inbox-restore control as the first item in the action strip and render it as a list icon instead of a text button
+  - make the action strip read closer to the shared compact hotkey example, with contiguous segments instead of loose standalone buttons
+  - keep `To` as the only header card in the compose surface
+  - collapse `Cc` and `Bcc` into compact pill rows that show suggested people before expansion instead of tall empty wells
+  - keep suggested insertions restricted to concrete outbound artifacts only: attachments, image/chart inserts, documents, and ERP/shipment tracking links
+- Spacing:
+  - reduce wasted vertical space in the recipient rows
+  - let longer prefilled replies naturally occupy more height so some threads feel denser and more realistic
+- Typography:
+  - keep the monospaced micro-label treatment for queue labels and compose section labels
+  - remove generic draft-suggestion language from the insertion tray
+- Color:
+  - keep the dark hotkey chip only on the keyboard token inside the action strip
+  - keep all new pills and artifact rows on preset tokens with no extra accent fills
+- Interactions:
+  - clicking the left list icon restores the hidden inbox rail
+  - `Cc` / `Bcc` expansion still happens through the add popovers, but the closed state now previews suggested recipients inline
+  - the reply body seeds a fuller outbound response for the approval thread and scales editor height from content length
+- Responsive behavior:
+  - preserve the compact two-column desktop structure while making the compose surface visibly denser
+
+## Visual evidence
+- Before (previous full state): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after-full.png`
+- Before (previous compose state): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after-compose.png`
+- After (full page): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-refine-after-full.png`
+- After (collapsed inbox rail with list-icon restore): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-refine-after-collapsed.png`
+- After (top action strip focus): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-refine-top-focus.png`
+- After (compose focus): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-refine-compose-focus.png`
+
+## Visual delta summary
+- The restore affordance is now the left-most list icon in the action strip, which makes the hidden inbox rail feel like a proper toggle instead of a secondary text CTA.
+- The action controls now read as two tighter segmented strips, closer to the compact hotkey reference and less like a row of unrelated buttons.
+- `Cc` and `Bcc` no longer occupy large empty boxes; they stay collapsed into short preview rows with suggested recipients until the picker is opened.
+- The seeded reply is now a fuller email-style response for the approval thread, and the editor height grows with the content instead of staying fixed.
+- Suggested insertions now contain only concrete outbound artifacts: PDF, spreadsheet, image/chart, and Salesforce tracking link. The old generic `Insert suggested draft` card is gone.
+
+## Status
+- Latest completed pass: **Inbox comment pass: compact action strip, centered thread meta, chat history, collapsed compose metadata, quick-task tray**.
+- Verification is green:
+  - `pnpm build`
+  - `pnpm test`
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - remove the extra `Working mail` subtitle from the inbox rail header
+  - keep thread actions in one compact strip instead of a labeled secondary panel
+  - center `People on thread` between sender identity and received time
+  - replace the `Thread messages` heading block with a `View older messages` nudge and chat-bubble rows
+  - keep only the `To` contact card in the reply header, move subject into a single editable row, and split `Cc` / `Bcc` evenly below it
+  - keep suggested insertions inside the compose surface, below the prefilled reply body
+  - expand quick-task cards into a compact routing tray with search + icon/value controls instead of the old horizontal action buttons
+- Spacing:
+  - keep the new top action bar tight and scan-first, closer to the dark hotkey-strip reference the user shared
+  - give the sender/meta row a balanced three-part alignment so the avatar group sits visually centered
+  - keep the compose surface dense but not stacked with redundant helper copy
+- Typography:
+  - preserve the preset’s monospaced micro-labels
+  - remove explanatory filler copy where the structure already communicates intent
+- Color:
+  - stay on preset tokens only
+  - use the inverted dark chip only for the hotkey token inside the action strip
+- Interactions:
+  - subject input appears only while editing
+  - `Cc` / `Bcc` search inputs only appear on click via the popovers
+  - quick-task expansion now exposes default routing values that can be changed before adding the task
+- Responsive behavior:
+  - keep the right rail intact while making the compose and quick-task controls denser at desktop width
+
+## Visual evidence
+- Before (top/thread baseline): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-before.png`
+- Before (compose baseline from prior pass): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-reply-after.png`
+- After (top/thread): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after.png`
+- After (lower compose): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after-compose.png`
+- After (quick task expanded): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after-quick-task.png`
+- After (full page): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-thread-comment-pass-after-full.png`
+- After DOM snapshot (compose + quick task in view): `.playwright-cli/page-2026-04-17T22-56-36-374Z.yml`
+
+## Visual delta summary
+- The inbox rail header is cleaner now: the redundant `Working mail` subtitle is gone, and the left list starts with just `Inbox`, the scope toggle, and search.
+- The top-right thread actions now read like one compact hotkey/action strip instead of a loose stack with an `Actions` caption and helper line.
+- The sender meta row now uses a centered middle column for `People on thread`, which makes the avatar cluster feel aligned instead of floating between sender and timestamp.
+- The message history now reads like chat: leading avatar, square bubble surface, and a `View 1 older message` nudge replacing the old section title.
+- The reply composer now matches the requested hierarchy: `To` contact card in the header only, subject as the top editable row, even `Cc`/`Bcc` cells below, and the recommended reply prefilled in the editor with suggested insertions moved inside the compose frame.
+- The quick-task expansion now opens into a routing tray with assignee search, preset project/status/priority/due/label controls, and a single `Add task` commit action instead of the previous three-button add bar.
+
+## Status
+- Latest completed pass: **Inbox comment pass: unread/sent rail, top-bar actions, and inline reply recipients**.
+- Verification is green:
+  - `pnpm build`
+  - `pnpm test`
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - remove the inbox chip strip and fold the list controls back into the left rail
+  - keep the left rail to `Inbox`, search, and a visible `Unread` / `Sent` toggle
+  - make left-rail collapse a true focus mode that gives the thread detail full width
+  - move primary thread actions beside `Open Gmail` in the thread top bar
+  - keep the right column shorter by removing the old `Actions` and `People` panels
+- Spacing:
+  - tighten the left rail so the list starts immediately below search
+  - let the subject line span the full detail width by separating the action row from the title
+  - keep the reply footer on a single line with `Send` aligned to the right
+- Typography:
+  - preserve the preset’s sharp, utilitarian hierarchy and monospaced micro-labels
+  - keep button labels explicit (`Unread`, `Sent`, `Reply`, `Compose`) rather than icon-only toggles
+- Color:
+  - stay on preset tokens only (`b6rrgQgiNt`)
+  - use blue only for active state/emphasis and keep attachments neutral except for SVG file marks
+- Interactions:
+  - restore a visible product-nav trigger beside the tabs when the main sidebar is collapsed
+  - use left/right arrow key nudges to move thread-by-thread
+  - make `Reply` and `Compose` first-class top-bar actions
+  - remove `Ask chat`, `Copy draft`, `Mark reviewed` from the reply surface, and the connected-apps footer copy
+  - move recipient, subject, Cc/Bcc search, avatar-group preview, and suggestion cards into the reply compose surface
+  - use SVG file-type marks for attachments and suggestion cards instead of flat yellow fills
+- Responsive behavior:
+  - keep the left rail usable at desktop width and fully removable in focus mode
+  - preserve the two-column detail + quick-task layout on desktop while letting the subject stay readable
+
+## Visual evidence
+- Inbox before (pre-comment pass): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-before.png`
+- Inbox after (expanded rail): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-after.png`
+- Inbox after (focus mode, rail collapsed): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-collapsed.png`
+- Inbox after (product nav collapsed, trigger restored beside tabs): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-product-nav-after.png`
+- Inbox after (reply surface with inline recipients + suggestion cards): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-reply-after.png`
+- Inbox after (reply footer with single-line actions + send): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/inbox-comment-pass-reply-send-after.png`
+- Expanded after DOM snapshot: `.playwright-cli/page-2026-04-17T22-03-05-292Z.yml`
+- Collapsed after DOM snapshot: `.playwright-cli/page-2026-04-17T22-03-21-671Z.yml`
+- Meetings after, headerless shell: `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/meetings-headerless-after.png`
+- Reference screenshots/video from user:
+  - `/Users/shubhranshujha/Desktop/Screenshot 2026-04-18 at 2.04.50 AM.png`
+  - `/Users/shubhranshujha/Desktop/Screenshot 2026-04-18 at 2.05.41 AM.png`
+  - `/Users/shubhranshujha/Desktop/Screen Recording 2026-04-18 at 2.05.01 AM.mov`
+
+## Visual delta summary
+- The inbox chip strip is gone. The left rail now matches the requested `search + Unread/Sent toggle` model, and the list starts immediately below those controls.
+- Focus mode is a real collapse now: the left rail disappears entirely, the detail column stretches full width, and the top action bar exposes a `Show inbox` restore control.
+- When the product navigation is collapsed, the restore trigger now sits beside the tabs, so the off-canvas nav is still discoverable.
+- The thread header is cleaner: sender identity moved into a people card below the subject, the right-most `People` panel was removed, and time is pushed to the card edge instead of sitting inline with noisy metadata.
+- Thread actions now live beside `Open Gmail` with explicit `Reply` / `Compose` actions plus arrow-key nudges; `Ask chat` and the bulky old `Actions` panel are gone.
+- The reply surface now contains subject + recipient controls, Cc/Bcc contact search, avatar-group recipient preview, compact suggestion rectangles, SVG file marks, and a one-line footer where `Send` sits on the same row as the attach actions.
+
+## Status
 - Latest completed pass: **Home document-style morning brief + shared task actions pass**.
 - Verification is green:
   - `pnpm build`

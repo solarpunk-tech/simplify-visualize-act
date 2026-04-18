@@ -589,14 +589,38 @@ export default function Index() {
           type="file"
         />
 
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-2 pt-4 text-center">
-          <p className="section-label">Know Anything</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground lg:text-4xl">
-            Back at it, Hemanth
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Ask across projects, meetings, chats, and linked work without losing the thread of action.
-          </p>
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 pt-4">
+          <div className="flex justify-end">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" type="button">
+                  Share
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="font-heading font-medium">Share</h3>
+                    <p className="text-sm text-muted-foreground">Choose who can access this thread.</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button className="justify-start" type="button">Only me</Button>
+                    <Button variant="outline" className="justify-start" type="button">Team</Button>
+                    <Button variant="outline" className="justify-start" type="button">Copy link</Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <p className="section-label">Know Anything</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground lg:text-4xl">
+              Back at it, Hemanth
+            </h1>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Ask across projects, meetings, chats, and linked work without losing the thread of action.
+            </p>
+          </div>
         </div>
 
         <div className="w-full max-w-4xl border border-border bg-background shadow-[0_18px_40px_rgba(15,23,42,0.08)]">

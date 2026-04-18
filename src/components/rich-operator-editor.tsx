@@ -150,6 +150,7 @@ export function RichOperatorEditor({
   minHeight = 150,
   showInsertBlock = true,
   showMarkdownCopy = true,
+  showCopyActions = true,
   compactCopyActions = false,
   className,
 }: {
@@ -159,6 +160,7 @@ export function RichOperatorEditor({
   minHeight?: number;
   showInsertBlock?: boolean;
   showMarkdownCopy?: boolean;
+  showCopyActions?: boolean;
   compactCopyActions?: boolean;
   className?: string;
 }) {
@@ -228,34 +230,36 @@ export function RichOperatorEditor({
 
   return (
     <Card size="sm" className={cn("surface-card gap-0 overflow-visible", className)}>
-      <CardHeader className="border-b border-border/70 py-3">
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            aria-label="Copy draft"
-            className={cn(compactCopyActions ? "px-2" : "")}
-            onClick={() => copyText("docs")}
-            size={compactCopyActions ? "icon-sm" : "sm"}
-            title="Copy draft"
-            type="button"
-            variant="outline"
-          >
-            <CopyIcon data-icon={compactCopyActions ? undefined : "inline-start"} />
-            {!compactCopyActions ? "Copy Docs-safe" : null}
-          </Button>
-          {showMarkdownCopy ? (
+      {showCopyActions ? (
+        <CardHeader className="border-b border-border/70 py-3">
+          <div className="flex items-center justify-end gap-2">
             <Button
-              aria-label="Copy markdown"
-              onClick={() => copyText("markdown")}
-              size="sm"
+              aria-label="Copy draft"
+              className={cn(compactCopyActions ? "px-2" : "")}
+              onClick={() => copyText("docs")}
+              size={compactCopyActions ? "icon-sm" : "sm"}
+              title="Copy draft"
               type="button"
               variant="outline"
             >
-              <CopyIcon data-icon="inline-start" />
-              Copy Markdown
+              <CopyIcon data-icon={compactCopyActions ? undefined : "inline-start"} />
+              {!compactCopyActions ? "Copy Docs-safe" : null}
             </Button>
-          ) : null}
-        </div>
-      </CardHeader>
+            {showMarkdownCopy ? (
+              <Button
+                aria-label="Copy markdown"
+                onClick={() => copyText("markdown")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon data-icon="inline-start" />
+                Copy Markdown
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+      ) : null}
 
       <CardContent className="relative py-3">
         <div className="surface-well rounded-xl p-3">
