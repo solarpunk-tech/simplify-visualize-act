@@ -6,6 +6,7 @@ import {
   CaretDownIcon,
   CaretRightIcon,
   ChatsIcon,
+  ClockCounterClockwiseIcon,
   EnvelopeSimpleIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
@@ -37,7 +38,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
-import { contactCards, inboxThreads, meetings, projects, starterActions } from "@/lib/ubik-data";
+import { chatRecentWork, contactCards, inboxThreads, meetings, projects, starterActions } from "@/lib/ubik-data";
 import { cn } from "@/lib/utils";
 
 type ChatSource =
@@ -176,16 +177,6 @@ function looksLikePlanPrompt(value: string) {
   ].some((needle) => trimmed.includes(needle));
 }
 
-const starterCategoryIconMap: Record<string, ReactNode> = {
-  All: <SparkleIcon className="size-3.5" />,
-  "Project continuity": <FolderOpenIcon className="size-3.5" />,
-  "Multi-app follow-up": <ChatsIcon className="size-3.5" />,
-  "Approval packet": <ShieldCheckIcon className="size-3.5" />,
-  "Meeting pre-read": <CalendarBlankIcon className="size-3.5" />,
-  "Workflow diagnosis": <SparkleIcon className="size-3.5" />,
-  "Connector-grounded research": <BooksIcon className="size-3.5" />,
-};
-
 export default function Index() {
   const { openDrawer, openRuntime } = useShellState();
   const [composer, setComposer] = useWorkbenchState("chat-composer", "");
@@ -210,7 +201,6 @@ export default function Index() {
   const [contextQuery, setContextQuery] = useState("");
   const [expandedGroups, setExpandedGroups] =
     useState<Record<ContextGroupKey, boolean>>(defaultExpandedGroups);
-  const [activeSuggestionCategory, setActiveSuggestionCategory] = useState("All");
   const [scheduleDraft, setScheduleDraft] = useState<ScheduledPromptDraft>(
     scheduledPrompt ?? defaultSchedule,
   );
@@ -399,20 +389,6 @@ export default function Index() {
       reference,
     })),
   ];
-
-  const categoryChips = useMemo(
-    () => ["All", ...Array.from(new Set(starterActions.map((action) => action.category)))],
-    [],
-  );
-
-  const visibleSuggestions = useMemo(() => {
-    const filtered =
-      activeSuggestionCategory === "All"
-        ? starterActions
-        : starterActions.filter((action) => action.category === activeSuggestionCategory);
-
-    return filtered.slice(0, 5);
-  }, [activeSuggestionCategory]);
 
   const showPlanNudge = useMemo(
     () => storedMode === "ask" && looksLikePlanPrompt(composer),
@@ -1124,60 +1100,36 @@ export default function Index() {
         </div>
 
         <div className="w-full max-w-4xl border border-border bg-background shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
-          <div className="flex flex-col gap-4 px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-foreground">Suggested asks</p>
-              <button
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => setActiveSuggestionCategory("All")}
-                type="button"
-              >
-                Reset
+          <div className="border-b border-border/70 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <button aria-label="History" className="inline-flex size-8 items-center justify-center border border-border/70 bg-secondary/20 text-foreground" type="button">
+                <ClockCounterClockwiseIcon className="size-4" />
               </button>
-            </div>
-
-            <div className="-mx-1 overflow-x-auto px-1">
-              <div className="flex min-w-max items-center gap-1.5 whitespace-nowrap">
-                {categoryChips.map((category) => (
-                  <button
-                    key={category}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                      activeSuggestionCategory === category
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setActiveSuggestionCategory(category)}
-                    type="button"
-                  >
-                    {starterCategoryIconMap[category] ?? <SparkleIcon className="size-3.5" />}
-                    {category}
-                  </button>
-                ))}
+              <div>
+                <p className="text-sm font-medium text-foreground">Previous chats</p>
+                <p className="text-xs text-muted-foreground">Pick up a recent thread instead of starting from a blank prompt.</p>
               </div>
             </div>
+          </div>
 
-            <div className="flex flex-col">
-              {visibleSuggestions.map((action, index) => (
-                <button
-                  key={action.id}
-                  className={cn(
-                    "flex items-start justify-between gap-4 px-0 py-3 text-left transition-colors hover:text-primary",
-                    index > 0 ? "border-t border-border" : "",
-                  )}
-                  onClick={() => setComposer(action.seedPrompt)}
-                  type="button"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground">{action.title}</span>
-                    <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-                      {action.description}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{action.category}</span>
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-col px-4 py-2">
+            {chatRecentWork.map((item, index) => (
+              <button
+                key={item.id}
+                className={cn(
+                  "flex items-start justify-between gap-4 px-0 py-3 text-left transition-colors hover:text-primary",
+                  index > 0 ? "border-t border-border" : "",
+                )}
+                onClick={() => setComposer(`Continue this thread:\n${item.title}\n\nContext:\n${item.summary}`)}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">{item.title}</span>
+                  <span className="mt-1 block text-sm leading-6 text-muted-foreground">{item.summary}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">History</span>
+              </button>
+            ))}
           </div>
         </div>
       </PageContainer>

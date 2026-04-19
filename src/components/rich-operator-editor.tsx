@@ -262,7 +262,7 @@ export function RichOperatorEditor({
       ) : null}
 
       <CardContent className="relative py-3">
-        <div className="surface-well rounded-xl p-3">
+        <div className="border border-border/70 bg-background p-3">
           <Textarea
             ref={ref}
             className="min-h-0 w-full resize-none border-0 bg-transparent px-0 py-0 text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
@@ -310,7 +310,7 @@ export function RichOperatorEditor({
 
         {menuOpen ? (
           <div className="absolute inset-x-6 top-6 z-20">
-            <div className="surface-card overflow-hidden rounded-xl shadow-lg">
+            <div className="surface-card overflow-hidden border border-border/70 bg-background shadow-lg">
               <div className="border-b border-border/70 px-3 py-2">
                 <p className="section-label">Commands</p>
               </div>
@@ -321,7 +321,7 @@ export function RichOperatorEditor({
                     <button
                       key={command.key}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                        "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
                         active ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/70",
                       )}
                       onMouseDown={(event) => {

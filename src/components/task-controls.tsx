@@ -1,9 +1,8 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
-  ArrowUpIcon,
   CalendarBlankIcon,
-  CaretDownIcon,
   CaretRightIcon,
+  CheckIcon,
   CheckCircleIcon,
   CircleIcon,
   FolderOpenIcon,
@@ -25,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import {
   Popover,
   PopoverContent,
@@ -58,13 +58,70 @@ function PriorityPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] font-medium leading-none",
         priorityTone[priority].pill,
         className,
       )}
     >
-      {priority === "None" ? "No priority" : priority}
+      <TaskPriorityIcon className={cn("size-3.5 shrink-0", priorityTone[priority].icon)} priority={priority} />
+      <span className={priorityTone[priority].label}>{priority === "None" ? "No priority" : priority}</span>
     </span>
+  );
+}
+
+function TaskPriorityIcon({
+  priority,
+  className,
+}: {
+  priority: TaskPriorityOption;
+  className?: string;
+}) {
+  if (priority === "Urgent") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={className}
+        fill="currentColor"
+        viewBox="0 0 16 16"
+      >
+        <path d="M3 1c-1.09 0-2 .91-2 2v10c0 1.09.91 2 2 2h10c1.09 0 2-.91 2-2V3c0-1.09-.91-2-2-2H3Zm4 3h2l-.246 4.998H7.25L7 4Zm2 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
+      </svg>
+    );
+  }
+
+  if (priority === "None") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={className}
+        fill="currentColor"
+        viewBox="0 0 16 16"
+      >
+        <rect height={1.5} opacity={0.9} rx={0.5} width={3} x={1.5} y={7.25} />
+        <rect height={1.5} opacity={0.9} rx={0.5} width={3} x={6.5} y={7.25} />
+        <rect height={1.5} opacity={0.9} rx={0.5} width={3} x={11.5} y={7.25} />
+      </svg>
+    );
+  }
+
+  const opacityMap =
+    priority === "High"
+      ? [1, 1, 1]
+      : priority === "Medium"
+        ? [1, 1, 0.4]
+        : [1, 0.4, 0.4];
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+      viewBox="0 0 16 16"
+    >
+      <rect fillOpacity={opacityMap[0]} height={6} rx={1} width={3} x={1.5} y={8} />
+      <rect fillOpacity={opacityMap[1]} height={9} rx={1} width={3} x={6.5} y={5} />
+      <rect fillOpacity={opacityMap[2]} height={12} rx={1} width={3} x={11.5} y={2} />
+    </svg>
   );
 }
 
@@ -83,26 +140,55 @@ function TaskStatusLabel({ status }: { status: TaskStatusOption }) {
 function TaskPriorityLabel({ priority }: { priority: TaskPriorityOption }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm text-foreground">
-      {priority === "Urgent" || priority === "High" ? <ArrowUpIcon className="size-4 text-foreground" /> : null}
-      {priority === "Medium" ? <CaretRightIcon className="size-4 text-muted-foreground" /> : null}
-      {priority === "Low" ? <CaretDownIcon className="size-4 text-muted-foreground" /> : null}
-      {priority === "None" ? <MinusIcon className="size-4 text-muted-foreground" /> : null}
-      <span>{priority === "None" ? "None" : priority}</span>
+      <TaskPriorityIcon className={cn("size-4 shrink-0", priorityTone[priority].icon)} priority={priority} />
+      <span className={priorityTone[priority].label}>{priority === "None" ? "No priority" : priority}</span>
     </span>
   );
 }
 
-function TaskOwner({ owner }: { owner: string }) {
+function TaskOwner({
+  owner,
+  showName = true,
+  className,
+  avatarClassName,
+}: {
+  owner: string;
+  showName?: boolean;
+  className?: string;
+  avatarClassName?: string;
+}) {
   const contact = findContactCard(owner);
+  const secondaryLabel = contact ? `${contact.role} · ${contact.company}` : "Assignee";
 
   return (
-    <span className="inline-flex items-center gap-2">
-      <Avatar className="size-8 border-border/70" size="sm">
-        {contact?.avatarSrc ? <AvatarImage alt={owner} src={contact.avatarSrc} /> : null}
-        <AvatarFallback>{getInitials(owner)}</AvatarFallback>
-      </Avatar>
-      <span className="truncate">{owner}</span>
-    </span>
+    <HoverCard openDelay={120}>
+      <HoverCardTrigger asChild>
+        <button
+          aria-label={`Assignee ${owner}`}
+          className={cn("inline-flex min-w-0 items-center gap-2 text-left", className)}
+          type="button"
+        >
+          <Avatar className={cn("size-8 border border-border/70 bg-background", avatarClassName)} size="sm">
+            {contact?.avatarSrc ? <AvatarImage alt={owner} src={contact.avatarSrc} /> : null}
+            <AvatarFallback>{getInitials(owner)}</AvatarFallback>
+          </Avatar>
+          {showName ? <span className="truncate">{owner}</span> : null}
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-64 rounded-none border border-border/70 bg-background p-3">
+        <div className="flex items-start gap-3">
+          <Avatar className="size-10 border border-border/70 bg-background" size="default">
+            {contact?.avatarSrc ? <AvatarImage alt={owner} src={contact.avatarSrc} /> : null}
+            <AvatarFallback>{getInitials(owner)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{owner}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{secondaryLabel}</p>
+            <p className="mt-3 section-label">Assigned to</p>
+          </div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -155,11 +241,14 @@ function TaskPriorityMenu({
               className={cn("justify-between", priority === option.value && "font-semibold text-primary")}
               onSelect={() => onSelect(option.value)}
             >
-              <span className="inline-flex items-center gap-2">
-                <span className={cn("h-3 w-3 rounded-[3px]", priorityTone[option.value].line)} />
+              <span className="inline-flex items-center gap-2 text-foreground">
+                <TaskPriorityIcon className={cn("size-4 shrink-0", priorityTone[option.value].icon)} priority={option.value} />
                 {option.label}
               </span>
-              <DropdownMenuShortcut>{option.shortcut}</DropdownMenuShortcut>
+              <span className="ml-auto inline-flex items-center gap-2 pl-3 text-xs text-muted-foreground">
+                {priority === option.value ? <CheckIcon className="size-3.5 text-foreground" /> : null}
+                <DropdownMenuShortcut>{option.shortcut}</DropdownMenuShortcut>
+              </span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
@@ -198,7 +287,7 @@ function CompactTaskActions({
         trigger={
           <span>
             <TaskIconButton label="Set priority">
-              <ArrowUpIcon />
+              <TaskPriorityIcon className="size-4" priority={task.displayPriority} />
             </TaskIconButton>
           </span>
         }
@@ -304,6 +393,7 @@ export {
   PriorityPill,
   TaskIconButton,
   TaskOwner,
+  TaskPriorityIcon,
   TaskPriorityLabel,
   TaskPriorityMenu,
   TaskStatusLabel,
