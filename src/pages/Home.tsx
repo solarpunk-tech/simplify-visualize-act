@@ -18,7 +18,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { PageContainer } from "@/components/page-container";
-import { CompactTaskActions, PriorityPill, TaskOwner, TaskStatusLabel } from "@/components/task-controls";
+import { CompactTaskActions, PriorityPill, TaskOwner } from "@/components/task-controls";
 import { Drive } from "@/components/ui/svgs/drive";
 import { Gmail } from "@/components/ui/svgs/gmail";
 import { GoogleCalendar } from "@/components/ui/svgs/googleCalendar";
@@ -489,52 +489,22 @@ function MorningBriefDocumentSection({
   );
 }
 
-function HomeTaskActivityPanel({ task }: { task: TaskRecord }) {
-  const scheduleLabel = formatScheduleLabel(task.schedule);
-
-  return (
-    <div className="grid gap-2 md:grid-cols-3">
-      <div className="border border-border/70 bg-background px-3 py-2.5">
-        <p className="section-label">Status</p>
-        <div className="mt-1.5">
-          <TaskStatusLabel status={task.displayStatus} />
-        </div>
-      </div>
-      <div className="border border-border/70 bg-background px-3 py-2.5">
-        <p className="section-label">Due window</p>
-        <p className="mt-1.5 text-sm text-foreground">{scheduleLabel ?? formatTaskDate(task)}</p>
-      </div>
-      <div className="border border-border/70 bg-background px-3 py-2.5">
-        <p className="section-label">Route</p>
-        <p className="mt-1.5 text-sm text-foreground">{task.sourceLabel}</p>
-      </div>
-    </div>
-  );
-}
-
-function HomeTaskSmartLinks({
-  links,
-  onOpen,
-}: {
-  links: BriefDocumentLink[];
-  onOpen: (href: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {links.map((link) => (
-        <BriefDocumentLinkChip key={link.id} link={link} onOpen={onOpen} />
-      ))}
-    </div>
+function buildHomeTaskMeta(task: TaskRecord) {
+  return Array.from(
+    new Set(
+      [
+        task.displayProject,
+        task.sourceLabel,
+        task.schedule ? formatScheduleLabel(task.schedule) : formatTaskDate(task),
+      ].filter(Boolean),
+    ),
   );
 }
 
 function HomeTaskPreviewRow({
   task,
-  isOpen,
-  onOpenChange,
   onNavigate,
   ownerOptions,
-  smartLinks,
   onPriorityChange,
   onProjectChange,
   onOwnerChange,
@@ -542,93 +512,68 @@ function HomeTaskPreviewRow({
   onToggleChecked,
 }: {
   task: TaskRecord;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
   onNavigate: (href: string) => void;
   ownerOptions: string[];
-  smartLinks: BriefDocumentLink[];
   onPriorityChange: (value: TaskPriorityOption) => void;
   onProjectChange: (value: string) => void;
   onOwnerChange: (value: string) => void;
   onScheduleSave: (value: TaskScheduleDraft) => void;
   onToggleChecked: () => void;
 }) {
+  const metaItems = buildHomeTaskMeta(task);
+
   return (
-    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-      <div className="border-b border-border/50 last:border-b-0">
-        <div className="flex items-start gap-3 py-3">
-          <Checkbox
-            checked={task.isChecked}
-            className="mt-0.5 rounded-[0.35rem]"
-            onCheckedChange={onToggleChecked}
-          />
-          <CollapsibleTrigger asChild>
-            <button type="button" className="group/task flex min-w-0 flex-1 items-start justify-between gap-3 text-left">
-              <div className="min-w-0 flex-1">
-                <p className={cn("truncate text-sm font-medium text-foreground transition-colors group-hover/task:text-primary", task.isChecked && "text-muted-foreground line-through")}>
-                  {task.title}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span>{task.displayProject}</span>
-                  <span>{task.displayOwner}</span>
-                  <span>{formatTaskDate(task)}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <PriorityPill priority={task.displayPriority} className="px-2 py-0 text-[11px]" />
-                <CaretDownIcon className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
-              </div>
-            </button>
-          </CollapsibleTrigger>
+    <div className="flex items-start gap-3 border-b border-border/50 py-3 last:border-b-0">
+      <Checkbox
+        checked={task.isChecked}
+        className="mt-1 rounded-none"
+        onCheckedChange={onToggleChecked}
+      />
+      <TaskOwner
+        owner={task.displayOwner}
+        showName={false}
+        className="mt-0.5 shrink-0"
+        avatarClassName="size-7"
+      />
+      <button
+        className="group/task min-w-0 flex-1 text-left"
+        onClick={() => onNavigate(task.href)}
+        type="button"
+      >
+        <p
+          className={cn(
+            "truncate text-sm font-medium text-foreground transition-colors group-hover/task:text-primary",
+            task.isChecked && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {metaItems.map((item) => (
+            <span key={`${task.id}-${item}`}>{item}</span>
+          ))}
         </div>
-
-        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none">
-          <div className="space-y-4 border-t border-border/60 pb-4 pt-4">
-            <div className="space-y-2">
-              <p className="section-label">Description</p>
-              <p className="text-sm leading-6 text-muted-foreground">{task.summary}</p>
-            </div>
-
-            <HomeTaskActivityPanel task={task} />
-
-            <div className="space-y-2">
-              <p className="section-label">Linked context</p>
-              <HomeTaskSmartLinks links={smartLinks} onOpen={onNavigate} />
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-border/60 pt-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <TaskOwner owner={task.displayOwner} />
-                <span>{task.displayProject}</span>
-                <span>{task.sourceLabel}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <CompactTaskActions
-                  ownerOptions={ownerOptions}
-                  onOwnerChange={onOwnerChange}
-                  onPriorityChange={onPriorityChange}
-                  onProjectChange={onProjectChange}
-                  onScheduleSave={onScheduleSave}
-                  task={task}
-                />
-                <Button className="rounded-none" onClick={() => onNavigate(task.href)} size="sm" type="button" variant="outline">
-                  Open in Tasks
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CollapsibleContent>
+      </button>
+      <div className="flex items-center gap-2 pl-2">
+        {task.displayPriority !== "None" ? (
+          <PriorityPill priority={task.displayPriority} />
+        ) : null}
+        <CompactTaskActions
+          ownerOptions={ownerOptions}
+          onOwnerChange={onOwnerChange}
+          onPriorityChange={onPriorityChange}
+          onProjectChange={onProjectChange}
+          onScheduleSave={onScheduleSave}
+          task={task}
+        />
       </div>
-    </Collapsible>
+    </div>
   );
 }
 
 function HomeTaskPreviewSection({
   group,
-  expandedTaskId,
-  setExpandedTaskId,
   ownerOptions,
-  getTaskLinks,
   onNavigate,
   onPriorityChange,
   onProjectChange,
@@ -637,10 +582,7 @@ function HomeTaskPreviewSection({
   onToggleChecked,
 }: {
   group: HomeTaskPreviewGroup;
-  expandedTaskId: string | null;
-  setExpandedTaskId: (taskId: string | null) => void;
   ownerOptions: string[];
-  getTaskLinks: (task: TaskRecord) => BriefDocumentLink[];
   onNavigate: (href: string) => void;
   onPriorityChange: (taskId: string, value: TaskPriorityOption) => void;
   onProjectChange: (taskId: string, value: string) => void;
@@ -659,16 +601,13 @@ function HomeTaskPreviewSection({
           {group.tasks.map((task) => (
             <HomeTaskPreviewRow
               key={task.id}
-              isOpen={expandedTaskId === task.id}
               onNavigate={onNavigate}
-              onOpenChange={(open) => setExpandedTaskId(open ? task.id : null)}
               onOwnerChange={(value) => onOwnerChange(task.id, value)}
               onPriorityChange={(value) => onPriorityChange(task.id, value)}
               onProjectChange={(value) => onProjectChange(task.id, value)}
               onScheduleSave={(value) => onScheduleSave(task.id, value)}
               onToggleChecked={() => onToggleChecked(task.id)}
               ownerOptions={ownerOptions}
-              smartLinks={getTaskLinks(task)}
               task={task}
             />
           ))}
@@ -683,10 +622,7 @@ function HomeTaskPreviewSection({
 function HomeTaskPreviewCard({
   groups,
   totalCount,
-  expandedTaskId,
-  setExpandedTaskId,
   ownerOptions,
-  getTaskLinks,
   onNavigate,
   onPriorityChange,
   onProjectChange,
@@ -696,10 +632,7 @@ function HomeTaskPreviewCard({
 }: {
   groups: HomeTaskPreviewGroup[];
   totalCount: number;
-  expandedTaskId: string | null;
-  setExpandedTaskId: (taskId: string | null) => void;
   ownerOptions: string[];
-  getTaskLinks: (task: TaskRecord) => BriefDocumentLink[];
   onNavigate: (href: string) => void;
   onPriorityChange: (taskId: string, value: TaskPriorityOption) => void;
   onProjectChange: (taskId: string, value: string) => void;
@@ -714,7 +647,7 @@ function HomeTaskPreviewCard({
           <p className="section-label">Task list</p>
           <CardTitle className="text-lg">Execution queue</CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
-            Expand a routed task to inspect context, reassign, reprioritize, or schedule without leaving Home.
+            Keep the Home queue scan-first, then jump into Tasks only when you need the full document view.
           </CardDescription>
         </div>
         <CardAction className="flex items-center gap-2">
@@ -730,8 +663,6 @@ function HomeTaskPreviewCard({
         {groups.map((group) => (
           <HomeTaskPreviewSection
             key={group.id}
-            expandedTaskId={expandedTaskId}
-            getTaskLinks={getTaskLinks}
             group={group}
             onNavigate={onNavigate}
             onOwnerChange={onOwnerChange}
@@ -740,7 +671,6 @@ function HomeTaskPreviewCard({
             onScheduleSave={onScheduleSave}
             onToggleChecked={onToggleChecked}
             ownerOptions={ownerOptions}
-            setExpandedTaskId={setExpandedTaskId}
           />
         ))}
       </CardContent>
@@ -756,7 +686,6 @@ export default function Home() {
   const [taskProjects, setTaskProjects] = useState<Record<string, string>>({});
   const [taskOwners, setTaskOwners] = useState<Record<string, string>>({});
   const [taskSchedules, setTaskSchedules] = useState<Record<string, TaskScheduleDraft>>({});
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const today = startOfDay(new Date());
 
   const urgentApprovals = approvals.filter((item) => item.status === "Urgent").length;
@@ -1349,8 +1278,6 @@ export default function Home() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(24rem,0.78fr)]">
           <CompactUsageCard />
           <HomeTaskPreviewCard
-            expandedTaskId={expandedTaskId}
-            getTaskLinks={getTaskLinks}
             groups={homeTaskPreviewGroups}
             onNavigate={navigate}
             onOwnerChange={setTaskOwner}
@@ -1359,7 +1286,6 @@ export default function Home() {
             onScheduleSave={setTaskSchedule}
             onToggleChecked={toggleTaskChecked}
             ownerOptions={ownerOptions}
-            setExpandedTaskId={setExpandedTaskId}
             totalCount={allHomeTasks.length}
           />
         </div>

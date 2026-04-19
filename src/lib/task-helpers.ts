@@ -40,32 +40,44 @@ export const priorityTone: Record<
   TaskPriorityOption,
   {
     pill: string;
+    icon: string;
+    label: string;
     line: string;
     bar: string;
   }
 > = {
   None: {
-    pill: "border-border/80 bg-background text-muted-foreground",
+    pill: "border-border bg-background text-muted-foreground",
+    icon: "text-muted-foreground",
+    label: "text-muted-foreground",
     line: "bg-border",
     bar: "bg-border",
   },
   Urgent: {
-    pill: "border-destructive/20 bg-destructive/10 text-destructive",
-    line: "bg-destructive",
-    bar: "bg-destructive",
+    pill: "border-primary/30 bg-background text-foreground",
+    icon: "text-primary",
+    label: "text-primary",
+    line: "bg-primary",
+    bar: "bg-primary",
   },
   High: {
-    pill: "border-primary/20 bg-primary/10 text-primary",
+    pill: "border-border bg-background text-foreground",
+    icon: "text-primary",
+    label: "text-foreground",
     line: "bg-primary",
     bar: "bg-primary",
   },
   Medium: {
-    pill: "border-support/25 bg-support/15 text-support-foreground",
+    pill: "border-support/35 bg-background text-foreground",
+    icon: "text-support-foreground",
+    label: "text-foreground",
     line: "bg-support",
     bar: "bg-support",
   },
   Low: {
-    pill: "border-border bg-secondary text-secondary-foreground",
+    pill: "border-border bg-background text-muted-foreground",
+    icon: "text-muted-foreground",
+    label: "text-muted-foreground",
     line: "bg-muted-foreground/50",
     bar: "bg-muted-foreground/50",
   },

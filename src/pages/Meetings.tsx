@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeftIcon,
   BellIcon,
   CalendarBlankIcon,
   CalendarPlusIcon,
@@ -32,12 +33,13 @@ import {
   WaveformIcon,
 } from "@phosphor-icons/react";
 
-import { SmallButton, Surface } from "@/components/ubik-primitives";
+import { Surface } from "@/components/ubik-primitives";
 import { PageContainer } from "@/components/page-container";
+import { RichOperatorEditor } from "@/components/rich-operator-editor";
 import { useWorkbenchState } from "@/hooks/use-shell-state";
 import { contactCards, meetings } from "@/lib/ubik-data";
 import type { MeetingRecord } from "@/lib/ubik-types";
-import { cn } from "@/lib/utils";
+import { cn, shouldIgnoreSurfaceHotkeys } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
@@ -91,9 +93,20 @@ import { GoogleCalendar } from "@/components/ui/svgs/googleCalendar";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { findContactCard, getInitials } from "@/lib/contact-helpers";
 
-type BuiltInMeetingSpaceId = "all" | "my-notes" | "thai-union" | "maersk" | "redwood-foods" | "harbor-retail";
+type BuiltInMeetingSpaceId =
+  | "all"
+  | "quick-notes"
+  | "my-notes"
+  | "this-week"
+  | "this-month"
+  | "history"
+  | "thai-union"
+  | "maersk"
+  | "redwood-foods"
+  | "harbor-retail";
 type MeetingSpaceId = BuiltInMeetingSpaceId | `custom-${string}`;
-type SidebarMode = "folders" | "meetings";
+type MeetingSidebarMode = "folders" | "meetings";
+type MeetingSpaceSegment = "folders" | "notes" | "org" | "customers";
 type FolderCanvasMode = "workspace" | "note";
 type FolderActionKind = "todos" | "summary" | "projects" | "custom";
 type LandingChatScope = "all" | MeetingSpaceId;
@@ -110,6 +123,7 @@ type CustomerSpace = {
   icon: FolderIconKey;
   prompt?: string;
   memberIds?: string[];
+  segment: MeetingSpaceSegment;
   locked?: boolean;
   shared?: boolean;
   pinned?: boolean;
@@ -150,13 +164,6 @@ type ChecklistItem = {
   text: string;
   checked: boolean;
   routed?: boolean;
-};
-
-type TaskRoutingDraft = {
-  project: string;
-  status: string;
-  priority: string;
-  due: string;
 };
 
 const meetingIndex = new Map(meetings.map((meeting) => [meeting.id, meeting]));
@@ -253,8 +260,8 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
     nextJoinIn: "in 3h",
   }),
   buildWorkspaceMeeting(getMeeting("meeting-3"), {
-    customerId: "redwood-foods",
-    customerName: "Redwood Foods",
+    customerId: "my-notes",
+    customerName: "Plant Operations",
     dayGroup: "Today",
     duration: "18 min",
     startClock: "8:15 AM",
@@ -297,8 +304,8 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
     agenda: ["Renewal risks", "Who to involve", "Customer tone"],
     decisions: ["Keep legal copied on commercial language review."],
     actionItems: ["Move the best objections into the renewal prep packet."],
-    customerId: "my-notes",
-    customerName: "Plant Operations",
+    customerId: "quick-notes",
+    customerName: "Quick notes",
     dayGroup: "Today",
     duration: "7 min",
     startClock: "11:58 AM",
@@ -434,14 +441,48 @@ const fixedCustomerSpaces: CustomerSpace[] = [
     description: "All notes and calls",
     initials: "AM",
     icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "quick-notes",
+    name: "Quick Note",
+    description: "Prompt-based labels and scratchpads",
+    initials: "QN",
+    icon: "notes",
+    segment: "folders",
   },
   {
     id: "my-notes",
-    name: "Plant Operations",
-    description: "Org internal continuity",
-    initials: "PO",
+    name: "Private",
+    description: "Internal notes and restricted continuity",
+    initials: "PV",
     icon: "signal",
+    segment: "folders",
     shared: true,
+  },
+  {
+    id: "this-week",
+    name: "This Week",
+    description: "Recent meetings and notes still in motion",
+    initials: "TW",
+    icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "this-month",
+    name: "This Month",
+    description: "Broader month-level continuity and summaries",
+    initials: "TM",
+    icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "history",
+    name: "History",
+    description: "Completed meetings and older decision trails",
+    initials: "HS",
+    icon: "folder",
+    segment: "folders",
   },
 ];
 
@@ -452,6 +493,7 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     description: "Supplier review",
     initials: "TU",
     icon: "people",
+    segment: "customers",
     shared: true,
   },
   {
@@ -460,6 +502,7 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     description: "Logistics sync",
     initials: "MK",
     icon: "signal",
+    segment: "customers",
     shared: true,
   },
   {
@@ -468,6 +511,7 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     description: "Commercial planning",
     initials: "RF",
     icon: "folder",
+    segment: "customers",
     shared: true,
   },
   {
@@ -476,6 +520,7 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     description: "Delivery reset",
     initials: "HR",
     icon: "people",
+    segment: "customers",
     shared: true,
   },
 ];
@@ -484,11 +529,65 @@ const dayGroupOrder: MeetingWorkspaceRecord["dayGroup"][] = ["Today", "Yesterday
 
 function matchesSpace(meeting: MeetingWorkspaceRecord, spaceId: MeetingSpaceId) {
   if (spaceId === "all") return true;
+  if (spaceId === "quick-notes") return meeting.kind === "quick_note";
+  if (spaceId === "my-notes") return meeting.customerId === "my-notes";
+  if (spaceId === "this-week") return meeting.dayGroup === "Today" || meeting.dayGroup === "Yesterday";
+  if (spaceId === "this-month") return ["Today", "Yesterday", "Last week"].includes(meeting.dayGroup);
+  if (spaceId === "history") return meeting.dayGroup === "Last week" || meeting.stage === "Completed";
   return meeting.customerId === spaceId;
+}
+
+function getSpaceSegment(spaces: CustomerSpace[], spaceId: MeetingSpaceId): MeetingSpaceSegment {
+  return spaces.find((space) => space.id === spaceId)?.segment ?? "folders";
+}
+
+function getSidebarModeForSegment(segment: MeetingSpaceSegment): MeetingSidebarMode {
+  return segment === "folders" ? "folders" : "meetings";
+}
+
+function getSegmentForNewSpace(sidebarMode: MeetingSidebarMode, icon: FolderIconKey): MeetingSpaceSegment {
+  if (sidebarMode === "folders") return "folders";
+  if (icon === "notes") return "notes";
+  if (icon === "signal") return "org";
+  return "customers";
 }
 
 function buildFolderId(name: string) {
   return `custom-${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "folder"}-${Date.now()}` as const;
+}
+
+function buildMeetingSummaryDocument({
+  prepSummary,
+  decisions,
+  checklist,
+  risks,
+  insights,
+}: {
+  prepSummary: string;
+  decisions: string[];
+  checklist: ChecklistItem[];
+  risks: string[];
+  insights: string[];
+}) {
+  return [
+    "# Overview",
+    prepSummary.trim(),
+    "",
+    "## Decisions",
+    ...(decisions.length ? decisions.map((item) => `- ${item}`) : ["- Add a decision"]),
+    "",
+    "## Action items",
+    ...(checklist.length ? checklist.map((item) => `- [${item.checked ? "x" : " "}] ${item.text}`) : ["- [ ] Add an action item"]),
+    "",
+    "## Risks & blockers",
+    ...(risks.length ? risks.map((item) => `- ${item}`) : ["- Add a blocker"]),
+    "",
+    "## Key insights",
+    ...(insights.length ? insights.map((item) => `- ${item}`) : ["- Add an insight"]),
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function buildInitials(name: string) {
@@ -534,6 +633,10 @@ function sortMeetingsByChronology(meetingList: MeetingWorkspaceRecord[], directi
 
 function getMeetingAccent(meeting: MeetingWorkspaceRecord) {
   switch (meeting.customerId) {
+    case "quick-notes":
+      return "bg-orange-500 text-white";
+    case "my-notes":
+      return "bg-slate-700 text-white";
     case "thai-union":
       return "bg-amber-500 text-white";
     case "maersk":
@@ -582,14 +685,13 @@ export default function Meetings() {
   const [searchQuery, setSearchQuery] = useWorkbenchState<string>("meetings-search", "");
   const [folderPrompt, setFolderPrompt] = useWorkbenchState<string>("meetings-folder-prompt", "");
   const [secondaryRailCollapsed, setSecondaryRailCollapsed] = useWorkbenchState<boolean>("meetings-secondary-rail-collapsed", false);
-  const [sidebarMode, setSidebarMode] = useWorkbenchState<SidebarMode>("meetings-sidebar-mode", "folders");
+  const [sidebarMode, setSidebarMode] = useWorkbenchState<MeetingSidebarMode>("meetings-sidebar-mode", "folders");
   const [customMeetings, setCustomMeetings] = useWorkbenchState<MeetingWorkspaceRecord[]>("meetings-custom-records", []);
   const [meetingFolderOverrides, setMeetingFolderOverrides] = useWorkbenchState<Record<string, MeetingSpaceId>>(
     "meetings-folder-overrides",
     {},
   );
   const [deletedMeetingIds, setDeletedMeetingIds] = useWorkbenchState<string[]>("meetings-deleted-records", []);
-  const [landingChatScope, setLandingChatScope] = useWorkbenchState<LandingChatScope>("meetings-landing-chat-scope", "all");
   const [landingChatRange, setLandingChatRange] = useWorkbenchState<LandingChatRange>("meetings-landing-chat-range", "recent-25");
   const [generatedNoteFollowUpPrompt, setGeneratedNoteFollowUpPrompt] = useWorkbenchState<string>(
     "meetings-generated-note-follow-up",
@@ -609,11 +711,12 @@ export default function Meetings() {
     initialMovableCustomerSpaces,
   );
   const [detailTabByMeeting, setDetailTabByMeeting] = useWorkbenchState<Record<string, MeetingDetailTab>>("meetings-detail-tab", {});
+  const [prepSummaryByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-prep-summary", {});
+  const [decisionsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-decisions", {});
   const [checklistByMeeting, setChecklistByMeeting] = useWorkbenchState<Record<string, ChecklistItem[]>>("meetings-checklist", {});
-  const [taskRoutingByMeeting, setTaskRoutingByMeeting] = useWorkbenchState<Record<string, Record<number, TaskRoutingDraft>>>(
-    "meetings-task-routing",
-    {},
-  );
+  const [risksByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-risks", {});
+  const [insightsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-insights", {});
+  const [summaryDocumentByMeeting, setSummaryDocumentByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-summary-document", {});
   const [meetingQuestionByMeeting, setMeetingQuestionByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-question", {});
   const [shareRecipientIdsByMeeting, setShareRecipientIdsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-share-recipients", {});
   const [shareQueryByMeeting, setShareQueryByMeeting] = useWorkbenchState<Record<string, string>>("meetings-share-query", {});
@@ -693,10 +796,15 @@ export default function Meetings() {
     if (selectedSpaceId !== "all" && selectedSpaceId !== routeMeeting.customerId) {
       setSelectedSpaceId(routeMeeting.customerId);
     }
+    const routeSegment = getSpaceSegment(customerSpaces, routeMeeting.customerId);
+    const nextSidebarMode = getSidebarModeForSegment(routeSegment);
+    if (sidebarMode !== nextSidebarMode) {
+      setSidebarMode(nextSidebarMode);
+    }
     if (selectedMeetingId !== routeMeeting.id) {
       setSelectedMeetingId(routeMeeting.id);
     }
-  }, [routeMeeting, selectedMeetingId, selectedSpaceId, setSelectedMeetingId, setSelectedSpaceId]);
+  }, [customerSpaces, routeMeeting, selectedMeetingId, selectedSpaceId, setSelectedMeetingId, setSelectedSpaceId, setSidebarMode, sidebarMode]);
 
   const selectedMeeting =
     routeMeeting ??
@@ -721,21 +829,6 @@ export default function Meetings() {
     ),
     [visibleMeetings],
   );
-  const sidebarMeetingSections = useMemo(
-    () => [
-      { key: "upcoming" as const, label: "Upcoming", meetings: upcomingMeetings },
-      {
-        key: "today" as const,
-        label: "Today",
-        meetings: sortMeetingsByChronology(
-          visibleMeetings.filter((meeting) => meeting.dayGroup === "Today" && meeting.stage !== "Upcoming"),
-          "desc",
-        ),
-      },
-      { key: "previous" as const, label: "Previous", meetings: previousMeetings },
-    ].filter((section) => section.meetings.length > 0),
-    [previousMeetings, upcomingMeetings, visibleMeetings],
-  );
   const landingTimelineSections = useMemo(
     () => [
       { key: "upcoming" as const, label: "Upcoming", meetings: upcomingMeetings },
@@ -757,10 +850,8 @@ export default function Meetings() {
     count: effectiveWorkspaceMeetings.filter((meeting) => matchesSpace(meeting, space.id)).length,
   }));
   const sectionLabelClass = "section-label";
-  const railButtonClass =
-    "inline-flex h-8 shrink-0 items-center gap-2 border border-border/70 bg-background px-2.5 text-xs text-foreground transition-colors hover:bg-secondary/35";
   const commandRailClass =
-    "flex w-full items-center gap-1 overflow-x-auto border border-border/70 bg-muted/30 px-1.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+    "flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-background px-1.5 py-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
   const commandRailGroupClass = "flex shrink-0 items-center gap-1";
   const commandRailDividerClass = "h-4 w-px shrink-0 bg-border/80";
   const commandRailButtonClass =
@@ -803,17 +894,7 @@ export default function Meetings() {
       meetings: range === "recent-25" ? scopedMeetings.slice(0, 25) : scopedMeetings,
     };
   };
-  const landingPromptScope = resolvePromptScope(landingChatScope, landingChatRange);
-
-  useEffect(() => {
-    const scopeStillExists =
-      landingChatScope === "all" ||
-      customerSpaces.some((space) => space.id === landingChatScope);
-
-    if (!scopeStillExists) {
-      setLandingChatScope("all");
-    }
-  }, [customerSpaces, landingChatScope, setLandingChatScope]);
+  const landingPromptScope = resolvePromptScope(selectedSpaceId, landingChatRange);
 
   useEffect(() => {
     if (checklistByMeeting[selectedMeeting.id]) return;
@@ -824,7 +905,19 @@ export default function Meetings() {
   }, [checklistByMeeting, selectedMeeting, setChecklistByMeeting]);
 
   const detailChecklist = checklistByMeeting[selectedMeeting.id] ?? selectedMeeting.actionItems.map((item) => ({ text: item, checked: false }));
-  const detailTaskRouting = taskRoutingByMeeting[selectedMeeting.id] ?? {};
+  const detailPrepSummary = prepSummaryByMeeting[selectedMeeting.id] ?? selectedMeeting.prepSummary;
+  const detailDecisions = decisionsByMeeting[selectedMeeting.id] ?? selectedMeeting.decisions;
+  const detailRisks = risksByMeeting[selectedMeeting.id] ?? (selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist);
+  const detailInsights = insightsByMeeting[selectedMeeting.id] ?? (selectedMeeting.keyInsights ?? selectedMeeting.highlights);
+  const detailSummaryDocument =
+    summaryDocumentByMeeting[selectedMeeting.id] ??
+    buildMeetingSummaryDocument({
+      prepSummary: detailPrepSummary,
+      decisions: detailDecisions,
+      checklist: detailChecklist,
+      risks: detailRisks,
+      insights: detailInsights,
+    });
   const meetingQuestion = meetingQuestionByMeeting[selectedMeeting.id] ?? "";
   const shareRecipientIds = shareRecipientIdsByMeeting[selectedMeeting.id] ?? [];
   const shareQuery = shareQueryByMeeting[selectedMeeting.id] ?? "";
@@ -844,28 +937,8 @@ export default function Meetings() {
     });
   };
 
-  const updateTaskRouting = (index: number, next: Partial<TaskRoutingDraft>) => {
-    const current = detailTaskRouting[index] ?? {
-      project: selectedMeeting.customerName,
-      status: "Open",
-      priority: "High",
-      due: "Today",
-    };
-
-    setTaskRoutingByMeeting({
-      ...taskRoutingByMeeting,
-      [selectedMeeting.id]: {
-        ...detailTaskRouting,
-        [index]: {
-          ...current,
-          ...next,
-        },
-      },
-    });
-  };
-
   const routeChecklistTask = (index: number) => {
-    const routing = detailTaskRouting[index] ?? {
+    const routing = {
       project: selectedMeeting.customerName,
       status: "Open",
       priority: "High",
@@ -1043,7 +1116,13 @@ export default function Meetings() {
             .slice(0, 2)
             .map((contact) => contact.name)
             .join(", ")} continuity`
-        : "Custom folder");
+        : sidebarMode === "meetings" && newFolderIcon === "notes"
+          ? "Prompt-based note label"
+          : sidebarMode === "meetings" && newFolderIcon === "signal"
+            ? "Org continuity space"
+            : sidebarMode === "meetings"
+              ? "Customer continuity space"
+              : "Custom folder");
 
     const nextSpace: CustomerSpace = {
       id: buildFolderId(name),
@@ -1053,21 +1132,30 @@ export default function Meetings() {
       icon: newFolderIcon,
       prompt: prompt || undefined,
       memberIds: newFolderMemberIds,
+      segment: getSegmentForNewSpace(sidebarMode, newFolderIcon),
       shared: newFolderIcon === "people" || newFolderMemberIds.length > 0,
       isCustom: true,
     };
 
     setMovableCustomerSpaces([...movableCustomerSpaces, nextSpace]);
     setSelectedSpaceId(nextSpace.id);
-    setSidebarMode("folders");
+    setSidebarMode(getSidebarModeForSegment(nextSpace.segment));
     setIsCreateFolderExpanded(false);
     toast("Folder created", {
-      description: `${name} is ready for notes and meeting history.`,
+      description: `${name} is ready in ${meetingScopeMeta.railLabel.toLowerCase()}.`,
     });
     setNewFolderName("");
     setNewFolderIcon("folder");
     setNewFolderPrompt("");
     setNewFolderMemberIds([]);
+  };
+  const applyCustomerSeed = (contactId: string) => {
+    const contact = contactCards.find((entry) => entry.id === contactId);
+    if (!contact) return;
+    setNewFolderName(contact.company);
+    setNewFolderIcon("people");
+    setNewFolderPrompt(`Keep ${contact.company} customer continuity, meeting prep, and follow-through together.`);
+    setNewFolderMemberIds(newFolderMemberIds.includes(contact.id) ? newFolderMemberIds : [...newFolderMemberIds, contact.id]);
   };
   const togglePinSpace = (spaceId: MeetingSpaceId) => {
     setMovableCustomerSpaces(
@@ -1104,7 +1192,7 @@ export default function Meetings() {
   };
   const selectSpace = (spaceId: MeetingSpaceId) => {
     setSelectedSpaceId(spaceId);
-    setSidebarMode("folders");
+    setSidebarMode(getSidebarModeForSegment(getSpaceSegment(customerSpaces, spaceId)));
     setFolderCanvasMode("workspace");
     if (isMeetingDetailView) {
       navigate({
@@ -1233,7 +1321,7 @@ export default function Meetings() {
     setCustomMeetings([nextMeeting, ...customMeetings]);
     setSelectedSpaceId(destination.id);
     setSelectedMeetingId(nextMeeting.id);
-    setSidebarMode("meetings");
+    setSidebarMode(getSidebarModeForSegment(destination.segment));
     setNewMeetingDialogOpen(false);
     setDraftMeetingTitle("");
     setDraftMeetingAttendees("Priya, Ganesh");
@@ -1247,39 +1335,20 @@ export default function Meetings() {
       search: location.search,
     });
   };
-  const visibleScopes = spacesWithCounts.filter((space) => space.count > 0 || space.isCustom);
-  const landingScopeOptions = [
-    { id: "all" as const, label: "All meetings", description: "Every meeting and note." },
-    ...visibleScopes
-      .filter((space) => space.id !== "all")
-      .map((space) => ({
-        id: space.id,
-        label: `${space.name} journey`,
-        description: space.description,
-      })),
-  ];
+  const visibleScopes = spacesWithCounts.filter((space) => {
+    const matchesSidebarMode = sidebarMode === "folders" ? space.segment === "folders" : space.segment !== "folders";
+    return matchesSidebarMode && (space.segment === "folders" || space.count > 0 || space.isCustom || space.id === "all");
+  });
+  useEffect(() => {
+    if (!visibleScopes.length) return;
+    if (visibleScopes.some((space) => space.id === selectedSpaceId)) return;
+    setSelectedSpaceId(visibleScopes[0].id);
+  }, [selectedSpaceId, setSelectedSpaceId, visibleScopes]);
   const toggleTimelineSection = (sectionKey: TimelineSectionKey) => {
     setTimelineSectionOpen({
       ...timelineSectionOpen,
       [sectionKey]: !timelineSectionOpen[sectionKey],
     });
-  };
-
-  const seedLandingPrompt = (kind: "todos" | "coach" | "recap") => {
-    if (kind === "todos") {
-      setFolderActionKind("todos");
-      setFolderPrompt(`List the most important follow-through items across ${landingPromptScope.label.toLowerCase()}.`);
-      return;
-    }
-
-    if (kind === "coach") {
-      setFolderActionKind("custom");
-      setFolderPrompt(`Coach me on ${landingPromptScope.label.toLowerCase()}. What matters most, what should I ask next, and what might I miss?`);
-      return;
-    }
-
-    setFolderActionKind("summary");
-    setFolderPrompt(`Write a tight weekly recap across ${landingPromptScope.label.toLowerCase()}. Group it into what moved, what is blocked, and what happens next.`);
   };
 
   const folderIconOptions: { value: FolderIconKey; label: string }[] = [
@@ -1300,133 +1369,270 @@ export default function Meetings() {
     )
     .slice(0, 5);
   const selectedNewFolderMembers = contactCards.filter((contact) => newFolderMemberIds.includes(contact.id));
+  const meetingScopeMeta = {
+    folders: {
+      railLabel: "Folders",
+      composerLabel: "New folder",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "New folder",
+      submitLabel: "Create folder",
+      namePlaceholder: "Folder name",
+      promptPlaceholder: "Collect renewal prep, decisions, and follow-through in one folder",
+      helper: "Create a durable meeting journey that groups related calls and notes.",
+    },
+    meetings: {
+      railLabel: "Meetings",
+      composerLabel: "New meeting space",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "New meeting space",
+      submitLabel: "Create meeting space",
+      namePlaceholder: "Space name",
+      promptPlaceholder: "Keep the customer thread, quick note, or operator handoff together",
+      helper: "Use one combined meetings rail for customer continuity, quick notes, and internal handoffs.",
+    },
+  }[sidebarMode];
   const detailSpace = customerSpaces.find((space) => space.id === selectedMeeting.customerId);
   const detailBreadcrumbLabel = detailSpace?.name ?? selectedMeeting.customerName;
-  const meetingCommandRail = (
-    <>
-      <div className="mb-4 flex w-full">
-        <div className={commandRailClass}>
-          <div className={commandRailGroupClass}>
-            <button
-              aria-label={secondaryRailCollapsed ? "Expand meetings sidebar" : "Collapse meetings sidebar"}
-              className={commandRailIconButtonClass}
-              onClick={() => setSecondaryRailCollapsed((collapsed) => !collapsed)}
-              type="button"
-            >
-              <SidebarSimpleIcon className="size-4" />
-            </button>
-          </div>
+  const focusMeetingSearch = () => {
+    if (secondaryRailCollapsed) {
+      setSecondaryRailCollapsed(false);
+    }
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('input[aria-label="Search meetings, notes, or folders"]')?.focus();
+    }, 40);
+  };
+  const openNewMeeting = () => {
+    setDraftMeetingSpaceId(selectedSpaceId === "all" ? customerSpaces.find((space) => space.id !== "all")?.id ?? "redwood-foods" : selectedSpaceId);
+    setNewMeetingDialogOpen(true);
+  };
+  const joinNextMeeting = () => {
+    const nextMeeting = upcomingMeetings[0];
+    if (!nextMeeting) return;
+    openMeetingDetail(nextMeeting.id);
+    toast("Meeting ready", {
+      description: `Opening ${nextMeeting.title} so you can jump in without losing context.`,
+    });
+  };
 
-          <span className={commandRailDividerClass} aria-hidden="true" />
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (shouldIgnoreSurfaceHotkeys(event.target)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
 
-          <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-between pr-1")}>
-            <button
-              className={commandRailButtonClass}
-              disabled={!commandMeeting}
-              onClick={() => commandMeeting && deleteMeetingRecord(commandMeeting.id)}
-              type="button"
-            >
-              <span>Delete</span>
-              <span className={commandRailShortcutClass}>⌘D</span>
-            </button>
-            <Popover open={discussCommandOpen} onOpenChange={setDiscussCommandOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  className={cn(commandRailButtonClass, discussCommandOpen && commandRailActiveButtonClass)}
-                  disabled={!commandMeeting}
-                  type="button"
-                >
-                  <span>Discuss</span>
-                  <span className={commandRailShortcutClass}>D</span>
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[320px]">
-                <div className="space-y-3">
-                  <div>
-                    <p className={sectionLabelClass}>Discuss this meeting</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Route {commandMeeting?.title ?? "this meeting"} into a Slack or email follow-up with the right teammate.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {(commandDiscussCandidates.length ? commandDiscussCandidates : contactCards.slice(0, 4)).map((contact) => (
-                      <button
-                        key={contact.id}
-                        className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
-                        onClick={() => {
-                          setDiscussCommandOpen(false);
-                          toast("Discussion queued", {
-                            description: `${contact.name} can review ${commandMeeting?.title ?? "this meeting"} in Slack or email.`,
-                          });
-                        }}
-                        type="button"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">{contact.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
-                        </div>
-                        <ChatCircleTextIcon className="size-4 text-foreground/52" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <button
-              className={cn(commandRailButtonClass, commandMeetingApproved && commandRailActiveButtonClass)}
-              disabled={!commandMeeting}
-              onClick={() => commandMeeting && toggleApproval(commandMeeting.id)}
-              type="button"
-            >
-              <span>Approve</span>
-              <span className={commandRailShortcutClass}>A</span>
-            </button>
-            <button
-              className={cn(commandRailButtonClass, commandMeetingReminded && commandRailActiveButtonClass)}
-              disabled={!commandMeeting}
-              onClick={() => commandMeeting && toggleReminder(commandMeeting.id)}
-              type="button"
-            >
-              <span>Remind</span>
-              <span className={commandRailShortcutClass}>R</span>
-            </button>
-            <button
-              className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
-              onClick={() => {
-                setDraftMeetingSpaceId(selectedSpaceId === "all" ? customerSpaces.find((space) => space.id !== "all")?.id ?? "redwood-foods" : selectedSpaceId);
-                setNewMeetingDialogOpen(true);
-              }}
-              type="button"
-            >
-              <span>New</span>
-              <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>⌘N</span>
-            </button>
-          </div>
+      const key = event.key.toLowerCase();
 
-          <span className={commandRailDividerClass} aria-hidden="true" />
+      if (!isMeetingDetailView) {
+        if (key === "f") {
+          event.preventDefault();
+          focusMeetingSearch();
+          return;
+        }
 
-          <div className={commandRailGroupClass}>
-            <button
-              aria-label="Open in Google Calendar"
-              className={commandRailIconButtonClass}
-              onClick={() =>
-                toast("Google Calendar", {
-                  description: `${commandMeeting?.title ?? "Meeting"} can open in the calendar handoff next.`,
-                })
-              }
-              type="button"
-            >
-              <GoogleCalendar className="size-4" />
+        if (key === "n") {
+          event.preventDefault();
+          openNewMeeting();
+          return;
+        }
+
+        if (key === "j" && upcomingMeetings.length) {
+          event.preventDefault();
+          joinNextMeeting();
+        }
+        return;
+      }
+
+      if (key === "escape") {
+        event.preventDefault();
+        navigate("/meetings?tab=meetings-main");
+        return;
+      }
+
+      if (key === "n") {
+        event.preventDefault();
+        openNewMeeting();
+        return;
+      }
+
+      if (!commandMeeting) return;
+
+      if (key === "d") {
+        event.preventDefault();
+        setDiscussCommandOpen((open) => !open);
+        return;
+      }
+
+      if (key === "a") {
+        event.preventDefault();
+        toggleApproval(commandMeeting.id);
+        return;
+      }
+
+      if (key === "r") {
+        event.preventDefault();
+        toggleReminder(commandMeeting.id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [commandMeeting, isMeetingDetailView, navigate, toggleApproval, toggleReminder, upcomingMeetings]);
+
+  const meetingCommandBar = (
+    <div className={commandRailClass}>
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label={secondaryRailCollapsed ? "Expand meetings sidebar" : "Collapse meetings sidebar"}
+          className={commandRailIconButtonClass}
+          onClick={() => setSecondaryRailCollapsed(!secondaryRailCollapsed)}
+          type="button"
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </button>
+        {isMeetingDetailView ? (
+          <>
+            <span className={commandRailDividerClass} aria-hidden="true" />
+            <button className={commandRailButtonClass} onClick={() => navigate("/meetings?tab=meetings-main")} type="button">
+              <ArrowLeftIcon className="size-4" />
+              <span>Back</span>
+              <span className={commandRailShortcutClass}>Esc</span>
             </button>
-          </div>
-        </div>
+          </>
+        ) : null}
+        {!isMeetingDetailView ? (
+          <>
+            <span className={commandRailDividerClass} aria-hidden="true" />
+            <button className={commandRailButtonClass} onClick={focusMeetingSearch} type="button">
+              <span>Filter</span>
+              <span className={commandRailShortcutClass}>F</span>
+            </button>
+          </>
+        ) : null}
       </div>
 
-      <Dialog open={newMeetingDialogOpen} onOpenChange={setNewMeetingDialogOpen}>
-        <DialogContent className="max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>New meeting</DialogTitle>
-            <DialogDescription>Create a lightweight meeting shell and drop it straight into the right folder journey.</DialogDescription>
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
+        <button
+          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
+          onClick={openNewMeeting}
+          type="button"
+        >
+          <span>New meeting</span>
+          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>N</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        {!isMeetingDetailView && upcomingMeetings.length ? (
+          <button className={commandRailButtonClass} onClick={joinNextMeeting} type="button">
+            <span>Join next</span>
+            <span className={commandRailShortcutClass}>J</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? (
+          <Popover open={discussCommandOpen} onOpenChange={setDiscussCommandOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(commandRailButtonClass, discussCommandOpen && commandRailActiveButtonClass)}
+                disabled={!commandMeeting}
+                type="button"
+              >
+                <span>Discuss</span>
+                <span className={commandRailShortcutClass}>D</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[320px]">
+              <div className="space-y-3">
+                <div>
+                  <p className={sectionLabelClass}>Discuss this meeting</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Route {commandMeeting?.title ?? "this meeting"} into a Slack or email follow-up with the right teammate.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {(commandDiscussCandidates.length ? commandDiscussCandidates : contactCards.slice(0, 4)).map((contact) => (
+                    <button
+                      key={contact.id}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
+                      onClick={() => {
+                        setDiscussCommandOpen(false);
+                        toast("Discussion queued", {
+                          description: `${contact.name} can review ${commandMeeting?.title ?? "this meeting"} in Slack or email.`,
+                        });
+                      }}
+                      type="button"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{contact.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+                      </div>
+                      <ChatCircleTextIcon className="size-4 text-foreground/52" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : null}
+        {isMeetingDetailView ? (
+          <button
+            className={cn(commandRailButtonClass, commandMeetingApproved && commandRailActiveButtonClass)}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && toggleApproval(commandMeeting.id)}
+            type="button"
+          >
+            <span>Approve</span>
+            <span className={commandRailShortcutClass}>A</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? (
+          <button
+            className={cn(commandRailButtonClass, commandMeetingReminded && commandRailActiveButtonClass)}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && toggleReminder(commandMeeting.id)}
+            type="button"
+          >
+            <span>Remind</span>
+            <span className={commandRailShortcutClass}>R</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? <span className={commandRailDividerClass} aria-hidden="true" /> : null}
+        {isMeetingDetailView ? (
+          <button
+            className={commandRailButtonClass}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && deleteMeetingRecord(commandMeeting.id)}
+            type="button"
+          >
+            <span>Delete</span>
+          </button>
+        ) : null}
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label="Open in Google Calendar"
+          className={commandRailIconButtonClass}
+          onClick={() =>
+            toast("Google Calendar", {
+              description: `${commandMeeting?.title ?? "Meeting"} can open in the calendar handoff next.`,
+            })
+          }
+          type="button"
+        >
+          <GoogleCalendar className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+  const meetingCommandDialog = (
+    <Dialog open={newMeetingDialogOpen} onOpenChange={setNewMeetingDialogOpen}>
+      <DialogContent className="max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>New meeting</DialogTitle>
+          <DialogDescription>Create a lightweight meeting shell and drop it straight into the right folder journey.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <InputGroup className="h-10 bg-background">
@@ -1483,20 +1689,21 @@ export default function Meetings() {
               <CalendarPlusIcon data-icon="inline-start" /> Create meeting
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 
   return (
     <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
       <PageContainer className="h-full min-h-0">
-        <div
-          className={cn(
-            "grid h-full min-h-0 gap-4",
-            secondaryRailCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]",
-          )}
-        >
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <div className="shrink-0">{meetingCommandBar}</div>
+          <div
+            className={cn(
+              "grid min-h-0 flex-1 gap-4",
+              secondaryRailCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]",
+            )}
+          >
           {!secondaryRailCollapsed ? (
             <Surface className="flex min-h-0 flex-col overflow-hidden bg-background">
               <div className="border-b border-border/60 px-4 py-4">
@@ -1521,38 +1728,43 @@ export default function Meetings() {
                       setSidebarMode(value);
                     }
                   }}
-                  className="mt-3 grid grid-cols-2 gap-1"
+                  className="mt-3 grid w-full grid-cols-2 gap-1"
                 >
-                  <ToggleGroupItem value="folders" className="flex items-center justify-between gap-2 px-3">
+                  <ToggleGroupItem value="folders" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
                     <span>Folders</span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{visibleScopes.length}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
+                      {spacesWithCounts.filter((space) => space.segment === "folders").length}
+                    </span>
                   </ToggleGroupItem>
-                  <ToggleGroupItem value="meetings" className="flex items-center justify-between gap-2 px-3">
+                  <ToggleGroupItem value="meetings" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
                     <span>Meetings</span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{visibleMeetings.length}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
+                      {spacesWithCounts.filter((space) => space.segment !== "folders").length}
+                    </span>
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
 
               <ScrollArea className="min-h-0 flex-1">
-                {sidebarMode === "folders" ? (
-                  <div className="space-y-5 px-3 py-3">
+                <div className="space-y-5 px-3 py-3">
                     <section>
                       <div className="flex items-center justify-between px-1">
-                        <p className={sectionLabelClass}>Folders</p>
+                        <p className={sectionLabelClass}>{meetingScopeMeta.railLabel}</p>
                         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{visibleScopes.length}</span>
                       </div>
                       <div className="mt-2 space-y-2">
                         {visibleScopes.map((space) => {
-                          const active = selectedSpaceId === space.id && !isMeetingDetailView;
+                          const active = selectedSpaceId === space.id;
                           const movableIndex = movableCustomerSpaces.findIndex((item) => item.id === space.id);
                           const isMovable = movableIndex !== -1;
                           return (
                             <div
                               key={space.id}
                               className={cn(
-                                "group flex items-start gap-2 rounded-xl border px-3 py-3 transition-colors",
-                                active ? "border-primary/25 bg-primary/5 ring-1 ring-primary/10" : "border-border/70 bg-background hover:bg-secondary/35",
+                                "group flex items-start gap-2 rounded-xl border bg-background px-3 py-3 transition-colors",
+                                active
+                                  ? "border-primary/35 bg-background shadow-sm ring-1 ring-primary/15"
+                                  : "border-border/70 hover:border-border hover:bg-background",
                                 isMovable && "cursor-grab active:cursor-grabbing",
                                 draggingSpaceId === space.id && "opacity-60",
                               )}
@@ -1574,7 +1786,7 @@ export default function Meetings() {
                               }}
                             >
                               <button className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => selectSpace(space.id)} type="button">
-                                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center border border-border/70 bg-secondary/35 text-foreground/72">
+                                <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center", active ? "text-primary" : "text-foreground/60")}>
                                   {renderFolderIcon(space.icon)}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -1588,7 +1800,12 @@ export default function Meetings() {
                                 </div>
                               </button>
                               <div className="flex shrink-0 items-center gap-1">
-                                <span className="rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/60">
+                                <span
+                                  className={cn(
+                                    "rounded-md border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                                    active ? "border-primary/30 bg-primary/5 text-primary" : "border-border text-foreground/60",
+                                  )}
+                                >
                                   {space.count}
                                 </span>
                                 {isMovable ? (
@@ -1624,16 +1841,20 @@ export default function Meetings() {
 
                     <Collapsible className="border-t border-border/60 pt-4" open={isCreateFolderExpanded} onOpenChange={setIsCreateFolderExpanded}>
                       <div className="flex items-center justify-between px-1">
-                        <p className={sectionLabelClass}>New folder</p>
+                        <p className={sectionLabelClass}>{meetingScopeMeta.composerLabel}</p>
                         <CollapsibleTrigger asChild>
                           <Button size="sm" type="button" variant="outline">
-                            <FolderPlusIcon data-icon="inline-start" /> {isCreateFolderExpanded ? "Hide" : "New folder"}
+                            <FolderPlusIcon data-icon="inline-start" /> {meetingScopeMeta.triggerLabel}
                           </Button>
                         </CollapsibleTrigger>
                       </div>
                       <CollapsibleContent>
                         <div className="mt-3 rounded-xl border border-border/70 bg-background px-3 py-3">
                           <div className="grid gap-3">
+                            <div>
+                              <p className={sectionLabelClass}>{meetingScopeMeta.composerLabel}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">{meetingScopeMeta.helper}</p>
+                            </div>
                             <InputGroup className="h-10 bg-background">
                               <InputGroupInput
                                 aria-label="New folder name"
@@ -1643,10 +1864,40 @@ export default function Meetings() {
                                     createFolder();
                                   }
                                 }}
-                                placeholder="Folder name"
+                                placeholder={meetingScopeMeta.namePlaceholder}
                                 value={newFolderName}
                               />
                             </InputGroup>
+
+                            {sidebarMode === "meetings" ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className={sectionLabelClass}>Recent contacts</p>
+                                  <span className="text-xs text-muted-foreground">Seed a company from connected contacts.</span>
+                                </div>
+                                <div className="grid gap-2">
+                                  {contactCards.slice(0, 4).map((contact) => (
+                                    <button
+                                      key={contact.id}
+                                      className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
+                                      onClick={() => applyCustomerSeed(contact.id)}
+                                      type="button"
+                                    >
+                                      <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary/60 text-xs font-medium text-foreground">
+                                          {getInitials(contact.company)}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-foreground">{contact.company}</p>
+                                          <p className="truncate text-xs text-muted-foreground">{contact.name} · {contact.role}</p>
+                                        </div>
+                                      </div>
+                                      <UsersIcon className="size-4 text-foreground/45" />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
 
                             <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
                               <Popover>
@@ -1687,7 +1938,7 @@ export default function Meetings() {
                                   aria-label="Folder prompt"
                                   className="min-h-[78px] resize-none"
                                   onChange={(event) => setNewFolderPrompt(event.target.value)}
-                                  placeholder="I want to filter all meetings with HR"
+                                  placeholder={meetingScopeMeta.promptPlaceholder}
                                   rows={3}
                                   value={newFolderPrompt}
                                 />
@@ -1741,105 +1992,13 @@ export default function Meetings() {
                             ) : null}
 
                             <Button className="w-full" size="sm" onClick={createFolder} type="button">
-                              <FolderPlusIcon data-icon="inline-start" /> Create folder
+                              <FolderPlusIcon data-icon="inline-start" /> {meetingScopeMeta.submitLabel}
                             </Button>
                           </div>
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
-                  </div>
-                ) : (
-                  <div className="space-y-3 px-3 py-3">
-                    {sidebarMeetingSections.map((section) => (
-                      <Collapsible key={section.key} open={timelineSectionOpen[section.key]} onOpenChange={() => toggleTimelineSection(section.key)}>
-                        <div className="overflow-hidden rounded-xl border border-border/70 bg-background">
-                          <CollapsibleTrigger asChild>
-                            <button className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left" type="button">
-                              <div>
-                                <p className={sectionLabelClass}>{section.label}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">{section.meetings.length} records in view</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="rounded-md border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/60">
-                                  {section.meetings.length}
-                                </span>
-                                <CaretDownIcon className={cn("h-4 w-4 text-foreground/48 transition-transform", timelineSectionOpen[section.key] && "rotate-180")} />
-                              </div>
-                            </button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="border-t border-border/60">
-                            <div className="space-y-1 p-2">
-                              {section.meetings.map((meeting) => {
-                                const selected = routeMeeting?.id === meeting.id;
-                                return (
-                                  <div
-                                    key={meeting.id}
-                                    className={cn(
-                                      "group flex items-start gap-2 rounded-lg px-2.5 py-2.5 transition-colors",
-                                      selected ? "bg-primary/6 text-foreground" : "hover:bg-secondary/35",
-                                    )}
-                                  >
-                                    <button className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => openMeetingDetail(meeting.id)} type="button">
-                                      <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-medium", getMeetingAccent(meeting))}>
-                                        {meeting.customerName.slice(0, 1)}
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex items-start justify-between gap-3">
-                                          <p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">{meeting.title}</p>
-                                          <span className="shrink-0 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{meeting.startClock}</span>
-                                        </div>
-                                        <p className="mt-1 truncate text-xs text-muted-foreground">{meeting.customerName} · {meeting.duration}</p>
-                                      </div>
-                                    </button>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          aria-label={`Actions for ${meeting.title}`}
-                                          className="mt-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                                          onClick={(event) => event.stopPropagation()}
-                                          size="icon-sm"
-                                          type="button"
-                                          variant="ghost"
-                                        >
-                                          <DotsThreeIcon className="size-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-56">
-                                        <DropdownMenuLabel>Meeting actions</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuSub>
-                                          <DropdownMenuSubTrigger>
-                                            <FolderOpenIcon />
-                                            Move to folder
-                                          </DropdownMenuSubTrigger>
-                                          <DropdownMenuSubContent className="w-56">
-                                            {customerSpaces
-                                              .filter((space) => space.id !== "all")
-                                              .map((space) => (
-                                                <DropdownMenuItem key={space.id} onClick={() => moveMeetingToSpace(meeting.id, space.id)}>
-                                                  {renderFolderIcon(space.icon)}
-                                                  <span>{space.name}</span>
-                                                </DropdownMenuItem>
-                                              ))}
-                                          </DropdownMenuSubContent>
-                                        </DropdownMenuSub>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => deleteMeetingRecord(meeting.id)} variant="destructive">
-                                          <TrashIcon />
-                                          Move to trash
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    ))}
-                  </div>
-                )}
+                </div>
               </ScrollArea>
             </Surface>
           ) : null}
@@ -1849,7 +2008,6 @@ export default function Meetings() {
               routeMeeting ? (
                 <div className="flex h-full min-h-0 flex-col overflow-x-hidden">
                   <div className="border-b border-border/60 px-5 py-4 lg:px-5">
-                    {meetingCommandRail}
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <Breadcrumb>
@@ -1994,172 +2152,83 @@ export default function Meetings() {
                           })
                         }
                       >
-                        <TabsList className="grid w-full max-w-md grid-cols-3">
+                        <TabsList className="grid w-full max-w-md grid-cols-3 rounded-none">
                           <TabsTrigger value="summary">Summary</TabsTrigger>
                           <TabsTrigger value="transcript">Transcript</TabsTrigger>
                           <TabsTrigger value="files">Files</TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value="summary" className="mt-5 space-y-4">
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
-                            <p className={sectionLabelClass}>Overview</p>
-                            <p className="mt-3 text-sm leading-7 text-foreground/86">{selectedMeeting.prepSummary}</p>
-                          </section>
+                        <TabsContent value="summary" className="mt-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
+                            <RichOperatorEditor
+                              className="border-0 bg-transparent shadow-none"
+                              minHeight={440}
+                              onChange={(value) =>
+                                setSummaryDocumentByMeeting({
+                                  ...summaryDocumentByMeeting,
+                                  [selectedMeeting.id]: value,
+                                })
+                              }
+                              placeholder="Type / for headings, lists, quotes, dividers, or diagrams."
+                              showCopyActions={false}
+                              showMarkdownCopy={false}
+                              value={detailSummaryDocument}
+                            />
 
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
-                            <p className={sectionLabelClass}>Decisions</p>
-                            <div className="mt-4 space-y-3">
-                              {selectedMeeting.decisions.map((item) => (
-                                <div key={item} className="rounded-xl border border-border/60 bg-secondary/20 px-4 py-3 text-sm leading-6 text-foreground/86">
-                                  {item}
+                            <div className="mt-5 border-t border-border/60 pt-5">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className={sectionLabelClass}>Task nudges</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Keep the task push lightweight. Nudge action items into Tasks without another routing form.
+                                  </p>
                                 </div>
-                              ))}
-                            </div>
-                          </section>
-
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className={sectionLabelClass}>Action items</p>
-                                <p className="mt-1 text-sm text-muted-foreground">Editable checklist rows that can be pushed into tasks with project, status, priority, and due date.</p>
+                                <span className="text-xs text-muted-foreground">{selectedMeeting.customerName}</span>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  setChecklistByMeeting({
-                                    ...checklistByMeeting,
-                                    [selectedMeeting.id]: [...detailChecklist, { text: "New action item", checked: false }],
-                                  })
-                                }
-                                type="button"
-                              >
-                                <CheckSquareIcon data-icon="inline-start" /> Add checkbox
-                              </Button>
-                            </div>
 
-                            <div className="mt-4 space-y-3">
-                              {detailChecklist.map((item, index) => {
-                                const routing = detailTaskRouting[index] ?? {
-                                  project: selectedMeeting.customerName,
-                                  status: "Open",
-                                  priority: "High",
-                                  due: "Today",
-                                };
-                                return (
-                                  <div key={`${selectedMeeting.id}-task-${index}`} className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
-                                    <div className="flex items-start gap-3">
-                                      <Checkbox
-                                        checked={item.checked}
-                                        className="mt-1"
-                                        onCheckedChange={(checked) => updateChecklist(index, { checked: checked === true })}
+                              <div className="mt-4 space-y-2">
+                                {detailChecklist.map((item, index) => (
+                                  <div key={`${selectedMeeting.id}-task-${index}`} className="flex items-start gap-3 border border-border/70 bg-background px-3 py-3">
+                                    <Checkbox
+                                      checked={item.checked}
+                                      className="mt-1"
+                                      onCheckedChange={(checked) => updateChecklist(index, { checked: checked === true })}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <input
+                                        aria-label={`Action item ${index + 1}`}
+                                        className="w-full border-0 bg-transparent px-0 text-sm leading-7 text-foreground outline-none placeholder:text-muted-foreground"
+                                        onChange={(event) => updateChecklist(index, { text: event.target.value })}
+                                        value={item.text}
                                       />
-                                      <div className="min-w-0 flex-1">
-                                        <input
-                                          className="w-full border-0 bg-transparent px-0 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
-                                          onChange={(event) => updateChecklist(index, { text: event.target.value })}
-                                          value={item.text}
-                                        />
-                                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                                          <Popover>
-                                            <PopoverTrigger asChild>
-                                              <Button variant="outline" size="sm" type="button">
-                                                <CheckSquareIcon data-icon="inline-start" /> Add to tasks
-                                              </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[300px]">
-                                              <div className="space-y-3">
-                                                <div>
-                                                  <p className={sectionLabelClass}>Task routing</p>
-                                                  <p className="mt-1 text-sm text-muted-foreground">Set project, status, priority, and due before nudging this into the task journey.</p>
-                                                </div>
-                                                <div className="grid gap-3 sm:grid-cols-2">
-                                                  <Select value={routing.project} onValueChange={(value) => updateTaskRouting(index, { project: value })}>
-                                                    <SelectTrigger>
-                                                      <SelectValue placeholder="Project" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value={selectedMeeting.customerName}>{selectedMeeting.customerName}</SelectItem>
-                                                      <SelectItem value="Commercial ops">Commercial ops</SelectItem>
-                                                      <SelectItem value="Operator follow-up">Operator follow-up</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                  <Select value={routing.status} onValueChange={(value) => updateTaskRouting(index, { status: value })}>
-                                                    <SelectTrigger>
-                                                      <SelectValue placeholder="Status" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="Open">Open</SelectItem>
-                                                      <SelectItem value="In progress">In progress</SelectItem>
-                                                      <SelectItem value="Waiting">Waiting</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                  <Select value={routing.priority} onValueChange={(value) => updateTaskRouting(index, { priority: value })}>
-                                                    <SelectTrigger>
-                                                      <SelectValue placeholder="Priority" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="High">High</SelectItem>
-                                                      <SelectItem value="Medium">Medium</SelectItem>
-                                                      <SelectItem value="Low">Low</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                  <Select value={routing.due} onValueChange={(value) => updateTaskRouting(index, { due: value })}>
-                                                    <SelectTrigger>
-                                                      <SelectValue placeholder="Due" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="Today">Today</SelectItem>
-                                                      <SelectItem value="Tomorrow">Tomorrow</SelectItem>
-                                                      <SelectItem value="This week">This week</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                                <Button className="w-full" onClick={() => routeChecklistTask(index)} type="button">
-                                                  Add to task journey
-                                                </Button>
-                                              </div>
-                                            </PopoverContent>
-                                          </Popover>
-                                          <span className="text-xs text-muted-foreground">
-                                            {routing.project} · {routing.status} · {routing.priority} · {routing.due}
-                                          </span>
-                                          {item.routed ? <Badge variant="secondary">Added</Badge> : null}
-                                        </div>
-                                      </div>
+                                      <p className="mt-1 text-xs text-muted-foreground">Open · High · Today</p>
                                     </div>
+                                    <Button
+                                      aria-label={`Nudge ${item.text} into tasks`}
+                                      className="shrink-0"
+                                      onClick={() => routeChecklistTask(index)}
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="ghost"
+                                    >
+                                      <NotePencilIcon />
+                                    </Button>
+                                    {item.routed ? <Badge variant="secondary">Added</Badge> : null}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </section>
-
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
-                            <p className={sectionLabelClass}>Risks & blockers</p>
-                            <div className="mt-4 space-y-2 text-sm leading-7 text-foreground/82">
-                              {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
-                                <p key={item}>- {item}</p>
-                              ))}
-                            </div>
-                          </section>
-
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
-                            <p className={sectionLabelClass}>Key insights</p>
-                            <div className="mt-4 space-y-2 text-sm leading-7 text-foreground/82">
-                              {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
-                                <p key={item}>- {item}</p>
-                              ))}
+                                ))}
+                              </div>
                             </div>
                           </section>
                         </TabsContent>
 
                         <TabsContent value="transcript" className="mt-5">
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
                             <p className={sectionLabelClass}>Transcript</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Keep the raw meeting language readable without the heavy grey treatment.</p>
                             <div className="mt-4 space-y-3">
                               {selectedMeeting.transcript.map((entry, index) => (
-                                <div key={`${entry.speaker}-${index}`} className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
-                                  <p className="text-xs uppercase tracking-[0.12em] text-foreground/48">{entry.speaker}</p>
+                                <div key={`${entry.speaker}-${index}`} className="border border-border/70 bg-background px-4 py-4">
+                                  <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{entry.speaker}</p>
                                   <p className="mt-2 text-sm leading-7 text-foreground/86">{entry.text}</p>
                                 </div>
                               ))}
@@ -2168,14 +2237,14 @@ export default function Meetings() {
                         </TabsContent>
 
                         <TabsContent value="files" className="mt-5">
-                          <section className="rounded-2xl border border-border/70 bg-background px-5 py-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
                             <p className={sectionLabelClass}>Files</p>
-                            <p className="mt-1 text-sm text-muted-foreground">Screenshots, documents, sheets, and linked artifacts attached to this meeting.</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Screenshots, documents, sheets, and linked artifacts attached to this meeting.</p>
                             <div className="mt-4 space-y-3">
                               {selectedMeetingFiles.length ? (
                                 selectedMeetingFiles.map((file) => (
-                                  <div key={file.name} className="flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
-                                    <div className="flex size-9 shrink-0 items-center justify-center border border-border/70 bg-background text-foreground/62">
+                                  <div key={file.name} className="flex items-center gap-3 border border-border/70 bg-background px-4 py-4">
+                                    <div className="flex size-9 shrink-0 items-center justify-center border border-border/70 bg-card text-foreground/62">
                                       {fileKindIcon(file.kind)}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -2187,7 +2256,7 @@ export default function Meetings() {
                                   </div>
                                 ))
                               ) : (
-                                <div className="rounded-xl border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
+                                <div className="border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
                                   No files attached yet.
                                 </div>
                               )}
@@ -2248,27 +2317,6 @@ export default function Meetings() {
               )
             ) : (
               <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                <div className="border-b border-border/60 px-5 py-4 lg:px-5">
-                  {meetingCommandRail}
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className={sectionLabelClass}>Meeting space</p>
-                      <h2 className="mt-1 text-[20px] leading-tight text-foreground">
-                        {selectedSpaceId === "all" ? "All meetings" : `${selectedSpace.name} journey`}
-                      </h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {sidebarMode === "folders"
-                          ? "Scan upcoming calls and jump into folder-linked history without leaving the landing view."
-                          : "Browse the meeting index from the left rail, or switch back to folders to restore the landing timeline."}
-                      </p>
-                    </div>
-                    <SmallButton onClick={() => toast("Quick note created", { description: `A new scratchpad is ready in ${selectedSpace.name}.` })}>
-                      <NotePencilIcon className="mr-2 h-3.5 w-3.5" /> Quick note
-                    </SmallButton>
-                  </div>
-
-                </div>
-
                 <div
                   className={cn(
                     "min-h-0 flex-1 overflow-hidden px-4 lg:px-5",
@@ -2455,12 +2503,13 @@ export default function Meetings() {
                             </section>
                           ) : null}
 
-                          {sidebarMode === "folders" ? (
-                            <section className="space-y-3">
+                          <section className="space-y-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <p className={sectionLabelClass}>Timeline</p>
-                                  <p className="mt-1 text-sm text-muted-foreground">Landing list only stays visible in folder mode, grouped into today, upcoming, and previous sections.</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Grouped into today, upcoming, and previous so each folder scope stays scan-first.
+                                  </p>
                                 </div>
                                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
                                   {landingTimelineSections.reduce((count, section) => count + section.meetings.length, 0)} items
@@ -2527,66 +2576,26 @@ export default function Meetings() {
                                 </Collapsible>
                               ))}
                             </section>
-                          ) : (
-                            <section className="rounded-2xl border border-dashed border-border/70 bg-background px-4 py-5">
-                              <p className={sectionLabelClass}>Meeting mode</p>
-                              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                The landing list is hidden while the sidebar is set to meetings. Pick a record from the left rail, or switch back to folders to restore the grouped timeline.
-                              </p>
-                            </section>
-                          )}
                         </div>
                       </ScrollArea>
 
                       <div className="border-t border-border/60 pb-4 pt-3">
                         <div className="surface-card overflow-hidden rounded-xl">
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-                            <div className="flex flex-wrap gap-2">
-                              <button className={railButtonClass} onClick={() => seedLandingPrompt("todos")} type="button">
-                                <CheckSquareIcon className="h-3.5 w-3.5 shrink-0" />
-                                <span>List recent todos</span>
-                              </button>
-                              <button className={railButtonClass} onClick={() => seedLandingPrompt("coach")} type="button">
-                                <WaveformIcon className="h-3.5 w-3.5 shrink-0" />
-                                <span>Coach me on this</span>
-                              </button>
-                              <button className={railButtonClass} onClick={() => seedLandingPrompt("recap")} type="button">
-                                <NotePencilIcon className="h-3.5 w-3.5 shrink-0" />
-                                <span>Write weekly recap</span>
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Select value={landingChatScope} onValueChange={(value) => setLandingChatScope(value as LandingChatScope)}>
-                                <SelectTrigger className="w-[190px]">
-                                  <SelectValue placeholder="Select journey" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {landingScopeOptions.map((scope) => (
-                                    <SelectItem key={scope.id} value={scope.id}>
-                                      {scope.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          <div className="px-3 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-foreground/58">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-md bg-primary/8 px-2.5 py-1 text-primary">{landingPromptScope.label}</span>
+                                <span>{landingChatRange === "recent-25" ? "Recent meeting history in view." : "Using full meeting history."}</span>
+                              </div>
                               <Select value={landingChatRange} onValueChange={(value) => setLandingChatRange(value as LandingChatRange)}>
-                                <SelectTrigger className="w-[140px]">
+                                <SelectTrigger className="h-8 w-[128px]">
                                   <SelectValue placeholder="Range" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="recent-25">Recent 25</SelectItem>
-                                  <SelectItem value="all">All history</SelectItem>
+                                  <SelectItem value="recent-25">Recent</SelectItem>
+                                  <SelectItem value="all">All</SelectItem>
                                 </SelectContent>
                               </Select>
-                            </div>
-                          </div>
-
-                          <div className="px-3 py-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-foreground/58">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-md bg-primary/8 px-2.5 py-1 text-primary">{landingPromptScope.label}</span>
-                                <span>{landingChatRange === "recent-25" ? "Recent 25 pre-selected." : "Using full meeting history."}</span>
-                              </div>
-                              <span>Auto</span>
                             </div>
 
                             <InputGroup className="mt-3 min-h-[86px] bg-background">
@@ -2596,7 +2605,7 @@ export default function Meetings() {
                                 onChange={(event) => setFolderPrompt(event.target.value)}
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                                    askFolder(landingChatScope);
+                                    askFolder();
                                   }
                                 }}
                                 placeholder={`Ask across ${landingChatRange === "recent-25" ? "recent meetings in " : ""}${landingPromptScope.label.toLowerCase()}...`}
@@ -2621,7 +2630,7 @@ export default function Meetings() {
                                   aria-label="Send landing prompt"
                                   variant="ghost"
                                   size="icon-sm"
-                                  onClick={() => generateFolderNote(folderActionKind, undefined, landingChatScope)}
+                                  onClick={() => askFolder()}
                                   type="button"
                                 >
                                   <PaperPlaneTiltIcon />
@@ -2637,6 +2646,8 @@ export default function Meetings() {
               </div>
             )}
           </Surface>
+          </div>
+          {meetingCommandDialog}
         </div>
       </PageContainer>
     </div>

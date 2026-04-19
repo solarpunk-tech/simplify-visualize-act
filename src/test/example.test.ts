@@ -15,6 +15,8 @@ describe("Ubik shell", () => {
     expect(
       screen.getByPlaceholderText("Ask anything about operations, projects, or follow-through."),
     ).toBeInTheDocument();
+    expect(screen.getByText("Previous chats")).toBeInTheDocument();
+    expect(screen.queryByText("Suggested asks")).not.toBeInTheDocument();
   });
 
   it("renders Home on /home", async () => {
@@ -59,39 +61,61 @@ describe("Ubik shell", () => {
     expect(screen.queryByText("Set priority")).not.toBeInTheDocument();
   });
 
-  it("expands Home task rows inline with shared task actions", async () => {
+  it("opens the selected task document from Home task rows", async () => {
     window.history.pushState({}, "", "/home");
     render(createElement(App));
 
     expect(await screen.findByText("Task list")).toBeInTheDocument();
     fireEvent.click(screen.getByText(unifiedTasks[0]?.title ?? ""));
 
-    expect(await screen.findByRole("button", { name: "Set priority" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add to project" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assign" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Schedule" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open in Tasks" })).toBeInTheDocument();
+    expect(await screen.findByText("Task document")).toBeInTheDocument();
+    expect(screen.getByText("Properties")).toBeInTheDocument();
+    expect(screen.getByText("Activity")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Add update" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("tab", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Details" })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/tasks");
+    expect(window.location.search).toContain(`task=${unifiedTasks[0]?.id ?? ""}`);
   });
 
   it("renders Inbox detail on /inbox/:threadId", async () => {
     window.history.pushState({}, "", `/inbox/${inboxThreads[0]?.id ?? ""}`);
     render(createElement(App));
 
-    expect(await screen.findByText("Actions")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Search inbox threads")).toBeInTheDocument();
     expect(screen.getAllByText(inboxThreads[0]?.subject ?? "").length).toBeGreaterThan(0);
+  });
+
+  it("renders meeting detail tabs with a cleaner summary document", async () => {
+    window.history.pushState({}, "", "/meetings/meeting-4?tab=meetings-11");
+    render(createElement(App));
+
+    expect(await screen.findByText("Redwood Foods renewal prep quick note")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Summary" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Transcript" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Files" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/# Overview/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Nudge Move the best objections into the renewal prep packet\./ })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Ask about this meeting" })).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Transcript" }));
+    expect(await screen.findByText(/Capture the top objections before the renewal call/)).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }));
+    expect(await screen.findByText("renewal-objections.md")).toBeInTheDocument();
   });
 
   it("renders the linear task view by default on /tasks", async () => {
     window.history.pushState({}, "", "/tasks");
     render(createElement(App));
 
-    expect(await screen.findByRole("heading", { name: "Keep follow-through clean" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
-    expect(screen.getByText("Execution list")).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText("Filter tasks...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Kanban/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Filter by status" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Filter by priority" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Priority" })).toBeInTheDocument();
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByText("No deadline")).toBeInTheDocument();
     expect(screen.getByText(unifiedTasks[0]?.title ?? "")).toBeInTheDocument();
   });
 
@@ -99,9 +123,16 @@ describe("Ubik shell", () => {
     window.history.pushState({}, "", `/tasks?task=${unifiedTasks[0]?.id ?? ""}`);
     render(createElement(App));
 
-    expect(await screen.findByRole("heading", { name: "Keep follow-through clean" })).toBeInTheDocument();
-    expect(screen.getAllByText("Set priority").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Task document")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Open source" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Properties")).toBeInTheDocument();
+    expect(screen.getByText("Activity")).toBeInTheDocument();
+    expect(screen.getAllByText("Assignee").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Project").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Priority").length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText("Add an update, follow-through note, or handoff detail...")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Details" })).not.toBeInTheDocument();
     expect(screen.getAllByText(unifiedTasks[0]?.title ?? "").length).toBeGreaterThan(0);
   });
 
@@ -119,18 +150,18 @@ describe("Ubik shell", () => {
     window.history.pushState({}, "", "/tasks?view=gantt");
     render(createElement(App));
 
-    expect(await screen.findByText("Execution list")).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText("Filter tasks...")).toBeInTheDocument();
     expect(screen.queryByText("Task timeline")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Filter by status" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+    expect(screen.getByText("Today")).toBeInTheDocument();
   });
 
   it("keeps the same Inbox tab when switching threads", async () => {
     window.history.pushState({}, "", `/inbox/${inboxThreads[0]?.id ?? ""}?tab=inbox-main`);
     render(createElement(App));
 
-    expect(await screen.findByText("Actions")).toBeInTheDocument();
-    fireEvent.click(screen.getAllByText(inboxThreads[1]?.subject ?? "")[0]);
+    expect(await screen.findByLabelText("Search inbox threads")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
 
     await waitFor(() => {
       expect(window.location.pathname).toBe(`/inbox/${inboxThreads[1]?.id}`);

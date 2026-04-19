@@ -1,4 +1,5 @@
-import { ArrowSquareOutIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import { useEffect } from "react";
+import { ArrowSquareOutIcon, PlusIcon, SidebarSimpleIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 
 import { SectionHeading, SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
@@ -13,6 +14,7 @@ import {
 import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
 import { projects } from "@/lib/ubik-data";
+import { cn, shouldIgnoreSurfaceHotkeys } from "@/lib/utils";
 
 function ProjectProgressChart({
   progress,
@@ -157,17 +159,111 @@ function MilestoneSummaryChart({
 export default function Projects() {
   const { openDrawer } = useShellState();
   const [selectedProjectId, setSelectedProjectId] = useWorkbenchState<string>("project-id", projects[0].id);
+  const [indexCollapsed, setIndexCollapsed] = useWorkbenchState<boolean>("projects-index-collapsed", false);
   const project = projects.find((item) => item.id === selectedProjectId) ?? projects[0];
+
+  const commandRailClass =
+    "flex w-full items-center gap-1 overflow-x-auto border border-border/70 bg-muted/30 px-1.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  const commandRailGroupClass = "flex shrink-0 items-center gap-1";
+  const commandRailDividerClass = "h-4 w-px shrink-0 bg-border/80";
+  const commandRailButtonClass =
+    "inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none";
+  const commandRailPrimaryButtonClass =
+    "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground";
+  const commandRailShortcutClass =
+    "inline-flex min-w-[1.3rem] items-center justify-center border border-border/70 bg-background px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground";
+
+  const openProjectDrawer = () =>
+    openDrawer({
+      title: project.name,
+      eyebrow: "Linked context",
+      description:
+        "Projects should connect workflows, chats, approvals, and reports without hiding provenance.",
+      metadata: [
+        { label: "Owner", value: project.owner },
+        { label: "Progress", value: `${project.progress}%` },
+      ],
+      actions: project.linked.map((item) => item.label),
+    });
+
+  const openProjectCreation = () =>
+    openDrawer({
+      title: "New project",
+      eyebrow: "Workstream setup",
+      description: "Create a new project workstream without jumping into another surface.",
+      metadata: [
+        { label: "Owner", value: "Assign next" },
+        { label: "Scope", value: "Define milestones" },
+      ],
+      actions: ["Add owner", "Define milestones", "Link context"],
+    });
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (shouldIgnoreSurfaceHotkeys(event.target)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "i") {
+        event.preventDefault();
+        openProjectDrawer();
+        return;
+      }
+
+      if (key === "n") {
+        event.preventDefault();
+        openProjectCreation();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [openDrawer, project]);
+
+  const projectCommandBar = (
+    <div className={commandRailClass}>
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label={indexCollapsed ? "Expand projects index" : "Collapse projects index"}
+          className={commandRailButtonClass}
+          onClick={() => setIndexCollapsed(!indexCollapsed)}
+          type="button"
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </button>
+        <button className={commandRailButtonClass} onClick={openProjectDrawer} type="button">
+          <span>Inspect</span>
+          <span className={commandRailShortcutClass}>I</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
+        <button
+          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
+          onClick={openProjectCreation}
+          type="button"
+        >
+          <PlusIcon className="size-4" />
+          <span>New project</span>
+          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>N</span>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="px-4 py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
+        <div className="shrink-0">{projectCommandBar}</div>
         <SectionHeading
           eyebrow="Operational Workstreams"
           title="Projects keep workstream, context, and next actions in one readable place."
         />
 
-        <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className={cn("grid gap-4", indexCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]")}>
+          {!indexCollapsed ? (
           <Surface className="gap-0 overflow-hidden">
             <CardHeader className="border-b border-border/70">
               <p className="section-label">Project index</p>
@@ -202,6 +298,7 @@ export default function Projects() {
               })}
             </CardContent>
           </Surface>
+          ) : null}
 
           <div className="space-y-4">
             <Surface className="gap-0 overflow-hidden">
@@ -291,21 +388,7 @@ export default function Projects() {
                     <p className="section-label">Linked context</p>
                     <CardTitle>Connected artifacts and workstreams</CardTitle>
                   </div>
-                  <SmallButton
-                    onClick={() =>
-                      openDrawer({
-                        title: project.name,
-                        eyebrow: "Linked context",
-                        description:
-                          "Projects should connect workflows, chats, approvals, and reports without hiding provenance.",
-                        metadata: [
-                          { label: "Owner", value: project.owner },
-                          { label: "Progress", value: `${project.progress}%` },
-                        ],
-                        actions: project.linked.map((item) => item.label),
-                      })
-                    }
-                  >
+                  <SmallButton onClick={openProjectDrawer}>
                     Inspect
                   </SmallButton>
                 </div>
