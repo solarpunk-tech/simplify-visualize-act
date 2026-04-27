@@ -1,4 +1,5 @@
 import { SectionHeading, SmallButton, Surface } from "@/components/ubik-primitives";
+import { CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { helpResources } from "@/lib/ubik-data";
 
 export default function Help() {
@@ -8,17 +9,20 @@ export default function Help() {
         <SectionHeading
           eyebrow="Support"
           title="Help keeps operator guidance close to the product."
-          description="Support content should stay concise, operational, and aligned with the shell rather than feeling like a separate marketing or docs surface."
         />
 
         <div className="grid gap-4 lg:grid-cols-3">
           {helpResources.map((resource) => (
-            <Surface key={resource.id} className="p-5">
-              <h2 className="font-mono text-lg font-semibold">{resource.title}</h2>
-              <p className="mt-3 text-sm text-muted-foreground">{resource.description}</p>
-              <div className="mt-5">
+            <Surface key={resource.id} className="gap-0 overflow-hidden">
+              <CardHeader className="border-b border-border/70">
+                <CardTitle className="text-lg font-semibold tracking-tight">{resource.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="py-4">
+                <p className="text-sm leading-6 text-muted-foreground">{resource.description}</p>
+              </CardContent>
+              <CardFooter>
                 <SmallButton>{resource.action}</SmallButton>
-              </div>
+              </CardFooter>
             </Surface>
           ))}
         </div>

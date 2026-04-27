@@ -1,312 +1,453 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  Archive,
-  CalendarDays,
-  CheckSquare,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Clock3,
-  EllipsisVertical,
-  FolderOpen,
-  Mail,
-  MessageSquare,
-  Paperclip,
-  Plus,
-  Search,
-  SendHorizontal,
-  Square,
-} from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  CalendarBlankIcon,
+  ChartBarIcon,
+  CheckSquareIcon,
+  FolderOpenIcon,
+  MagnifyingGlassIcon,
+  PaperclipIcon,
+  PaperPlaneTiltIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  SidebarSimpleIcon,
+  SquareIcon,
+  TagIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { PageContainer } from "@/components/page-container";
 import { RichOperatorEditor } from "@/components/rich-operator-editor";
-import { SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/sonner";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { SidebarInput } from "@/components/ui/sidebar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { StatusPill, Surface } from "@/components/ubik-primitives";
+import { Drive } from "@/components/ui/svgs/drive";
+import { FileMark } from "@/components/ui/svgs/file-marks";
+import { Gmail } from "@/components/ui/svgs/gmail";
+import { Salesforce } from "@/components/ui/svgs/salesforce";
 import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
+import { findContactCard, getInitials } from "@/lib/contact-helpers";
 import { contactCards, inboxThreads } from "@/lib/ubik-data";
-import type { ContactCard, InboxThread } from "@/lib/ubik-types";
-import { cn } from "@/lib/utils";
-
-type BuiltInBucketId =
-  | "all"
-  | "unread"
-  | "attention"
-  | "approval"
-  | "waiting"
-  | "watched"
-  | "reviewed"
-  | "attachments"
-  | "delegated";
-
-type InboxBucketSelection =
-  | { kind: "system"; id: BuiltInBucketId }
-  | { kind: "customer"; id: string };
-
-type CustomerBucket = {
-  id: string;
-  name: string;
-  normalizedName: string;
-  createdAt: number;
-};
+import { cn, shouldIgnoreSurfaceHotkeys } from "@/lib/utils";
 
 type AddedTask = {
   id: string;
   title: string;
-  status: "Open";
-  due: "Today";
-  priority: InboxThread["priority"];
-  source: InboxThread["source"];
+  status: string;
+  due: string;
+  priority: string;
+  source: (typeof inboxThreads)[number]["source"];
   provenance: string;
+  owner: string;
+  project: string;
+  label: string;
 };
 
-type NormalizedInboxThread = Omit<InboxThread, "provenance"> & {
+type NormalizedInboxThread = Omit<(typeof inboxThreads)[number], "provenance"> & {
   provenance: string[];
   status: "Action required" | "Waiting" | "Reviewed";
   approvalRequired: boolean;
   isUnread: boolean;
   domainTag?: string;
   intentTag?: string;
-  searchIndex: string;
 };
 
-const sectionLabelClass = "font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/70";
-const railRowBaseClass =
-  "group flex w-full items-center border-b pl-3 pr-2 transition-colors";
-const denseActionButtonClass =
-  "inline-flex h-9 items-center justify-center gap-1.5 border border-border bg-background px-3 font-mono text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--foreground)/0.03)]";
-const rowActionButtonClass =
-  "inline-flex h-7 items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-foreground/68 transition-colors hover:text-foreground";
-const squareTagClass =
-  "inline-flex items-center gap-1.5 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em]";
-const roundedMetaPillClass =
-  "inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-3 py-1.5 text-[13px] text-foreground/78";
-const workspaceCountClass =
-  "inline-flex items-center border border-border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-foreground/62";
+type InboxFolderScope = "actions" | "customers" | "category";
+type InboxFolderId =
+  | "quick-note"
+  | "private"
+  | "this-week"
+  | "this-month"
+  | "history"
+  | "sent"
+  | "updates"
+  | "social"
+  | "promotions"
+  | `customer-${string}`
+  | `custom-${string}`;
+type ComposerMode = "reply" | "compose";
+type RecipientSlot = "cc" | "bcc";
+type QuickTaskDraft = {
+  project: string;
+  status: string;
+  priority: string;
+  due: string;
+  label: string;
+  assigneeId: string;
+  assigneeQuery: string;
+};
 
-function normalizeBucketText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+type ArtifactSuggestion = {
+  id: string;
+  title: string;
+  subtitle: string;
+  hint: string;
+  icon: "drive" | "salesforce";
+  kindLabel: string;
+  template: string;
+  preview?: "chart";
+};
+
+type RecipientPreview = {
+  key: string;
+  name: string;
+  role: string;
+  avatarSrc?: string;
+  avatarFallback: string;
+};
+
+type InboxFolderDefinition = {
+  id: InboxFolderId;
+  title: string;
+  description: string;
+  scope: InboxFolderScope;
+  kind: "system" | "customer" | "custom" | "category";
+  account?: string;
+  prompt?: string;
+};
+
+type InboxCustomFolder = {
+  id: `custom-${string}`;
+  title: string;
+  description: string;
+  prompt: string;
+  scope: InboxFolderScope;
+};
+
+function synthesizeThreadInsights(thread: NormalizedInboxThread) {
+  return [
+    `${thread.priority} priority signal from ${thread.sender}.`,
+    thread.whatChanged,
+    thread.whatIsBlocked,
+  ];
 }
 
-function buildCustomerBucketId(name: string) {
-  const slug = normalizeBucketText(name).replace(/\s+/g, "-").slice(0, 32) || "bucket";
-  return `customer-${slug}-${Date.now()}`;
+function buildInitialDraft(thread: NormalizedInboxThread) {
+  const recipientName = thread.sender.split(" ")[0] ?? thread.sender;
+  if (!thread.recommendedReply.trim() || /^No /i.test(thread.recommendedReply.trim())) {
+    return thread.recommendedReply;
+  }
+
+  if (thread.id === "thread-1") {
+    return [
+      `${recipientName},`,
+      "",
+      "Approved to send with clause 4.2 preserved. Please keep Legal copied on the outbound note and do not extend detention coverage beyond the current window.",
+      "",
+      "Once the reply is out, update the Mumbai-Rotterdam Q2 thread with the final wording and release timing so the team can release the PO immediately.",
+      "",
+      "Thanks,",
+      thread.owner,
+    ].join("\n");
+  }
+
+  return [
+    `${recipientName},`,
+    "",
+    thread.recommendedReply,
+    "",
+    thread.nextAction,
+    "",
+    "Thanks,",
+    thread.owner,
+  ].join("\n");
 }
 
-function buildCustomerBucket(name: string): CustomerBucket {
+function toRecipientPreview(name: string, fallbackRole: string): RecipientPreview {
+  const contact = findContactCard(name);
   return {
-    id: buildCustomerBucketId(name),
-    name: name.trim(),
-    normalizedName: normalizeBucketText(name),
-    createdAt: Date.now(),
+    key: name.toLowerCase().replace(/\s+/g, "-"),
+    name: contact?.name ?? name,
+    role: contact?.role ?? fallbackRole,
+    avatarSrc: contact?.avatarSrc,
+    avatarFallback: contact?.avatarFallback ?? getInitials(name),
   };
 }
 
-function parseClockValue(value: string) {
-  const trimmed = value.trim();
-  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (ampmMatch) {
-    const hourBase = Number(ampmMatch[1]) % 12;
-    const minute = Number(ampmMatch[2]);
-    const isPm = ampmMatch[3].toUpperCase() === "PM";
-    return (hourBase + (isPm ? 12 : 0)) * 60 + minute;
+function buildRecipientPreviews(
+  thread: NormalizedInboxThread,
+  slot: RecipientSlot,
+  contacts: (typeof contactCards)[number][],
+): RecipientPreview[] {
+  if (contacts.length) {
+    return contacts.map((contact) => ({
+      key: contact.id,
+      name: contact.name,
+      role: `${contact.role} · ${contact.company}`,
+      avatarSrc: contact.avatarSrc,
+      avatarFallback: contact.avatarFallback,
+    }));
   }
 
-  const clockMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (clockMatch) {
-    return Number(clockMatch[1]) * 60 + Number(clockMatch[2]);
-  }
+  const suggestedNames =
+    slot === "cc"
+      ? thread.participants.filter((name) => name !== thread.sender).slice(0, 1)
+      : [thread.owner];
 
-  return 0;
-}
-
-function buildThreadStatus(thread: InboxThread) {
-  return (
-    thread.status ??
-    (thread.followUpStatus === "auto_handled" || thread.approvalStatus === "approved"
-      ? "Reviewed"
-      : thread.waitingState.toLowerCase().includes("watch") || thread.delegationStatus === "delegated"
-        ? "Waiting"
-        : "Action required")
+  return Array.from(new Set(suggestedNames)).map((name) =>
+    toRecipientPreview(name, slot === "cc" ? "Suggested reviewer" : "Suggested hidden recipient"),
   );
 }
 
-function buildThreadSearchIndex(
-  thread: InboxThread,
-  normalizedProvenance: string[],
-  domainTag?: string,
-  intentTag?: string,
-) {
-  return normalizeBucketText(
-    [
-      thread.sender,
-      thread.company,
-      thread.subject,
-      thread.preview,
-      thread.account,
-      thread.project,
-      thread.source,
-      thread.waitingState,
-      thread.tags.join(" "),
-      domainTag ?? "",
-      intentTag ?? "",
-      normalizedProvenance.join(" "),
-    ].join(" "),
-  );
+function buildArtifactSuggestions(thread: NormalizedInboxThread): ArtifactSuggestion[] {
+  const attachmentSuggestions = thread.attachments.slice(0, 3).map((attachment, index) => {
+    const extension = attachment.split(".").pop()?.toUpperCase() ?? "FILE";
+    const attachLine =
+      extension === "PDF"
+        ? `Attaching ${attachment} so the redlined clause language stays with the reply.`
+        : extension === "XLSX"
+          ? `Adding ${attachment} for the latest rate sheet reference.`
+          : `Attaching ${attachment} for reference before release.`;
+
+    return {
+      id: `${thread.id}-attachment-${index}`,
+      title: attachment,
+      subtitle:
+        extension === "PDF"
+          ? "Reference the marked-up contract in the reply."
+          : extension === "XLSX"
+            ? "Mention the revised rate sheet inline."
+            : "Pull this artifact into the outbound note.",
+      hint: "Click to append attachment context. Hover to preview.",
+      icon: "drive" as const,
+      kindLabel: extension,
+      template: attachLine,
+    };
+  });
+
+  const chartSuggestion = thread.attachments.some((attachment) => attachment.toLowerCase().endsWith(".xlsx"))
+    ? [
+        {
+          id: `${thread.id}-chart`,
+          title: "Rate variance chart.png",
+          subtitle: "Inline the rate graph as an image instead of the spreadsheet.",
+          hint: "Click to reference the image-based rate delta in the reply.",
+          icon: "drive" as const,
+          kindLabel: "IMAGE",
+          template: "Adding the latest rate variance chart inline so Redwood can review the delta without opening the workbook.",
+          preview: "chart" as const,
+        },
+      ]
+    : [];
+
+  const trackingSuggestion =
+    thread.id === "thread-1"
+      ? [
+          {
+            id: `${thread.id}-tracking`,
+            title: "Shipment tracking link",
+            subtitle: "Insert the ERP tracking link for the revised booking.",
+            hint: "Click to add the live Salesforce shipment tracking link.",
+            icon: "salesforce" as const,
+            kindLabel: "TRACK",
+            template: "Adding the live shipment tracking link from Salesforce so Redwood can follow the revised booking without leaving the thread.",
+          },
+        ]
+      : [];
+
+  return [...attachmentSuggestions, ...chartSuggestion, ...trackingSuggestion];
 }
 
 function defaultReplyTo(thread: NormalizedInboxThread) {
   return thread.sender;
 }
 
-function synthesizeThreadInsights(thread: NormalizedInboxThread) {
-  const lines = [
-    `${thread.priority} priority signal in ${thread.account}. Queue posture: ${thread.waitingState}.`,
-    `${thread.dueRisk}. Last material change at ${thread.lastMaterialChangeAt}, last reviewed ${thread.lastReviewedAt}.`,
-  ];
-
-  if (thread.linkedWorkflow) {
-    lines.push(
-      `Linked workflow ${thread.linkedWorkflow.label} is ${thread.linkedWorkflow.status}. Next step: ${thread.linkedWorkflow.nextStep}.`,
-    );
-  }
-
-  if (thread.linkedTask) {
-    lines.push(`Linked task ${thread.linkedTask.label} is ${thread.linkedTask.status}.`);
-  }
-
-  if (thread.actionRecommendations.length) {
-    lines.push(
-      ...thread.actionRecommendations
-        .slice(0, 2)
-        .map((action) => `${action.label}: ${action.description}`),
-    );
-  }
-
-  return lines;
+function buildInboxCustomerFolderId(account: string) {
+  return `customer-${account.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}` as InboxFolderId;
 }
 
-function matchesCustomerBucket(thread: NormalizedInboxThread, normalizedName: string) {
-  return normalizeBucketText(`${thread.account} ${thread.company}`).includes(normalizedName);
+function buildInboxCustomFolderId(name: string) {
+  return `custom-${name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32) || "folder"}-${Date.now()}` as `custom-${string}`;
 }
 
-function SquareTag({
-  children,
-  tone = "neutral",
-  className,
-}: {
-  children: React.ReactNode;
-  tone?: "neutral" | "alert" | "inverted";
-  className?: string;
-}) {
-  const toneClass =
-    tone === "alert"
-      ? "border-primary text-primary"
-      : tone === "inverted"
-        ? "border-foreground bg-foreground text-background"
-        : "border-border text-foreground/62";
+function inferInboxCategory(thread: NormalizedInboxThread) {
+  const text = [
+    thread.subject,
+    thread.preview,
+    thread.sender,
+    thread.company,
+    thread.project,
+    thread.tags.join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
 
-  return <span className={cn(squareTagClass, toneClass, className)}>{children}</span>;
+  if (/(credits|promotion|promotional|launch|announcement|newsletter|limited time|campaign|offer)/.test(text)) {
+    return "promotions" as const;
+  }
+
+  if (thread.source === "Slack" || thread.source === "WhatsApp") {
+    return "social" as const;
+  }
+
+  if (thread.source === "System" || /monitor|service|digest|automation/i.test(`${thread.sender} ${thread.company}`)) {
+    return "updates" as const;
+  }
+
+  if (
+    thread.approvalStatus === "approved" ||
+    thread.followUpStatus === "none" ||
+    /resolved/i.test(thread.waitingState) ||
+    /^no /i.test(thread.recommendedReply.trim())
+  ) {
+    return "sent" as const;
+  }
+
+  return "updates" as const;
+}
+
+function threadMatchesFolderPrompt(thread: NormalizedInboxThread, prompt: string) {
+  const tokens = prompt.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+
+  const haystack = [
+    thread.subject,
+    thread.preview,
+    thread.sender,
+    thread.source,
+    thread.domainTag,
+    thread.intentTag,
+    thread.account,
+    thread.project,
+    thread.tags.join(" "),
+    thread.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return tokens.every((token) => haystack.includes(token));
+}
+
+function matchesInboxFolder(thread: NormalizedInboxThread, folder: InboxFolderDefinition) {
+  const waitingState = thread.waitingState.toLowerCase();
+  const tagText = thread.tags.join(" ").toLowerCase();
+  const internalSignal = `${thread.sender} ${thread.source} ${thread.project}`.toLowerCase();
+
+  if (folder.id === "quick-note") {
+    return (
+      thread.priority === "Critical" ||
+      thread.priority === "High" ||
+      ["blocked_by_approval", "due_soon"].includes(thread.followUpStatus) ||
+      /approval|reply|follow-up|commercial/.test(tagText)
+    );
+  }
+  if (folder.id === "private") {
+    return (
+      waitingState.includes("awaiting") ||
+      waitingState.includes("delegated") ||
+      internalSignal.includes("workflow") ||
+      internalSignal.includes("ops") ||
+      tagText.includes("compliance")
+    );
+  }
+  if (folder.id === "this-week") {
+    return ["blocked_by_approval", "due_soon", "overdue", "recommended"].includes(thread.followUpStatus);
+  }
+  if (folder.id === "this-month") {
+    return !/resolved/.test(waitingState) && !tagText.includes("archive");
+  }
+  if (folder.id === "history") {
+    return waitingState.includes("watch") || waitingState.includes("resolved") || tagText.includes("archive") || thread.followUpStatus === "auto_handled";
+  }
+  if (folder.kind === "category") {
+    return inferInboxCategory(thread) === folder.id;
+  }
+  if (folder.kind === "customer" && folder.account) {
+    return thread.account === folder.account;
+  }
+  if (folder.kind === "custom" && folder.prompt) {
+    return threadMatchesFolderPrompt(thread, folder.prompt);
+  }
+
+  return buildInboxCustomerFolderId(thread.account) === folder.id;
 }
 
 export default function Inbox() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const { activeTabId, setPageState } = useShellState();
   const { threadId } = useParams();
-  const isMobile = useIsMobile();
-  const { activeTabId, createTab, setPageState } = useShellState();
-  const rowMenuRef = useRef<HTMLDivElement | null>(null);
-  const composerRef = useRef<HTMLDivElement | null>(null);
+  const replySectionRef = useRef<HTMLDivElement | null>(null);
 
-  const [selectedBucket, setSelectedBucket] = useWorkbenchState<InboxBucketSelection>("inbox-bucket-selection", {
-    kind: "system",
-    id: "all",
-  });
-  const [searchQuery, setSearchQuery] = useWorkbenchState<string>("inbox-search", "");
-  const [lastSelectedThreadId, setLastSelectedThreadId] = useWorkbenchState<string>(
-    "inbox-selected-thread",
-    inboxThreads[0]?.id ?? "",
-  );
-  const [customerBuckets, setCustomerBuckets] = useWorkbenchState<CustomerBucket[]>("inbox-customer-buckets", []);
-  const [isCreateBucketOpen, setIsCreateBucketOpen] = useWorkbenchState<boolean>("inbox-create-bucket-open", false);
-  const [newBucketName, setNewBucketName] = useWorkbenchState<string>("inbox-new-bucket-name", "");
+  const [folderScope, setFolderScope] = useWorkbenchState<InboxFolderScope>("inbox-folder-scope", "actions");
+  const [selectedFolderId, setSelectedFolderId] = useWorkbenchState<InboxFolderId>("inbox-selected-folder", "quick-note");
+  const [filterPrompt, setFilterPrompt] = useWorkbenchState<string>("inbox-filter-prompt", "");
+  const [lastSelectedThreadId, setLastSelectedThreadId] = useWorkbenchState<string>("inbox-selected-thread", inboxThreads[0]?.id ?? "");
+  const [secondaryRailCollapsed, setSecondaryRailCollapsed] = useWorkbenchState<boolean>("inbox-secondary-rail-collapsed", false);
+  const [customFolders, setCustomFolders] = useWorkbenchState<InboxCustomFolder[]>("inbox-custom-folders", []);
+  const [isCreateFolderExpanded, setIsCreateFolderExpanded] = useWorkbenchState<boolean>("inbox-create-folder-expanded", false);
+  const [newFolderName, setNewFolderName] = useWorkbenchState<string>("inbox-new-folder-name", "");
+  const [newFolderPrompt, setNewFolderPrompt] = useWorkbenchState<string>("inbox-new-folder-prompt", "");
 
-  const [emailMetaByThread, setEmailMetaByThread] = useWorkbenchState<Record<string, { to: string; subject: string }>>(
-    "inbox-email-meta",
-    {},
-  );
-  const [emailCcByThread, setEmailCcByThread] = useWorkbenchState<Record<string, string>>("inbox-email-cc", {});
-  const [emailBccByThread, setEmailBccByThread] = useWorkbenchState<Record<string, string>>("inbox-email-bcc", {});
-  const [emailMetaOpenByThread, setEmailMetaOpenByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-email-meta-open",
-    {},
-  );
+  const [emailMetaByThread, setEmailMetaByThread] = useWorkbenchState<Record<string, { to: string; subject: string }>>("inbox-email-meta", {});
+  const [emailCcByThread, setEmailCcByThread] = useWorkbenchState<Record<string, string[]>>("inbox-email-cc", {});
+  const [emailBccByThread, setEmailBccByThread] = useWorkbenchState<Record<string, string[]>>("inbox-email-bcc", {});
+  const [recipientPickerByThread, setRecipientPickerByThread] = useWorkbenchState<Record<string, RecipientSlot | null>>("inbox-recipient-picker", {});
+  const [recipientQueryByThread, setRecipientQueryByThread] = useWorkbenchState<Record<string, string>>("inbox-recipient-query", {});
+  const [subjectEditingByThread, setSubjectEditingByThread] = useWorkbenchState<Record<string, boolean>>("inbox-subject-editing", {});
+  const [detailsExpandedByThread, setDetailsExpandedByThread] = useWorkbenchState<Record<string, boolean>>("inbox-details-expanded", {});
+  const [composerModeByThread, setComposerModeByThread] = useWorkbenchState<Record<string, ComposerMode>>("inbox-composer-mode", {});
   const [draftByThread, setDraftByThread] = useWorkbenchState<Record<string, string>>("inbox-draft-by-thread", {});
+  const [olderMessagesOpenByThread, setOlderMessagesOpenByThread] = useWorkbenchState<Record<string, boolean>>("inbox-older-messages-open", {});
 
-  const [reviewedStateByThread, setReviewedStateByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-reviewed-state",
-    {},
-  );
+  const [reviewedStateByThread, setReviewedStateByThread] = useWorkbenchState<Record<string, boolean>>("inbox-reviewed-state", {});
   const [watchStateByThread, setWatchStateByThread] = useWorkbenchState<Record<string, boolean>>("inbox-watch-state", {});
-  const [archiveStateByThread, setArchiveStateByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-archive-state",
-    {},
-  );
-  const [reminderByThreadId, setReminderByThreadId] = useWorkbenchState<Record<string, string | null>>(
-    "inbox-reminder-by-thread",
-    {},
-  );
-  const [rowRemindMenuThreadId, setRowRemindMenuThreadId] = useWorkbenchState<string | null>(
-    "inbox-row-remind-menu-thread-id",
-    null,
-  );
+  const [archiveStateByThread, setArchiveStateByThread] = useWorkbenchState<Record<string, boolean>>("inbox-archive-state", {});
+  const [reminderByThreadId, setReminderByThreadId] = useWorkbenchState<Record<string, string | null>>("inbox-reminder-by-thread", {});
 
-  const [approvalOpenByThread, setApprovalOpenByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-approval-open",
-    {},
-  );
-  const [approvalQueryByThread, setApprovalQueryByThread] = useWorkbenchState<Record<string, string>>(
-    "inbox-approval-query",
-    {},
-  );
-  const [approvalSelectedByThread, setApprovalSelectedByThread] = useWorkbenchState<Record<string, string>>(
-    "inbox-approval-selected",
-    {},
-  );
-  const [approvalSentByThread, setApprovalSentByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-approval-sent",
-    {},
-  );
-  const [discussOpenByThread, setDiscussOpenByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-discuss-open",
-    {},
-  );
-  const [discussQueryByThread, setDiscussQueryByThread] = useWorkbenchState<Record<string, string>>(
-    "inbox-discuss-query",
-    {},
-  );
-  const [discussSelectedByThread, setDiscussSelectedByThread] = useWorkbenchState<Record<string, string>>(
-    "inbox-discuss-selected",
-    {},
-  );
-  const [discussSentByThread, setDiscussSentByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-discuss-sent",
-    {},
-  );
+  const [approvalOpenByThread, setApprovalOpenByThread] = useWorkbenchState<Record<string, boolean>>("inbox-approval-open", {});
+  const [approvalQueryByThread, setApprovalQueryByThread] = useWorkbenchState<Record<string, string>>("inbox-approval-query", {});
+  const [approvalSelectedByThread, setApprovalSelectedByThread] = useWorkbenchState<Record<string, string>>("inbox-approval-selected", {});
+  const [approvalSentByThread, setApprovalSentByThread] = useWorkbenchState<Record<string, boolean>>("inbox-approval-sent", {});
+  const [discussOpenByThread, setDiscussOpenByThread] = useWorkbenchState<Record<string, boolean>>("inbox-discuss-open", {});
+  const [discussQueryByThread, setDiscussQueryByThread] = useWorkbenchState<Record<string, string>>("inbox-discuss-query", {});
+  const [discussSelectedByThread, setDiscussSelectedByThread] = useWorkbenchState<Record<string, string>>("inbox-discuss-selected", {});
+  const [discussSentByThread, setDiscussSentByThread] = useWorkbenchState<Record<string, boolean>>("inbox-discuss-sent", {});
 
-  const [taskInputEnabledByThread, setTaskInputEnabledByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-task-input-enabled",
-    {},
-  );
   const [taskInputByThread, setTaskInputByThread] = useWorkbenchState<Record<string, string>>("inbox-task-input", {});
-  const [addedTasksByThread, setAddedTasksByThread] = useWorkbenchState<Record<string, AddedTask[]>>(
-    "inbox-added-tasks",
-    {},
-  );
-  const [threadMessagesOpenByThread, setThreadMessagesOpenByThread] = useWorkbenchState<Record<string, boolean>>(
-    "inbox-thread-messages-open",
+  const [addedTasksByThread, setAddedTasksByThread] = useWorkbenchState<Record<string, AddedTask[]>>("inbox-added-tasks", {});
+  const [expandedSuggestedTaskByThread, setExpandedSuggestedTaskByThread] = useWorkbenchState<Record<string, string | null>>("inbox-expanded-suggested-task", {});
+  const [quickTaskDraftsByThread, setQuickTaskDraftsByThread] = useWorkbenchState<Record<string, Record<string, QuickTaskDraft>>>(
+    "inbox-quick-task-drafts",
     {},
   );
 
@@ -314,22 +455,17 @@ export default function Inbox() {
     () =>
       inboxThreads.map((thread) => {
         const approvalRequired = thread.approvalRequired ?? thread.approvalStatus === "approval_required";
-        const status = buildThreadStatus(thread);
-        const normalizedProvenance = thread.provenance.map((item) => item.value);
-        const domainTag = thread.domainTag ?? thread.tags[0];
-        const intentTag =
-          thread.intentTag ??
-          (approvalRequired
-            ? "Approval"
-            : thread.followUpStatus === "overdue" || thread.followUpStatus === "due_soon"
-              ? "Follow-up"
-              : thread.delegationStatus === "delegated"
-                ? "Delegated"
-                : "Review");
+        const status =
+          thread.status ??
+          (thread.followUpStatus === "auto_handled" || thread.approvalStatus === "approved"
+            ? "Reviewed"
+            : thread.waitingState.toLowerCase().includes("watch") || thread.delegationStatus === "delegated"
+              ? "Waiting"
+              : "Action required");
 
         return {
           ...thread,
-          provenance: normalizedProvenance,
+          provenance: thread.provenance.map((item) => (typeof item === "string" ? item : item.value)),
           status,
           approvalRequired,
           isUnread:
@@ -339,9 +475,16 @@ export default function Inbox() {
               thread.followUpStatus === "due_soon" ||
               thread.followUpStatus === "overdue" ||
               thread.followUpStatus === "blocked_by_approval"),
-          domainTag,
-          intentTag,
-          searchIndex: buildThreadSearchIndex(thread, normalizedProvenance, domainTag, intentTag),
+          domainTag: thread.domainTag ?? thread.tags[0],
+          intentTag:
+            thread.intentTag ??
+            (approvalRequired
+              ? "Approval"
+              : thread.followUpStatus === "overdue" || thread.followUpStatus === "due_soon"
+                ? "Follow-up"
+                : thread.delegationStatus === "delegated"
+                  ? "Delegated"
+                  : "Review"),
         };
       }),
     [],
@@ -352,392 +495,420 @@ export default function Inbox() {
     [reviewedStateByThread],
   );
 
-  const isThreadWatched = useCallback(
-    (thread: NormalizedInboxThread) =>
-      Boolean(watchStateByThread[thread.id]) || thread.waitingState.toLowerCase().includes("watch"),
-    [watchStateByThread],
-  );
-
-  const isThreadReviewed = useCallback(
-    (thread: NormalizedInboxThread) =>
-      Boolean(reviewedStateByThread[thread.id]) || !thread.isUnread || thread.status === "Reviewed",
-    [reviewedStateByThread],
-  );
-
-  const isThreadDelegated = useCallback(
-    (thread: NormalizedInboxThread) =>
-      thread.delegationStatus === "delegated" || thread.waitingState.toLowerCase().includes("delegated"),
-    [],
-  );
-
-  const filterThreadsBySystemBucket = useCallback(
-    (threads: NormalizedInboxThread[], bucketId: BuiltInBucketId) => {
-      if (bucketId === "all") return threads;
-      if (bucketId === "unread") return threads.filter((thread) => isThreadUnread(thread));
-      if (bucketId === "attention") {
-        return threads.filter((thread) => thread.priority === "Critical" || thread.priority === "High");
-      }
-      if (bucketId === "approval") return threads.filter((thread) => thread.approvalRequired);
-      if (bucketId === "waiting") return threads.filter((thread) => thread.status === "Waiting");
-      if (bucketId === "watched") return threads.filter((thread) => isThreadWatched(thread));
-      if (bucketId === "reviewed") return threads.filter((thread) => isThreadReviewed(thread));
-      if (bucketId === "attachments") {
-        return threads.filter((thread) => thread.attachmentPresence || thread.attachments.length > 0);
-      }
-      return threads.filter((thread) => isThreadDelegated(thread));
-    },
-    [isThreadDelegated, isThreadReviewed, isThreadUnread, isThreadWatched],
-  );
-
   const activeThreads = useMemo(
     () => normalizedThreads.filter((thread) => !archiveStateByThread[thread.id]),
     [archiveStateByThread, normalizedThreads],
   );
 
-  const builtInBuckets = useMemo(
-    () =>
-      ([
-        ["all", "All mail"],
-        ["unread", "Unread"],
-        ["attention", "Needs attention"],
-        ["approval", "Approval required"],
-        ["waiting", "Waiting"],
-        ["watched", "Watched"],
-        ["reviewed", "Reviewed"],
-        ["attachments", "With attachments"],
-        ["delegated", "Delegated"],
-      ] as [BuiltInBucketId, string][]).map(([id, label]) => ({
-        id,
-        label,
-        count: filterThreadsBySystemBucket(activeThreads, id).length,
-      })),
-    [activeThreads, filterThreadsBySystemBucket],
-  );
-
-  const customerBucketsWithCounts = useMemo(
-    () =>
-      customerBuckets.map((bucket) => ({
-        ...bucket,
-        count: activeThreads.filter((thread) => matchesCustomerBucket(thread, bucket.normalizedName)).length,
-      })),
-    [activeThreads, customerBuckets],
-  );
-
-  const selectedCustomerBucket =
-    selectedBucket.kind === "customer"
-      ? customerBucketsWithCounts.find((bucket) => bucket.id === selectedBucket.id) ?? null
-      : null;
-
-  const selectedBucketLabel =
-    selectedBucket.kind === "system"
-      ? builtInBuckets.find((bucket) => bucket.id === selectedBucket.id)?.label ?? "All mail"
-      : selectedCustomerBucket?.name ?? "Customer bucket";
-
-  const searchTokens = useMemo(
-    () => normalizeBucketText(searchQuery).split(" ").filter(Boolean),
-    [searchQuery],
-  );
-
-  const bucketedThreads = useMemo(() => {
-    if (selectedBucket.kind === "system") {
-      return filterThreadsBySystemBucket(activeThreads, selectedBucket.id);
-    }
-
-    if (!selectedCustomerBucket) return activeThreads;
-    return activeThreads.filter((thread) => matchesCustomerBucket(thread, selectedCustomerBucket.normalizedName));
-  }, [activeThreads, filterThreadsBySystemBucket, selectedBucket, selectedCustomerBucket]);
-
-  const visibleThreads = useMemo(() => {
-    const filtered = !searchTokens.length
-      ? bucketedThreads
-      : bucketedThreads.filter((thread) => searchTokens.every((token) => thread.searchIndex.includes(token)));
-
-    return [...filtered].sort((left, right) => {
-      const leftRank =
-        left.priority === "Critical"
-          ? 0
-          : left.approvalRequired
-            ? 1
-            : left.priority === "High"
-              ? 2
-              : left.followUpStatus === "overdue"
-                ? 3
-                : left.followUpStatus === "due_soon"
-                  ? 4
-                  : left.status === "Waiting"
-                    ? 5
-                    : isThreadDelegated(left)
-                      ? 6
-                      : isThreadWatched(left)
-                        ? 7
-                        : isThreadReviewed(left)
-                          ? 8
-                          : 9;
-
-      const rightRank =
-        right.priority === "Critical"
-          ? 0
-          : right.approvalRequired
-            ? 1
-            : right.priority === "High"
-              ? 2
-              : right.followUpStatus === "overdue"
-                ? 3
-                : right.followUpStatus === "due_soon"
-                  ? 4
-                  : right.status === "Waiting"
-                    ? 5
-                    : isThreadDelegated(right)
-                      ? 6
-                      : isThreadWatched(right)
-                        ? 7
-                        : isThreadReviewed(right)
-                          ? 8
-                          : 9;
-
-      if (leftRank !== rightRank) return leftRank - rightRank;
-
-      const leftChange = parseClockValue(left.lastMaterialChangeAt) || parseClockValue(left.time);
-      const rightChange = parseClockValue(right.lastMaterialChangeAt) || parseClockValue(right.time);
-      if (leftChange !== rightChange) return rightChange - leftChange;
-
-      return normalizedThreads.findIndex((thread) => thread.id === left.id) - normalizedThreads.findIndex((thread) => thread.id === right.id);
+  const promptTokens = filterPrompt.toLowerCase().split(" ").filter(Boolean);
+  const searchedThreads = useMemo(() => {
+    if (!promptTokens.length) return activeThreads;
+    return activeThreads.filter((thread) => {
+      const hay = `${thread.subject} ${thread.preview} ${thread.sender} ${thread.source} ${thread.domainTag} ${thread.intentTag}`.toLowerCase();
+      return promptTokens.every((token) => hay.includes(token));
     });
-  }, [bucketedThreads, isThreadDelegated, isThreadReviewed, isThreadWatched, normalizedThreads, searchTokens]);
+  }, [activeThreads, promptTokens]);
 
-  const focusedThread = useMemo(
-    () => visibleThreads.find((thread) => thread.id === lastSelectedThreadId) ?? visibleThreads[0] ?? null,
-    [lastSelectedThreadId, visibleThreads],
+  const folderDefinitions = useMemo<InboxFolderDefinition[]>(
+    () => [
+      { id: "quick-note", title: "Quick Note", description: "Fast captures and urgent context to pick up quickly.", scope: "actions", kind: "system" },
+      { id: "private", title: "Private", description: "Internal-only follow-through, ops context, and approval prep.", scope: "actions", kind: "system" },
+      { id: "this-week", title: "This Week", description: "Open loops likely to move in the current working week.", scope: "actions", kind: "system" },
+      { id: "this-month", title: "This Month", description: "Broader active threads worth scanning over the month horizon.", scope: "actions", kind: "system" },
+      { id: "history", title: "History", description: "Watched, resolved, or archived threads kept around for recall.", scope: "actions", kind: "system" },
+      { id: "sent", title: "Sent", description: "Resolved or already-cleared mail for quick recall.", scope: "category", kind: "category" },
+      { id: "updates", title: "Updates", description: "Workflow, system, and operating updates.", scope: "category", kind: "category" },
+      { id: "social", title: "Social", description: "Chat-led threads and lighter-touch coordination.", scope: "category", kind: "category" },
+      { id: "promotions", title: "Promotions", description: "Launches, offers, and marketing-style mail.", scope: "category", kind: "category" },
+      ...customFolders.map((folder) => ({
+        id: folder.id,
+        title: folder.title,
+        description: folder.description,
+        scope: folder.scope,
+        kind: "custom" as const,
+        prompt: folder.prompt,
+      })),
+      ...Array.from(new Set(activeThreads.map((thread) => thread.account))).map((account) => ({
+        id: buildInboxCustomerFolderId(account),
+        title: account,
+        description: activeThreads.find((thread) => thread.account === account)?.project ?? "Active account folder",
+        scope: "customers" as const,
+        kind: "customer" as const,
+        account,
+      })),
+    ],
+    [activeThreads, customFolders],
   );
+  const normalizedFolderScope = folderScope === "customers" ? "actions" : folderScope;
+  const visibleFolders = useMemo(
+    () => folderDefinitions.filter((folder) => folder.scope === normalizedFolderScope),
+    [folderDefinitions, normalizedFolderScope],
+  );
+  const folderCounts = useMemo(
+    () =>
+      folderDefinitions.reduce<Record<string, number>>((acc, folder) => {
+        acc[folder.id] = activeThreads.filter((thread) => matchesInboxFolder(thread, folder)).length;
+        return acc;
+      }, {}),
+    [activeThreads, folderDefinitions],
+  );
+  const approvalThreadsCount = folderCounts.approvals ?? 0;
+  const selectedFolder =
+    folderDefinitions.find((folder) => folder.id === selectedFolderId) ??
+    visibleFolders[0] ??
+    folderDefinitions[0];
+  const folderScopeMeta = {
+    actions: {
+      sectionTitle: "New action view",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "Create action view",
+      submitLabel: "Create action view",
+      namePlaceholder: "Action scope name",
+      promptPlaceholder: "Needs approvals from procurement this week",
+      emptyDescription: "Custom triage scope",
+      toastLabel: "actions",
+    },
+    customers: {
+      sectionTitle: "New customer",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "Create customer",
+      submitLabel: "Create customer folder",
+      namePlaceholder: "Customer name",
+      promptPlaceholder: "Threads related to Redwood Foods handoff",
+      emptyDescription: "Customer continuity folder",
+      toastLabel: "customers",
+    },
+    category: {
+      sectionTitle: "New category",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "Create category",
+      submitLabel: "Create category",
+      namePlaceholder: "Category name",
+      promptPlaceholder: "Threads that feel like launches, offers, and product updates",
+      emptyDescription: "Custom inbox category",
+      toastLabel: "categories",
+    },
+  }[normalizedFolderScope];
+  const landingThreads = useMemo(
+    () => searchedThreads.filter((thread) => (selectedFolder ? matchesInboxFolder(thread, selectedFolder) : true)),
+    [searchedThreads, selectedFolder],
+  );
+  const visibleFiltered = landingThreads;
+  const isThreadDetailView = Boolean(threadId);
 
-  const isDetailRoute = Boolean(threadId);
-  const selectedThread = isDetailRoute
-    ? visibleThreads.find((thread) => thread.id === threadId) ?? null
-    : focusedThread;
+  const requestedThreadId = threadId ?? lastSelectedThreadId;
+  const selectedThread =
+    activeThreads.find((thread) => thread.id === requestedThreadId) ??
+    visibleFiltered[0] ??
+    activeThreads[0] ??
+    null;
   const selectedRawThread = inboxThreads.find((thread) => thread.id === selectedThread?.id) ?? null;
 
   const emailMeta = selectedThread
-    ? emailMetaByThread[selectedThread.id] ?? {
-        to: defaultReplyTo(selectedThread),
-        subject: `Re: ${selectedThread.subject}`,
-      }
+    ? emailMetaByThread[selectedThread.id] ?? { to: defaultReplyTo(selectedThread), subject: `Re: ${selectedThread.subject}` }
     : { to: "", subject: "" };
-  const emailCc = selectedThread ? emailCcByThread[selectedThread.id] ?? "" : "";
-  const emailBcc = selectedThread ? emailBccByThread[selectedThread.id] ?? "" : "";
+  const emailCc = selectedThread ? emailCcByThread[selectedThread.id] ?? [] : [];
+  const emailBcc = selectedThread ? emailBccByThread[selectedThread.id] ?? [] : [];
+  const recipientPicker = selectedThread ? recipientPickerByThread[selectedThread.id] ?? null : null;
+  const recipientQuery = selectedThread ? recipientQueryByThread[selectedThread.id] ?? "" : "";
+  const isSubjectEditing = selectedThread ? Boolean(subjectEditingByThread[selectedThread.id]) : false;
+  const isDetailsExpanded = selectedThread ? Boolean(detailsExpandedByThread[selectedThread.id]) : false;
+  const composerMode = selectedThread ? composerModeByThread[selectedThread.id] ?? "reply" : "reply";
   const currentDraftText = selectedThread ? draftByThread[selectedThread.id] ?? "" : "";
-  const emailMetaOpen = selectedThread ? Boolean(emailMetaOpenByThread[selectedThread.id]) : false;
-  const suggestedReply = selectedThread?.recommendedReply ?? "";
+  const threadInsights = selectedThread ? synthesizeThreadInsights(selectedThread) : [];
+  const detailContextCards = selectedThread
+    ? [
+        { title: "Why this matters", body: selectedThread.whyThisMatters, tone: "default" as const },
+        { title: "What changed", body: selectedThread.whatChanged, tone: "default" as const },
+        { title: "What is blocked", body: selectedThread.whatIsBlocked, tone: "blocked" as const },
+        { title: "Recommended next step", body: selectedThread.nextAction, tone: "inverse" as const },
+      ]
+    : [];
+  const artifactSuggestions = selectedThread ? buildArtifactSuggestions(selectedThread) : [];
+  const olderMessagesOpen = selectedThread ? Boolean(olderMessagesOpenByThread[selectedThread.id]) : false;
 
+  const isRead = selectedThread ? Boolean(reviewedStateByThread[selectedThread.id]) || !selectedThread.isUnread : false;
   const approvalOpen = selectedThread ? Boolean(approvalOpenByThread[selectedThread.id]) : false;
   const approvalQuery = selectedThread ? approvalQueryByThread[selectedThread.id] ?? "" : "";
   const approvalSelectedId = selectedThread ? approvalSelectedByThread[selectedThread.id] : undefined;
   const approvalSent = selectedThread ? Boolean(approvalSentByThread[selectedThread.id]) : false;
   const selectedContact = contactCards.find((contact) => contact.id === approvalSelectedId);
-
   const discussOpen = selectedThread ? Boolean(discussOpenByThread[selectedThread.id]) : false;
   const discussQuery = selectedThread ? discussQueryByThread[selectedThread.id] ?? "" : "";
   const discussSelectedId = selectedThread ? discussSelectedByThread[selectedThread.id] : undefined;
   const discussSent = selectedThread ? Boolean(discussSentByThread[selectedThread.id]) : false;
   const selectedDiscussContact = contactCards.find((contact) => contact.id === discussSelectedId);
+  const selectedThreadIsWatched = selectedThread
+    ? Boolean(watchStateByThread[selectedThread.id])
+    : false;
+  const selectedThreadHasReminder = selectedThread
+    ? Boolean(reminderByThreadId[selectedThread.id])
+    : false;
 
-  const taskInputEnabled = selectedThread ? Boolean(taskInputEnabledByThread[selectedThread.id]) : false;
   const taskInput = selectedThread ? taskInputByThread[selectedThread.id] ?? "" : "";
-  const addedTasks = useMemo(
-    () => (selectedThread ? addedTasksByThread[selectedThread.id] ?? [] : []),
-    [addedTasksByThread, selectedThread],
-  );
+  const addedTasks = selectedThread ? addedTasksByThread[selectedThread.id] ?? [] : [];
+  const suggestedTasks = selectedThread
+    ? selectedThread.extractedTasks
+        .filter((task) => task.toLowerCase() !== "none")
+        .filter((task) => !addedTasks.some((addedTask) => addedTask.title === task))
+        .slice(0, 3)
+    : [];
+  const expandedSuggestedTask = selectedThread ? expandedSuggestedTaskByThread[selectedThread.id] ?? null : null;
+  const quickTaskDrafts = selectedThread ? quickTaskDraftsByThread[selectedThread.id] ?? {} : {};
 
   const matchingContacts = useMemo(() => {
-    const normalizedQuery = approvalQuery.toLowerCase().trim();
-    if (!normalizedQuery) return contactCards;
-    return contactCards.filter((contact) =>
-      `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(normalizedQuery),
-    );
+    const q = approvalQuery.toLowerCase().trim();
+    if (!q) return contactCards;
+    return contactCards.filter((contact) => `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(q));
   }, [approvalQuery]);
-
   const matchingDiscussContacts = useMemo(() => {
-    const normalizedQuery = discussQuery.toLowerCase().trim();
-    if (!normalizedQuery) return contactCards;
-    return contactCards.filter((contact) =>
-      `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(normalizedQuery),
-    );
+    const q = discussQuery.toLowerCase().trim();
+    if (!q) return contactCards;
+    return contactCards.filter((contact) => `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(q));
   }, [discussQuery]);
-
-  const selectedThreadInsights = selectedThread ? synthesizeThreadInsights(selectedThread) : [];
-  const threadMessagesOpen =
-    selectedThread ? threadMessagesOpenByThread[selectedThread.id] ?? !isMobile : false;
-
-  const selectedDetailIndex = selectedThread
-    ? visibleThreads.findIndex((thread) => thread.id === selectedThread.id)
-    : -1;
-  const previousThread =
-    selectedDetailIndex >= 0 && visibleThreads.length > 1
-      ? visibleThreads[(selectedDetailIndex - 1 + visibleThreads.length) % visibleThreads.length]
-      : null;
-  const nextThread =
-    selectedDetailIndex >= 0 && visibleThreads.length > 1
-      ? visibleThreads[(selectedDetailIndex + 1) % visibleThreads.length]
-      : null;
-
-  const setCurrentDraftText = useCallback(
-    (nextValue: string) => {
-      if (!selectedThread) return;
-      setDraftByThread({ ...draftByThread, [selectedThread.id]: nextValue });
-    },
-    [draftByThread, selectedThread, setDraftByThread],
-  );
-
-  const setEmailTo = (nextValue: string) => {
-    if (!selectedThread) return;
-    setEmailMetaByThread({
-      ...emailMetaByThread,
-      [selectedThread.id]: {
-        to: nextValue,
-        subject: emailMeta.subject,
-      },
+  const selectableRecipientContacts = useMemo(() => {
+    const q = recipientQuery.toLowerCase().trim();
+    const taken = new Set([...emailCc, ...emailBcc]);
+    return contactCards.filter((contact) => {
+      if (taken.has(contact.id)) return false;
+      if (!q) return true;
+      return `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(q);
     });
+  }, [emailBcc, emailCc, recipientQuery]);
+
+  useEffect(() => {
+    if (!selectedThread) {
+      if (threadId) {
+        navigate("/inbox", { replace: true });
+      }
+      return;
+    }
+
+    if (lastSelectedThreadId !== selectedThread.id) {
+      setLastSelectedThreadId(selectedThread.id);
+    }
+    if (threadId && threadId !== selectedThread.id) {
+      navigate(`/inbox/${selectedThread.id}`, { replace: true });
+    }
+  }, [lastSelectedThreadId, navigate, selectedThread, setLastSelectedThreadId, threadId]);
+
+  useEffect(() => {
+    if (folderDefinitions.some((folder) => folder.id === selectedFolderId)) return;
+    setSelectedFolderId(folderDefinitions[0]?.id ?? "quick-note");
+  }, [folderDefinitions, selectedFolderId, setSelectedFolderId]);
+
+  useEffect(() => {
+    if (!selectedFolder) return;
+    if (selectedFolder.scope === normalizedFolderScope) return;
+    if (visibleFolders[0]) {
+      setSelectedFolderId(visibleFolders[0].id);
+    }
+  }, [normalizedFolderScope, selectedFolder, setSelectedFolderId, visibleFolders]);
+
+  useEffect(() => {
+    if (folderScope !== "customers") return;
+    setFolderScope("actions");
+  }, [folderScope, setFolderScope]);
+
+  useEffect(() => {
+    setPageState(`${activeTabId}:inbox-threads`, inboxThreads);
+  }, [activeTabId]);
+
+  useEffect(() => {
+    if (!selectedRawThread) return;
+    setPageState(`${activeTabId}:inbox-thread`, selectedRawThread.id);
+  }, [activeTabId, selectedRawThread]);
+
+  useEffect(() => {
+    if (!selectedThread) return;
+    const currentDraft = draftByThread[selectedThread.id];
+    const nextSeed = composerModeByThread[selectedThread.id] === "compose" ? "" : buildInitialDraft(selectedThread);
+    if (currentDraft !== undefined && currentDraft !== selectedThread.recommendedReply) return;
+    setDraftByThread({
+      ...draftByThread,
+      [selectedThread.id]: nextSeed,
+    });
+  }, [composerModeByThread, draftByThread, selectedThread, setDraftByThread]);
+
+  const setCurrentDraftText = (next: string) => {
+    if (!selectedThread) return;
+    setDraftByThread({ ...draftByThread, [selectedThread.id]: next });
   };
 
-  const setEmailSubject = (nextValue: string) => {
+  const setEmailSubject = (next: string) => {
     if (!selectedThread) return;
     setEmailMetaByThread({
       ...emailMetaByThread,
       [selectedThread.id]: {
         to: emailMeta.to,
-        subject: nextValue,
+        subject: next,
       },
     });
   };
 
-  const setEmailCc = (nextValue: string) => {
+  const setRecipientPicker = (slot: RecipientSlot | null) => {
     if (!selectedThread) return;
-    setEmailCcByThread({ ...emailCcByThread, [selectedThread.id]: nextValue });
-  };
-
-  const setEmailBcc = (nextValue: string) => {
-    if (!selectedThread) return;
-    setEmailBccByThread({ ...emailBccByThread, [selectedThread.id]: nextValue });
-  };
-
-  const openThreadDetail = useCallback(
-    (nextThreadId: string) => {
-      setLastSelectedThreadId(nextThreadId);
-      setRowRemindMenuThreadId(null);
-      navigate({
-        pathname: `/inbox/${nextThreadId}`,
-        search: location.search,
-      });
-    },
-    [location.search, navigate, setLastSelectedThreadId, setRowRemindMenuThreadId],
-  );
-
-  const returnToList = useCallback(() => {
-    navigate({
-      pathname: "/inbox",
-      search: location.search,
+    setRecipientPickerByThread({
+      ...recipientPickerByThread,
+      [selectedThread.id]: slot,
     });
-  }, [location.search, navigate]);
+  };
 
-  const navigateBetweenThreads = useCallback(
-    (direction: -1 | 1) => {
-      if (!selectedThread || visibleThreads.length < 2) return;
-      const currentIndex = visibleThreads.findIndex((thread) => thread.id === selectedThread.id);
-      if (currentIndex < 0) return;
-      const nextIndex = (currentIndex + direction + visibleThreads.length) % visibleThreads.length;
-      const nextTarget = visibleThreads[nextIndex];
-      if (!nextTarget) return;
-      openThreadDetail(nextTarget.id);
-    },
-    [openThreadDetail, selectedThread, visibleThreads],
-  );
+  const setSubjectEditing = (open: boolean) => {
+    if (!selectedThread) return;
+    setSubjectEditingByThread({
+      ...subjectEditingByThread,
+      [selectedThread.id]: open,
+    });
+  };
 
-  const markThreadReviewed = useCallback(
-    (targetThreadId?: string) => {
-      const threadIdToReview = targetThreadId ?? selectedThread?.id;
-      if (!threadIdToReview) return;
-      setReviewedStateByThread({ ...reviewedStateByThread, [threadIdToReview]: true });
-      toast("Thread marked reviewed");
-    },
-    [reviewedStateByThread, selectedThread, setReviewedStateByThread],
-  );
-
-  const toggleWatchThread = useCallback(
-    (targetThreadId?: string) => {
-      const threadIdToWatch = targetThreadId ?? selectedThread?.id;
-      if (!threadIdToWatch) return;
-      const nextWatched = !watchStateByThread[threadIdToWatch];
-      setWatchStateByThread({ ...watchStateByThread, [threadIdToWatch]: nextWatched });
-      toast(nextWatched ? "Watching thread" : "Removed from watch", {
-        description: nextWatched ? "This thread will stay visible in the Watched bucket." : "The manual watch has been removed.",
+  const setDetailsExpanded = (open: boolean) => {
+    if (!selectedThread) return;
+    setDetailsExpandedByThread({
+      ...detailsExpandedByThread,
+      [selectedThread.id]: open,
+    });
+    if (!open) {
+      setSubjectEditingByThread({
+        ...subjectEditingByThread,
+        [selectedThread.id]: false,
       });
-    },
-    [selectedThread, setWatchStateByThread, watchStateByThread],
-  );
-
-  const archiveThread = useCallback(
-    (targetThreadId?: string) => {
-      const threadIdToArchive = targetThreadId ?? selectedThread?.id;
-      if (!threadIdToArchive) return;
-      setArchiveStateByThread({ ...archiveStateByThread, [threadIdToArchive]: true });
-      setRowRemindMenuThreadId(null);
-      toast("Thread archived");
-    },
-    [archiveStateByThread, selectedThread, setArchiveStateByThread, setRowRemindMenuThreadId],
-  );
-
-  const setReminder = useCallback(
-    (preset: "1h" | "3h" | "tomorrow", targetThreadId?: string) => {
-      const threadIdForReminder = targetThreadId ?? selectedThread?.id;
-      if (!threadIdForReminder) return;
-      const now = new Date();
-      const next = new Date(now);
-      const label = preset === "1h" ? "1 hour" : preset === "3h" ? "3 hours" : "Tomorrow 9:00 AM";
-
-      if (preset === "1h") {
-        next.setHours(next.getHours() + 1);
-      } else if (preset === "3h") {
-        next.setHours(next.getHours() + 3);
-      } else {
-        next.setDate(next.getDate() + 1);
-        next.setHours(9, 0, 0, 0);
-      }
-
-      setReminderByThreadId({ ...reminderByThreadId, [threadIdForReminder]: next.toISOString() });
-      setRowRemindMenuThreadId(null);
-
-      toast("Reminder set", {
-        description: `This thread will return in ${label}.`,
+      setRecipientPickerByThread({
+        ...recipientPickerByThread,
+        [selectedThread.id]: null,
       });
-    },
-    [reminderByThreadId, selectedThread, setReminderByThreadId, setRowRemindMenuThreadId],
-  );
+    }
+  };
 
-  const openInGmail = useCallback(
-    (targetThreadId?: string) => {
-      const target = normalizedThreads.find((thread) => thread.id === (targetThreadId ?? selectedThread?.id));
-      toast("Opening Gmail soon", {
-        description: target ? `${target.subject} is ready for mailbox handoff in mock mode.` : "Gmail deep link unavailable in mock mode.",
-      });
-    },
-    [normalizedThreads, selectedThread],
-  );
+  const selectThread = useCallback((nextThreadId: string) => {
+    setLastSelectedThreadId(nextThreadId);
+    navigate(`/inbox/${nextThreadId}`);
+  }, [navigate, setLastSelectedThreadId]);
 
-  const sendApprovalAssign = useCallback(() => {
+  const createFolder = () => {
+    const title = newFolderName.trim();
+    if (!title) return;
+
+    const prompt = newFolderPrompt.trim() || title;
+    const nextFolder: InboxCustomFolder = {
+      id: buildInboxCustomFolderId(title),
+      title,
+      description: newFolderPrompt.trim() || folderScopeMeta.emptyDescription,
+      prompt,
+      scope: folderScope,
+    };
+
+    setCustomFolders([...customFolders, nextFolder]);
+    setSelectedFolderId(nextFolder.id);
+    setIsCreateFolderExpanded(false);
+    setNewFolderName("");
+    setNewFolderPrompt("");
+    toast("Folder created", {
+      description: `${title} is ready in ${folderScopeMeta.toastLabel}.`,
+    });
+  };
+
+  const navigateVisibleThreads = useCallback((delta: number) => {
+    if (!visibleFiltered.length || !selectedThread) return;
+
+    const currentIndex = visibleFiltered.findIndex((thread) => thread.id === selectedThread.id);
+    const nextIndex = currentIndex < 0
+      ? 0
+      : (currentIndex + delta + visibleFiltered.length) % visibleFiltered.length;
+
+    const nextThread = visibleFiltered[nextIndex];
+    if (!nextThread) return;
+    selectThread(nextThread.id);
+  }, [selectedThread, selectThread, visibleFiltered]);
+
+  const markThreadReviewed = (targetThreadId?: string) => {
+    const threadIdToReview = targetThreadId ?? selectedThread?.id;
+    if (!threadIdToReview) return;
+
+    setReviewedStateByThread({ ...reviewedStateByThread, [threadIdToReview]: true });
+    toast("Thread marked reviewed");
+  };
+
+  const archiveThread = (targetThreadId?: string) => {
+    const threadIdToArchive = targetThreadId ?? selectedThread?.id;
+    if (!threadIdToArchive) return;
+    setArchiveStateByThread({ ...archiveStateByThread, [threadIdToArchive]: true });
+    toast("Thread archived");
+  };
+
+  const toggleThreadWatch = (targetThreadId?: string) => {
+    const threadIdToWatch = targetThreadId ?? selectedThread?.id;
+    if (!threadIdToWatch) return;
+    setWatchStateByThread({
+      ...watchStateByThread,
+      [threadIdToWatch]: !watchStateByThread[threadIdToWatch],
+    });
+  };
+
+  const toggleApprovalAction = (targetThreadId?: string) => {
+    const threadIdToToggle = targetThreadId ?? selectedThread?.id;
+    if (!threadIdToToggle) return;
+    setApprovalOpenByThread({
+      ...approvalOpenByThread,
+      [threadIdToToggle]: !approvalOpenByThread[threadIdToToggle],
+    });
+  };
+
+  const toggleDiscussAction = (targetThreadId?: string) => {
+    const threadIdToToggle = targetThreadId ?? selectedThread?.id;
+    if (!threadIdToToggle) return;
+    setDiscussOpenByThread({
+      ...discussOpenByThread,
+      [threadIdToToggle]: !discussOpenByThread[threadIdToToggle],
+    });
+  };
+
+  const sendApprovalAssign = () => {
     if (!selectedThread || !approvalSelectedId) return;
     setApprovalSentByThread({ ...approvalSentByThread, [selectedThread.id]: true });
-  }, [approvalSelectedId, approvalSentByThread, selectedThread, setApprovalSentByThread]);
-
-  const sendDiscuss = useCallback(() => {
+  };
+  const sendDiscuss = () => {
     if (!selectedThread || !discussSelectedId) return;
     setDiscussSentByThread({ ...discussSentByThread, [selectedThread.id]: true });
     toast("Shared with team", {
       description: `Discuss thread sent to ${selectedDiscussContact?.name ?? "teammate"}.`,
     });
-  }, [discussSelectedId, discussSentByThread, selectedDiscussContact?.name, selectedThread, setDiscussSentByThread]);
+  };
 
-  const addQuickTask = useCallback(() => {
+  const createDefaultQuickTaskDraft = useCallback(
+    (taskTitle: string): QuickTaskDraft => ({
+      project: selectedThread?.project ?? "Project",
+      status: "Open",
+      priority: selectedThread?.priority ?? "High",
+      due: "Today",
+      label: selectedThread?.intentTag ?? selectedThread?.tags[0] ?? "Follow-up",
+      assigneeId: contactCards.find((contact) => contact.name === selectedThread?.owner)?.id ?? contactCards[0]?.id ?? "",
+      assigneeQuery: "",
+    }),
+    [selectedThread],
+  );
+
+  const getQuickTaskDraft = useCallback(
+    (taskTitle: string) => quickTaskDrafts[taskTitle] ?? createDefaultQuickTaskDraft(taskTitle),
+    [createDefaultQuickTaskDraft, quickTaskDrafts],
+  );
+
+  const updateQuickTaskDraft = (taskTitle: string, updates: Partial<QuickTaskDraft>) => {
     if (!selectedThread) return;
-    const title = taskInput.trim();
+    const current = getQuickTaskDraft(taskTitle);
+
+    setQuickTaskDraftsByThread({
+      ...quickTaskDraftsByThread,
+      [selectedThread.id]: {
+        ...quickTaskDrafts,
+        [taskTitle]: {
+          ...current,
+          ...updates,
+        },
+      },
+    });
+  };
+
+  const addQuickTask = (titleOverride?: string) => {
+    if (!selectedThread) return;
+    const title = (titleOverride ?? taskInput).trim();
     if (!title) return;
 
     const nextTask: AddedTask = {
@@ -748,6 +919,9 @@ export default function Inbox() {
       priority: selectedThread.priority,
       source: selectedThread.source,
       provenance: selectedThread.provenance[0] ?? "Thread context",
+      owner: selectedThread.owner,
+      project: selectedThread.project,
+      label: selectedThread.intentTag ?? selectedThread.tags[0] ?? "Follow-up",
     };
 
     setAddedTasksByThread({
@@ -755,1113 +929,1515 @@ export default function Inbox() {
       [selectedThread.id]: [nextTask, ...addedTasks],
     });
     setTaskInputByThread({ ...taskInputByThread, [selectedThread.id]: "" });
-  }, [addedTasks, addedTasksByThread, selectedThread, setAddedTasksByThread, setTaskInputByThread, taskInput, taskInputByThread]);
+    setExpandedSuggestedTaskByThread({ ...expandedSuggestedTaskByThread, [selectedThread.id]: null });
+    toast("Task added");
+  };
 
-  const sendEmailReply = useCallback(() => {
+  const addConfiguredQuickTask = (taskTitle: string) => {
     if (!selectedThread) return;
-    const recipient = emailMeta.to.trim() || defaultReplyTo(selectedThread);
-    toast("Email draft ready", {
-      description: `Prepared for ${recipient}`,
+
+    const draft = getQuickTaskDraft(taskTitle);
+    const assignee = contactCards.find((contact) => contact.id === draft.assigneeId);
+    const nextTask: AddedTask = {
+      id: `${selectedThread.id}-${Date.now()}`,
+      title: taskTitle,
+      status: draft.status,
+      due: draft.due,
+      priority: draft.priority,
+      source: selectedThread.source,
+      provenance: `${draft.project} · ${draft.label}`,
+      owner: assignee?.name ?? selectedThread.owner,
+      project: draft.project,
+      label: draft.label,
+    };
+
+    setAddedTasksByThread({
+      ...addedTasksByThread,
+      [selectedThread.id]: [nextTask, ...addedTasks],
     });
-  }, [emailMeta.to, selectedThread]);
-
-  const openInChat = useCallback(() => {
-    if (!selectedThread) return;
-    const tabId = createTab("/");
-    if (!tabId) return;
-
-    const recipient = emailMeta.to.trim() || defaultReplyTo(selectedThread);
-    const subject = emailMeta.subject.trim() || `Re: ${selectedThread.subject}`;
-    const cc = emailCc.trim();
-    const bcc = emailBcc.trim();
-    const body = currentDraftText.trim() || suggestedReply;
-    const prompt = [
-      "Email assist (Gmail): review and improve this outbound draft.",
-      "",
-      `Thread subject: ${selectedThread.subject}`,
-      `Sender: ${selectedThread.sender}`,
-      `To: ${recipient}`,
-      cc ? `Cc: ${cc}` : null,
-      bcc ? `Bcc: ${bcc}` : null,
-      `Subject: ${subject}`,
-      "",
-      "Current draft:",
-      body || "(empty draft)",
-      "",
-      "Return one polished final email and one concise alternate.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    setPageState(`${tabId}:chat-composer`, prompt);
-    setPageState(`${tabId}:chat-sources`, ["org_knowledge", "files", "gmail"]);
-    setPageState(`${tabId}:chat-mode`, "speed");
-    toast("Opened in Chat", {
-      description: "Email context and Gmail source were prefilled.",
+    setExpandedSuggestedTaskByThread({ ...expandedSuggestedTaskByThread, [selectedThread.id]: null });
+    toast("Task added", {
+      description: `${draft.status} · ${draft.priority} · ${draft.due}`,
     });
-  }, [
-    createTab,
-    currentDraftText,
-    emailBcc,
-    emailCc,
-    emailMeta.subject,
-    emailMeta.to,
-    selectedThread,
-    setPageState,
-    suggestedReply,
-  ]);
+  };
 
-  const focusComposer = useCallback(() => {
+  const toggleSuggestedTaskTray = (taskTitle: string) => {
     if (!selectedThread) return;
-    if (!currentDraftText.trim() && suggestedReply) {
-      setCurrentDraftText(suggestedReply);
-    }
+    setExpandedSuggestedTaskByThread({
+      ...expandedSuggestedTaskByThread,
+      [selectedThread.id]: expandedSuggestedTask === taskTitle ? null : taskTitle,
+    });
+  };
 
-    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const applyArtifactSuggestion = (artifact: ArtifactSuggestion) => {
+    if (!selectedThread) return;
+
+    const nextDraft = currentDraftText.trim()
+      ? artifact.id.endsWith("-draft")
+        ? `${currentDraftText.trim()}\n\n${artifact.template}`
+        : currentDraftText.includes(artifact.title)
+          ? currentDraftText
+          : `${currentDraftText.trim()}\n\nAttaching ${artifact.title} for reference.`
+      : artifact.template;
+
+    setCurrentDraftText(nextDraft);
+    toast("Composer updated", {
+      description: artifact.id.endsWith("-draft") ? "Suggested draft inserted." : `${artifact.title} referenced in the reply.`,
+    });
+  };
+
+  const addRecipientContact = (slot: RecipientSlot, contactId: string) => {
+    if (!selectedThread) return;
+
+    const updater = slot === "cc" ? setEmailCcByThread : setEmailBccByThread;
+    const nextByThread = slot === "cc" ? emailCcByThread : emailBccByThread;
+    const currentIds = slot === "cc" ? emailCc : emailBcc;
+    updater({
+      ...nextByThread,
+      [selectedThread.id]: currentIds.includes(contactId) ? currentIds : [...currentIds, contactId],
+    });
+    setRecipientQueryByThread({
+      ...recipientQueryByThread,
+      [selectedThread.id]: "",
+    });
+    setRecipientPicker(null);
+  };
+
+  const removeRecipientContact = (slot: RecipientSlot, contactId: string) => {
+    if (!selectedThread) return;
+
+    const updater = slot === "cc" ? setEmailCcByThread : setEmailBccByThread;
+    const nextByThread = slot === "cc" ? emailCcByThread : emailBccByThread;
+    const currentIds = slot === "cc" ? emailCc : emailBcc;
+    updater({
+      ...nextByThread,
+      [selectedThread.id]: currentIds.filter((id) => id !== contactId),
+    });
+  };
+
+  const focusReplyComposer = () => {
+    replySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     requestAnimationFrame(() => {
-      const textarea = composerRef.current?.querySelector("textarea");
+      const textarea = replySectionRef.current?.querySelector("textarea");
       if (textarea instanceof HTMLTextAreaElement) {
         textarea.focus();
       }
     });
-  }, [currentDraftText, selectedThread, setCurrentDraftText, suggestedReply]);
+  };
 
-  const getSignalMeta = useCallback(
-    (thread: NormalizedInboxThread) => {
-      if (thread.approvalRequired) return { label: "Awaiting approval", tone: "alert" as const };
-      if (thread.priority === "Critical" || thread.priority === "High") {
-        return { label: "Needs attention", tone: "alert" as const };
-      }
-      if (isThreadDelegated(thread)) return { label: "Delegated", tone: "muted" as const };
-      if (isThreadWatched(thread)) return { label: "Watched", tone: "success" as const };
-      if (thread.status === "Waiting") return { label: "Waiting", tone: "muted" as const };
-      if (isThreadReviewed(thread)) return { label: "Reviewed", tone: "muted" as const };
-      return { label: "Active", tone: "muted" as const };
-    },
-    [isThreadDelegated, isThreadReviewed, isThreadWatched],
-  );
+  const setComposerMode = (mode: ComposerMode) => {
+    if (!selectedThread) return;
 
-  const createCustomerBucketAction = useCallback(() => {
-    const name = newBucketName.trim();
-    if (!name) return;
-
-    const normalizedName = normalizeBucketText(name);
-    const existingBucket = customerBuckets.find((bucket) => bucket.normalizedName === normalizedName);
-    const nextBucket = existingBucket ?? buildCustomerBucket(name);
-
-    if (!existingBucket) {
-      setCustomerBuckets([...customerBuckets, nextBucket]);
-    }
-
-    setSelectedBucket({ kind: "customer", id: nextBucket.id });
-    setNewBucketName("");
-    setIsCreateBucketOpen(false);
-  }, [customerBuckets, newBucketName, setCustomerBuckets, setIsCreateBucketOpen, setNewBucketName, setSelectedBucket]);
-
-  useEffect(() => {
-    if (selectedBucket.kind === "customer" && !customerBucketsWithCounts.some((bucket) => bucket.id === selectedBucket.id)) {
-      setSelectedBucket({ kind: "system", id: "all" });
-    }
-  }, [customerBucketsWithCounts, selectedBucket, setSelectedBucket]);
-
-  useEffect(() => {
-    if (!visibleThreads.length) return;
-    if (!visibleThreads.some((thread) => thread.id === lastSelectedThreadId)) {
-      setLastSelectedThreadId(visibleThreads[0].id);
-      return;
-    }
-
-    if (selectedThread && lastSelectedThreadId !== selectedThread.id) {
-      setLastSelectedThreadId(selectedThread.id);
-    }
-  }, [lastSelectedThreadId, selectedThread, setLastSelectedThreadId, visibleThreads]);
-
-  useEffect(() => {
-    if (!isDetailRoute || !threadId) return;
-    if (visibleThreads.some((thread) => thread.id === threadId)) return;
-
-    navigate(
-      {
-        pathname: "/inbox",
-        search: location.search,
+    setComposerModeByThread({
+      ...composerModeByThread,
+      [selectedThread.id]: mode,
+    });
+    setEmailMetaByThread({
+      ...emailMetaByThread,
+      [selectedThread.id]: {
+        to: emailMeta.to,
+        subject: mode === "compose" ? selectedThread.subject : `Re: ${selectedThread.subject}`,
       },
-      { replace: true },
-    );
-  }, [isDetailRoute, location.search, navigate, threadId, visibleThreads]);
+    });
+    focusReplyComposer();
+  };
 
-  useEffect(() => {
-    setPageState(`${activeTabId}:inbox-threads`, inboxThreads);
-  }, [activeTabId, setPageState]);
+  const sendEmailReply = () => {
+    if (!selectedThread) return;
+    const recipient = emailMeta.to.trim() || defaultReplyTo(selectedThread);
+    const recipientCount = 1 + emailCc.length + emailBcc.length;
+    toast("Email draft ready", {
+      description: `Prepared for ${recipient} (${recipientCount} recipient${recipientCount === 1 ? "" : "s"}).`,
+    });
+  };
 
-  useEffect(() => {
-    const threadIdForState = selectedRawThread?.id ?? lastSelectedThreadId;
-    if (!threadIdForState) return;
-    setPageState(`${activeTabId}:inbox-thread`, threadIdForState);
-  }, [activeTabId, lastSelectedThreadId, selectedRawThread?.id, setPageState]);
+  const setReminder = (preset: "1h" | "3h" | "tomorrow", targetThreadId?: string) => {
+    const threadIdForReminder = targetThreadId ?? selectedThread?.id;
+    if (!threadIdForReminder) return;
+    const now = new Date();
+    const next = new Date(now);
+    const label = preset === "1h" ? "1 hour" : preset === "3h" ? "3 hours" : "Tomorrow 9:00 AM";
 
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!rowMenuRef.current) return;
-      if (rowMenuRef.current.contains(event.target as Node)) return;
-      setRowRemindMenuThreadId(null);
-    };
-
-    if (rowRemindMenuThreadId) {
-      window.addEventListener("mousedown", handleOutsideClick);
+    if (preset === "1h") {
+      next.setHours(next.getHours() + 1);
+    } else if (preset === "3h") {
+      next.setHours(next.getHours() + 3);
+    } else {
+      next.setDate(next.getDate() + 1);
+      next.setHours(9, 0, 0, 0);
     }
 
-    return () => window.removeEventListener("mousedown", handleOutsideClick);
-  }, [rowRemindMenuThreadId, setRowRemindMenuThreadId]);
+    setReminderByThreadId({ ...reminderByThreadId, [threadIdForReminder]: next.toISOString() });
 
-  useEffect(() => {
-    if (!isDetailRoute || !selectedThread) return;
+    toast("Reminder set", {
+      description: `This thread will return in ${label}.`,
+    });
+  };
 
-    const handleKeydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
+  const openInGmail = (_targetThreadId?: string) => {
+    toast("Opening Gmail soon", {
+      description: "Gmail deep link unavailable in mock mode.",
+    });
+  };
 
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-      if (visibleThreads.length < 2) return;
+  const senderContact = selectedThread ? findContactCard(selectedThread.sender) : undefined;
+  const threadContacts = useMemo(() => {
+    if (!selectedThread) return [];
 
-      event.preventDefault();
-      navigateBetweenThreads(event.key === "ArrowDown" ? 1 : -1);
-    };
+    const orderedNames = Array.from(new Set([selectedThread.sender, selectedThread.owner, ...selectedThread.participants]));
+    return orderedNames.map((name) => ({
+      name,
+      contact: findContactCard(name),
+    }));
+  }, [selectedThread]);
+  const ccContacts = useMemo(
+    () =>
+      emailCc
+        .map((id) => contactCards.find((contact) => contact.id === id))
+        .filter((contact): contact is (typeof contactCards)[number] => Boolean(contact)),
+    [emailCc],
+  );
+  const bccContacts = useMemo(
+    () =>
+      emailBcc
+        .map((id) => contactCards.find((contact) => contact.id === id))
+        .filter((contact): contact is (typeof contactCards)[number] => Boolean(contact)),
+    [emailBcc],
+  );
+  const ccPreviews = useMemo(
+    () => (selectedThread ? buildRecipientPreviews(selectedThread, "cc", ccContacts) : []),
+    [ccContacts, selectedThread],
+  );
+  const bccPreviews = useMemo(
+    () => (selectedThread ? buildRecipientPreviews(selectedThread, "bcc", bccContacts) : []),
+    [bccContacts, selectedThread],
+  );
+  const latestThreadMessage = selectedThread?.timeline[0] ?? null;
+  const olderThreadMessages = useMemo(
+    () => (selectedThread?.timeline.slice(1) ?? []).reverse(),
+    [selectedThread],
+  );
+  const composerMinHeight = useMemo(() => {
+    const draft = currentDraftText.trim();
+    if (!draft) return 180;
+    const estimatedLines = draft.split("\n").length + Math.ceil(draft.length / 130);
+    return Math.min(320, Math.max(180, 72 + estimatedLines * 18));
+  }, [currentDraftText]);
 
-    window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
-  }, [isDetailRoute, navigateBetweenThreads, selectedThread, visibleThreads.length]);
+  const sectionLabelClass = "section-label";
 
-  const renderContactPickerPanel = (options: {
-    title: string;
-    description: string;
+  const renderContactPickerPanel = (opts: {
     open: boolean;
     query: string;
     placeholder: string;
     selectedId?: string;
     sent: boolean;
     selectedName?: string;
-    contacts: ContactCard[];
+    contacts: typeof contactCards;
     onQueryChange: (value: string) => void;
     onSelect: (id: string) => void;
     onSend: () => void;
     sendLabel: string;
     sentLabel: string;
   }) => {
-    if (!options.open) return null;
+    if (!opts.open) return null;
+    return (
+      <Card size="sm" className="surface-card">
+        <CardHeader className="border-b border-border/60 pb-3">
+          <CardTitle className="text-sm">
+            {opts.sendLabel === "Send" ? "Approval and assignment" : "Discuss with teammate"}
+          </CardTitle>
+          <CardDescription>
+            {opts.sendLabel === "Send"
+              ? "Route this thread to the right owner with one explicit handoff."
+              : "Share the thread with context instead of copying the details manually."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <InputGroup className="mt-3 h-10 bg-background">
+            <InputGroupAddon>
+              <InputGroupText>
+                <MagnifyingGlassIcon />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              onChange={(event) => opts.onQueryChange(event.target.value)}
+              placeholder={opts.placeholder}
+              value={opts.query}
+            />
+          </InputGroup>
+        <div className="mt-3 flex max-h-32 flex-col gap-1.5 overflow-auto">
+          {opts.contacts.map((contact) => (
+            <Button
+              key={contact.id}
+              variant={opts.selectedId === contact.id ? "secondary" : "ghost"}
+              className="h-auto w-full justify-start gap-3 px-3 py-2 text-left text-xs"
+              onClick={() => opts.onSelect(contact.id)}
+              type="button"
+            >
+              <Avatar>
+                <AvatarImage alt={contact.name} src={contact.avatarSrc} />
+                <AvatarFallback>{contact.avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">{contact.name}</p>
+                <p className="text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+              </div>
+            </Button>
+          ))}
+        </div>
+        </CardContent>
+        <CardFooter className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            {opts.selectedName ? `Selected: ${opts.selectedName}` : "No teammate selected"}
+          </div>
+          <Button size="sm" disabled={!opts.selectedName} onClick={opts.onSend}>
+            <PaperPlaneTiltIcon data-icon="inline-start" /> {opts.sendLabel}
+          </Button>
+        </CardFooter>
+        {opts.sent ? <p className="px-3 pb-3 text-xs text-foreground">{opts.sentLabel}</p> : null}
+      </Card>
+    );
+  };
+
+  const commandRailClass =
+    "flex w-full items-center gap-1 overflow-x-auto border border-border/70 bg-muted/30 px-1.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  const commandRailGroupClass =
+    "flex shrink-0 items-center gap-1";
+  const commandRailDividerClass = "h-4 w-px shrink-0 bg-border/80";
+  const commandRailButtonClass =
+    "inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none";
+  const commandRailIconButtonClass =
+    "inline-flex size-7 shrink-0 items-center justify-center border border-transparent text-foreground/75 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none";
+  const commandRailActiveButtonClass =
+    "border-border/70 bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground";
+  const commandRailPrimaryButtonClass =
+    "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground";
+  const commandRailShortcutClass =
+    "inline-flex min-w-[1.3rem] items-center justify-center border border-border/70 bg-background px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground";
+  const quickTaskStripButtonClass =
+    "inline-flex h-8 items-center gap-2 border border-border/70 bg-background px-2.5 text-xs text-foreground transition-colors hover:bg-secondary/35";
+  const quickTaskStatusOptions = ["Open", "In progress", "Waiting"];
+  const quickTaskPriorityOptions = ["Critical", "High", "Medium", "Low"];
+  const quickTaskDueOptions = ["Today", "Tomorrow", "This week"];
+  const quickTaskLabelOptions = Array.from(new Set([selectedThread?.intentTag, ...(selectedThread?.tags ?? []), "Follow-up"].filter(Boolean)));
+
+  const focusInboxSearch = () => {
+    if (secondaryRailCollapsed) {
+      setSecondaryRailCollapsed(false);
+    }
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('input[aria-label="Search inbox threads"]')?.focus();
+    }, 40);
+  };
+
+  const openThreadDetail = useCallback(() => {
+    if (!selectedThread) return;
+    selectThread(selectedThread.id);
+  }, [selectThread, selectedThread]);
+
+  const openComposer = useCallback((mode: ComposerMode) => {
+    if (!selectedThread) return;
+
+    setComposerModeByThread({
+      ...composerModeByThread,
+      [selectedThread.id]: mode,
+    });
+    setEmailMetaByThread({
+      ...emailMetaByThread,
+      [selectedThread.id]: {
+        to: emailMeta.to,
+        subject: mode === "compose" ? selectedThread.subject : `Re: ${selectedThread.subject}`,
+      },
+    });
+
+    if (threadId) {
+      focusReplyComposer();
+      return;
+    }
+
+    selectThread(selectedThread.id);
+  }, [composerModeByThread, emailMeta.to, emailMetaByThread, focusReplyComposer, selectThread, selectedThread, setComposerModeByThread, setEmailMetaByThread, threadId]);
+
+  const jumpToApprovalQueue = useCallback(() => {
+    setFolderScope("actions");
+    setSelectedFolderId("approvals");
+    if (secondaryRailCollapsed) {
+      setSecondaryRailCollapsed(false);
+    }
+  }, [secondaryRailCollapsed, setFolderScope, setSecondaryRailCollapsed, setSelectedFolderId]);
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (shouldIgnoreSurfaceHotkeys(event.target)) return;
+
+      if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key) && visibleFiltered.length) {
+        event.preventDefault();
+        navigateVisibleThreads(event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1);
+        return;
+      }
+
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+      const key = event.key.toLowerCase();
+
+      if (!threadId) {
+        if (key === "/" || key === "f") {
+          event.preventDefault();
+          focusInboxSearch();
+          return;
+        }
+
+        if (key === "c") {
+          event.preventDefault();
+          openComposer("compose");
+          return;
+        }
+
+        if (key === "a" && approvalThreadsCount > 0) {
+          event.preventDefault();
+          jumpToApprovalQueue();
+          return;
+        }
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          openThreadDetail();
+        }
+        return;
+      }
+
+      if (key === "escape") {
+        event.preventDefault();
+        navigate("/inbox?tab=inbox-main");
+        return;
+      }
+
+      if (key === "r") {
+        event.preventDefault();
+        setComposerMode("reply");
+        return;
+      }
+
+      if (key === "c") {
+        event.preventDefault();
+        openComposer("compose");
+        return;
+      }
+
+      if (!selectedThread) return;
+
+      if (key === "a") {
+        event.preventDefault();
+        toggleApprovalAction(selectedThread.id);
+        return;
+      }
+
+      if (key === "d") {
+        event.preventDefault();
+        toggleDiscussAction(selectedThread.id);
+        return;
+      }
+
+      if (key === "m") {
+        event.preventDefault();
+        setReminder("1h", selectedThread.id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [
+    approvalThreadsCount,
+    focusInboxSearch,
+    jumpToApprovalQueue,
+    navigate,
+    navigateVisibleThreads,
+    openComposer,
+    openThreadDetail,
+    selectedThread,
+    setComposerMode,
+    threadId,
+    toggleApprovalAction,
+    visibleFiltered.length,
+  ]);
+
+  const inboxCommandBar = isThreadDetailView && selectedThread ? (
+    <div className={commandRailClass}>
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label={secondaryRailCollapsed ? "Expand inbox sidebar" : "Collapse inbox sidebar"}
+          className={commandRailIconButtonClass}
+          onClick={() => setSecondaryRailCollapsed(!secondaryRailCollapsed)}
+          type="button"
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </button>
+        <span className={commandRailDividerClass} aria-hidden="true" />
+        <button className={commandRailButtonClass} onClick={() => navigate("/inbox?tab=inbox-main")} type="button">
+          <ArrowLeftIcon className="size-4" />
+          <span>Back to list</span>
+          <span className={commandRailShortcutClass}>Esc</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
+        <button
+          className={cn(commandRailButtonClass, composerMode === "reply" && commandRailActiveButtonClass)}
+          onClick={() => setComposerMode("reply")}
+          type="button"
+        >
+          <span>Reply</span>
+          <span className={commandRailShortcutClass}>R</span>
+        </button>
+        <button
+          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
+          onClick={() => openComposer("compose")}
+          type="button"
+        >
+          <span>Compose</span>
+          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>C</span>
+        </button>
+        <button
+          className={cn(commandRailButtonClass, selectedThreadHasReminder && commandRailActiveButtonClass)}
+          onClick={() => setReminder("1h", selectedThread.id)}
+          type="button"
+        >
+          <span>Remind</span>
+          <span className={commandRailShortcutClass}>M</span>
+        </button>
+        <button
+          aria-label={approvalOpen ? "Close approval and assign" : "Open approval and assign"}
+          className={cn(commandRailButtonClass, approvalOpen && commandRailActiveButtonClass)}
+          onClick={() => toggleApprovalAction(selectedThread.id)}
+          type="button"
+        >
+          <span>Approve</span>
+          <span className={commandRailShortcutClass}>A</span>
+        </button>
+        <button
+          aria-label={discussOpen ? "Close discuss panel" : "Open discuss panel"}
+          className={cn(commandRailButtonClass, discussOpen && commandRailActiveButtonClass)}
+          onClick={() => toggleDiscussAction(selectedThread.id)}
+          type="button"
+        >
+          <span>Discuss</span>
+          <span className={commandRailShortcutClass}>D</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        <button
+          className={commandRailButtonClass}
+          onClick={() => archiveThread(selectedThread.id)}
+          type="button"
+        >
+          <span>Archive</span>
+        </button>
+        <button
+          className={commandRailButtonClass}
+          onClick={() => archiveThread(selectedThread.id)}
+          type="button"
+        >
+          <span>Delete</span>
+        </button>
+        <button
+          aria-label="Open in Gmail"
+          className={commandRailIconButtonClass}
+          onClick={() => openInGmail(selectedThread.id)}
+          type="button"
+        >
+          <Gmail className="size-4" />
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className={commandRailClass}>
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label={secondaryRailCollapsed ? "Expand inbox sidebar" : "Collapse inbox sidebar"}
+          className={commandRailIconButtonClass}
+          onClick={() => setSecondaryRailCollapsed(!secondaryRailCollapsed)}
+          type="button"
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </button>
+        <button className={commandRailButtonClass} onClick={focusInboxSearch} type="button">
+          <MagnifyingGlassIcon className="size-4" />
+          <span>Filter</span>
+          <span className={commandRailShortcutClass}>F</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
+        {selectedThread ? (
+          <button className={commandRailButtonClass} onClick={openThreadDetail} type="button">
+            <span>Open thread</span>
+            <span className={commandRailShortcutClass}>↵</span>
+          </button>
+        ) : null}
+        <button
+          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
+          onClick={() => openComposer("compose")}
+          type="button"
+        >
+          <span>Compose</span>
+          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>C</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        {approvalThreadsCount > 0 ? (
+          <button className={commandRailButtonClass} onClick={jumpToApprovalQueue} type="button">
+            <span>Approvals</span>
+            <span className={commandRailShortcutClass}>A</span>
+          </button>
+        ) : null}
+        <button aria-label="Open in Gmail" className={commandRailIconButtonClass} onClick={() => openInGmail()} type="button">
+          <Gmail className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderThreadBubble = (message: NormalizedInboxThread["timeline"][number], muted = false) => {
+    const messageContact = findContactCard(message.sender);
 
     return (
-      <div className="border border-border/80 bg-background p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={sectionLabelClass}>{options.title}</p>
-            <p className="mt-1 text-[13px] leading-5 text-foreground/72">{options.description}</p>
+      <div key={message.id} className="flex items-start gap-3">
+        <Avatar className="mt-1 border border-border/70 bg-background" size="lg">
+          <AvatarImage alt={message.sender} src={messageContact?.avatarSrc} />
+          <AvatarFallback>{messageContact?.avatarFallback ?? getInitials(message.sender)}</AvatarFallback>
+        </Avatar>
+        <div className={cn("min-w-0 flex-1 border border-border/70 px-4 py-3", muted ? "bg-muted/20" : "bg-background")}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-foreground">{message.sender}</p>
+            <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{message.role}</span>
+            <span className="ml-auto text-xs text-muted-foreground">{message.time}</span>
           </div>
-          {options.selectedName ? <StatusPill tone="muted">{options.selectedName}</StatusPill> : null}
+          <p className="mt-3 text-sm leading-7 text-foreground">{message.body}</p>
+          {message.summary ? <p className="mt-2 text-sm text-muted-foreground">{message.summary}</p> : null}
+          {message.attachments?.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {message.attachments.map((attachment) => (
+                <Badge key={attachment} variant="outline" className="gap-2 px-2.5 py-1 text-foreground">
+                  <FileMark filename={attachment} />
+                  {attachment}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
-
-        <input
-          aria-label={options.placeholder}
-          className="mt-3 h-9 w-full border border-border bg-background px-3 text-sm text-foreground outline-none"
-          onChange={(event) => options.onQueryChange(event.target.value)}
-          placeholder={options.placeholder}
-          value={options.query}
-        />
-
-        <div className="mt-3 max-h-40 space-y-1 overflow-auto">
-          {options.contacts.length ? (
-            options.contacts.map((contact) => (
-              <button
-                key={contact.id}
-                className={cn(
-                  "w-full border px-2.5 py-2 text-left transition-colors",
-                  options.selectedId === contact.id
-                    ? "border-primary bg-[hsl(var(--primary)/0.04)] text-foreground"
-                    : "border-border bg-background text-foreground/74 hover:bg-[hsl(var(--foreground)/0.03)]",
-                )}
-                onClick={() => options.onSelect(contact.id)}
-                type="button"
-              >
-                <p className="text-sm text-foreground">{contact.name}</p>
-                <p className="mt-0.5 text-[12px] text-foreground/65">
-                  {contact.role} · {contact.company}
-                </p>
-              </button>
-            ))
-          ) : (
-            <p className="text-sm text-foreground/65">No matching contacts.</p>
-          )}
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[12px] text-foreground/68">
-            {options.selectedName ? `Selected: ${options.selectedName}` : "Choose one teammate to continue."}
-          </p>
-          <SmallButton active={Boolean(options.selectedName)} disabled={!options.selectedName} onClick={options.onSend}>
-            <SendHorizontal className="mr-2 h-3.5 w-3.5" /> {options.sendLabel}
-          </SmallButton>
-        </div>
-
-        {options.sent ? <p className="mt-2 text-[12px] text-foreground/78">{options.sentLabel}</p> : null}
       </div>
     );
   };
 
-  const renderListView = () => {
-    return (
-      <Surface className="flex min-h-[34rem] flex-col overflow-hidden bg-background xl:min-h-0">
-        <div className="border-b border-border px-4 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[17px] leading-tight text-foreground">{selectedBucketLabel}</h2>
-            </div>
-            <span className={workspaceCountClass}>{visibleThreads.length} threads</span>
-          </div>
-        </div>
+  return (
+    <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
+      <PageContainer className="h-full min-h-0">
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <div className="shrink-0">{inboxCommandBar}</div>
+          <div
+            className={cn(
+              "grid min-h-0 flex-1 gap-4",
+              secondaryRailCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]",
+            )}
+          >
+	            {!secondaryRailCollapsed ? (
+	              <aside className="flex min-h-0 flex-col overflow-hidden border border-border/70 bg-card shadow-sm">
+	                <div className="border-b border-border/60 px-4 py-4">
+                  <SidebarInput
+                    aria-label="Search inbox threads"
+                    className="h-10"
+                    placeholder="Type to search..."
+                    value={filterPrompt}
+                    onChange={(event) => setFilterPrompt(event.target.value)}
+                  />
+	                  <ToggleGroup
+	                    type="single"
+	                    value={normalizedFolderScope}
+	                    onValueChange={(value) => value && setFolderScope(value as InboxFolderScope)}
+	                    className="mt-3 grid w-full grid-cols-2 gap-1"
+	                  >
+                    <ToggleGroupItem value="actions" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
+                      <span>Actions</span>
+                      <span className="text-[11px] text-current/70">{folderDefinitions.filter((folder) => folder.scope === "actions").length}</span>
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="category" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
+                      <span>Category</span>
+                      <span className="text-[11px] text-current/70">{folderDefinitions.filter((folder) => folder.scope === "category").length}</span>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          {visibleThreads.length ? (
-            <div className="divide-y divide-border">
-              {visibleThreads.map((thread) => {
-                const isUnread = isThreadUnread(thread);
-                const isWatched = isThreadWatched(thread);
-                const signal = getSignalMeta(thread);
-                const rowMenuOpen = rowRemindMenuThreadId === thread.id;
-                const contextLabel = thread.account || thread.domainTag || thread.source;
+                <ScrollArea className="min-h-0 flex-1">
+                  <div className="space-y-5 px-3 py-3">
+                    {visibleFolders.filter((folder) => folder.kind === "custom").length ? (
+                      <section>
+                        <div className="flex items-center justify-between px-1">
+                          <p className={sectionLabelClass}>Custom folders</p>
+                          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                            {visibleFolders.filter((folder) => folder.kind === "custom").length}
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          {visibleFolders
+                            .filter((folder) => folder.kind === "custom")
+                            .map((folder) => {
+                              const active = selectedFolderId === folder.id;
+                              return (
+                                <button
+                                  key={folder.id}
+                                  className={cn(
+                                    "flex w-full items-start justify-between gap-3 border bg-background px-3 py-3 text-left transition-colors",
+                                    active
+                                      ? "border-primary/35 bg-background shadow-sm ring-1 ring-primary/15"
+                                      : "border-border/70 hover:border-border hover:bg-background",
+                                  )}
+                                  onClick={() => setSelectedFolderId(folder.id)}
+                                  type="button"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium text-foreground">{folder.title}</p>
+                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{folder.description}</p>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                                      active ? "border-primary/30 bg-primary/5 text-primary" : "border-border text-foreground/60",
+                                    )}
+                                  >
+                                    {folderCounts[folder.id] ?? 0}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </section>
+                    ) : null}
 
-                return (
-                  <div
-                    key={thread.id}
-                    className={cn(
-                      "group relative px-4 py-4 transition-colors hover:bg-[hsl(var(--foreground)/0.012)]",
-                    )}
-                    onClick={() => openThreadDetail(thread.id)}
-                    onFocus={() => setLastSelectedThreadId(thread.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openThreadDetail(thread.id);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_88px] gap-x-4 gap-y-2">
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span
-                            className={cn(
-                              "mt-[0.42rem] h-3.5 w-3.5 shrink-0 rounded-full",
-                              isUnread ? "bg-primary" : "bg-border/90",
-                            )}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                              <p className="truncate text-[13px] leading-5 text-foreground">{thread.sender}</p>
-                              <p className="truncate text-[15px] leading-5 text-foreground">{thread.subject}</p>
+                    <section>
+                      <div className="flex items-center justify-between px-1">
+                        <p className={sectionLabelClass}>{normalizedFolderScope === "actions" ? "Actions" : "Categories"}</p>
+                        <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                          {visibleFolders.filter((folder) => folder.kind !== "custom").length}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {visibleFolders
+                          .filter((folder) => folder.kind !== "custom")
+                          .map((folder) => {
+                            const active = selectedFolderId === folder.id;
+                            return (
+                              <button
+                                key={folder.id}
+                                className={cn(
+                                  "flex w-full items-start justify-between gap-3 border bg-background px-3 py-3 text-left transition-colors",
+                                  active
+                                    ? "border-primary/35 bg-background shadow-sm ring-1 ring-primary/15"
+                                    : "border-border/70 hover:border-border hover:bg-background",
+                                )}
+                                onClick={() => setSelectedFolderId(folder.id)}
+                                type="button"
+                              >
+                                <div className="min-w-0">
+                                  <p className={cn(sectionLabelClass, active && "text-primary")}>
+                                    {folder.title}
+                                  </p>
+                                  {normalizedFolderScope === "category" ? (
+                                    <p className={cn("mt-1 line-clamp-2 text-xs leading-5", active ? "text-foreground/80" : "text-muted-foreground")}>
+                                      {folder.description}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <span
+                                  className={cn(
+                                    "border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] bg-background",
+                                    active
+                                      ? "border-primary/30 bg-primary/5 text-primary"
+                                      : "border-border text-foreground/60",
+                                  )}
+                                >
+                                  {folderCounts[folder.id] ?? 0}
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </section>
+
+                    <Collapsible className="border-t border-border/60 pt-4" open={isCreateFolderExpanded} onOpenChange={setIsCreateFolderExpanded}>
+                      <div className="flex items-center justify-between px-1">
+                        <p className={sectionLabelClass}>{folderScopeMeta.sectionTitle}</p>
+                        <CollapsibleTrigger asChild>
+                          <Button size="sm" type="button" variant="outline">
+                            <PlusIcon className="mr-1 h-3.5 w-3.5" /> {folderScopeMeta.triggerLabel}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                      <CollapsibleContent>
+                        <div className="mt-3 rounded-xl border border-border/70 bg-background px-3 py-3">
+                          <div className="grid gap-3">
+                            <SidebarInput
+                              aria-label="New inbox folder name"
+                              className="h-10"
+                              placeholder={folderScopeMeta.namePlaceholder}
+                              value={newFolderName}
+                              onChange={(event) => setNewFolderName(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  createFolder();
+                                }
+                              }}
+                            />
+                            <textarea
+                              aria-label="New inbox folder prompt"
+                              className="min-h-[92px] w-full resize-none border border-border/70 bg-background px-3 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/40"
+                              placeholder={folderScopeMeta.promptPlaceholder}
+                              rows={3}
+                              value={newFolderPrompt}
+                              onChange={(event) => setNewFolderPrompt(event.target.value)}
+                            />
+                            <Button className="w-full" onClick={createFolder} size="sm" type="button">
+                              <FolderOpenIcon className="mr-2 h-3.5 w-3.5" /> {folderScopeMeta.submitLabel}
+                            </Button>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                </ScrollArea>
+              </aside>
+            ) : null}
+
+            <section className="flex min-h-0 flex-col overflow-hidden border border-border/70 bg-card shadow-sm">
+              {selectedThread && isThreadDetailView ? (
+                <div className="grid min-h-0 flex-1 gap-4 overflow-hidden px-4 py-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+                  <ScrollArea className="min-h-0">
+                    <div className="flex flex-col gap-4 pr-2">
+                      <div className="border-b border-border/60 pb-4">
+                        <div className="flex flex-col gap-4">
+                          <h2 className="max-w-4xl text-[22px] leading-tight text-foreground md:text-[26px]">{selectedThread.subject}</h2>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          {detailContextCards.map((card) => (
+                            <div
+                              key={card.title}
+                              className={cn(
+                                "relative overflow-hidden border px-4 py-4 shadow-sm",
+                                card.tone === "blocked"
+                                  ? "border-support/40 bg-support text-support-foreground"
+                                  : card.tone === "inverse"
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "bg-card text-foreground",
+                              )}
+                            >
+                              <div
+                                aria-hidden="true"
+                                className={cn(
+                                  "absolute inset-x-0 top-0 h-1",
+                                  card.tone === "blocked"
+                                    ? "bg-support-foreground/20"
+                                    : card.tone === "inverse"
+                                      ? "bg-primary-foreground/18"
+                                      : card.title === "Why this matters"
+                                        ? "bg-support"
+                                        : "bg-primary",
+                                )}
+                              />
+                              <p
+                                className={cn(
+                                  sectionLabelClass,
+                                  "pt-2",
+                                  card.tone === "blocked"
+                                    ? "text-support-foreground"
+                                    : card.tone === "inverse"
+                                      ? "text-primary-foreground"
+                                      : "text-foreground/52",
+                                )}
+                              >
+                                {card.title}
+                              </p>
+                              <p
+                                className={cn(
+                                  "mt-4 text-[18px] leading-8",
+                                  card.tone === "blocked"
+                                    ? "text-foreground"
+                                    : card.tone === "inverse"
+                                      ? "text-primary-foreground"
+                                      : "text-foreground",
+                                )}
+                              >
+                                {card.body}
+                              </p>
                             </div>
-                            <p className="mt-1 line-clamp-2 max-w-[68rem] text-[13px] leading-[1.45] text-foreground/68">
-                              {thread.preview}
-                            </p>
+                          ))}
+                        </div>
+
+                        <div className="mt-4 grid gap-4 border border-border/70 bg-background px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Avatar size="lg">
+                              <AvatarImage alt={selectedThread.sender} src={senderContact?.avatarSrc} />
+                              <AvatarFallback>{senderContact?.avatarFallback ?? getInitials(selectedThread.sender)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground">{selectedThread.sender}</p>
+                              <p className="text-sm text-muted-foreground">{selectedThread.company}</p>
+                            </div>
+                          </div>
+
+                          <div className="justify-self-center text-center">
+                            <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">People on thread</p>
+                            <AvatarGroup className="mt-2 justify-center">
+                              {threadContacts.slice(0, 4).map((person) => (
+                                <Avatar key={person.name} size="sm">
+                                  <AvatarImage alt={person.name} src={person.contact?.avatarSrc} />
+                                  <AvatarFallback>{person.contact?.avatarFallback ?? getInitials(person.name)}</AvatarFallback>
+                                </Avatar>
+                              ))}
+                              {threadContacts.length > 4 ? <AvatarGroupCount className="size-6 text-xs">+{threadContacts.length - 4}</AvatarGroupCount> : null}
+                            </AvatarGroup>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Received</p>
+                            <p className="mt-1 text-sm text-foreground">{selectedThread.time}</p>
                           </div>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <SquareTag>{contextLabel}</SquareTag>
-                          <SquareTag tone={signal.tone === "alert" ? "alert" : "neutral"}>{signal.label}</SquareTag>
-                          {thread.attachments.length ? (
-                            <span className="inline-flex items-center gap-1.5 text-[13px] text-foreground">
-                              <Paperclip className="h-3.5 w-3.5" /> {thread.attachments.length}
-                            </span>
-                          ) : null}
-                        </div>
+                        {approvalOpen || discussOpen ? (
+                          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                            {renderContactPickerPanel({
+                              open: approvalOpen,
+                              query: approvalQuery,
+                              placeholder: "Search contact to assign",
+                              selectedId: approvalSelectedId,
+                              sent: approvalSent,
+                              selectedName: selectedContact?.name,
+                              contacts: matchingContacts,
+                              onQueryChange: (value) =>
+                                setApprovalQueryByThread({
+                                  ...approvalQueryByThread,
+                                  [selectedThread.id]: value,
+                                }),
+                              onSelect: (id) => {
+                                setApprovalSelectedByThread({
+                                  ...approvalSelectedByThread,
+                                  [selectedThread.id]: id,
+                                });
+                                setApprovalSentByThread({ ...approvalSentByThread, [selectedThread.id]: false });
+                              },
+                              onSend: sendApprovalAssign,
+                              sendLabel: "Send",
+                              sentLabel: `Sent to ${selectedContact?.name ?? "assignee"}.`,
+                            })}
+                            {renderContactPickerPanel({
+                              open: discussOpen,
+                              query: discussQuery,
+                              placeholder: "Search teammate to discuss",
+                              selectedId: discussSelectedId,
+                              sent: discussSent,
+                              selectedName: selectedDiscussContact?.name,
+                              contacts: matchingDiscussContacts,
+                              onQueryChange: (value) =>
+                                setDiscussQueryByThread({
+                                  ...discussQueryByThread,
+                                  [selectedThread.id]: value,
+                                }),
+                              onSelect: (id) => {
+                                setDiscussSelectedByThread({
+                                  ...discussSelectedByThread,
+                                  [selectedThread.id]: id,
+                                });
+                                setDiscussSentByThread({ ...discussSentByThread, [selectedThread.id]: false });
+                              },
+                              onSend: sendDiscuss,
+                              sendLabel: "Share",
+                              sentLabel: `Shared with ${selectedDiscussContact?.name ?? "teammate"}.`,
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
 
-                        <div className="relative mt-4 flex flex-wrap items-center gap-x-5 gap-y-1">
-                          <button
-                            aria-label={`Open in Email for ${thread.subject}`}
-                            className={rowActionButtonClass}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              setLastSelectedThreadId(thread.id);
-                              openInGmail(thread.id);
-                            }}
-                            type="button"
-                          >
-                            Open in Email
-                          </button>
-                          <button
-                            aria-label={`${isWatched ? "Unwatch" : "Watch"} ${thread.subject}`}
-                            className={cn(rowActionButtonClass, isWatched && "text-primary hover:text-primary")}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              setLastSelectedThreadId(thread.id);
-                              toggleWatchThread(thread.id);
-                            }}
-                            type="button"
-                          >
-                            {isWatched ? "Watching" : "Watch"}
-                          </button>
-                          <button
-                            aria-label={`Archive ${thread.subject}`}
-                            className={rowActionButtonClass}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              archiveThread(thread.id);
-                            }}
-                            type="button"
-                          >
-                            Archive
-                          </button>
-                          {rowMenuOpen ? (
-                            <div
-                              className="absolute right-0 top-[calc(100%+0.35rem)] z-10 border border-border bg-background p-2 shadow-sm"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                              }}
-                              ref={rowMenuRef}
+                      <div className="surface-card p-4">
+                        <div className="flex flex-col gap-3">
+                          {olderThreadMessages.length ? (
+                            <Collapsible
+                              open={olderMessagesOpen}
+                              onOpenChange={(open) =>
+                                setOlderMessagesOpenByThread({
+                                  ...olderMessagesOpenByThread,
+                                  [selectedThread.id]: open,
+                                })
+                              }
                             >
-                              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.11em] text-foreground/70">
-                                Schedule reminder
-                              </p>
-                              <div className="flex gap-1.5">
-                                <button
-                                  aria-label={`Remind ${thread.subject} in 1 hour`}
-                                  className="h-7 rounded-full border border-border/80 px-2 text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--primary)/0.08)]"
-                                  onClick={() => setReminder("1h", thread.id)}
-                                  type="button"
-                                >
-                                  1h
+                              <CollapsibleTrigger asChild>
+                                <button className="flex w-fit items-center gap-2 border border-border/70 bg-background px-3 py-2 text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-secondary/35" type="button">
+                                  {olderMessagesOpen ? "Hide older messages" : `View ${olderThreadMessages.length} older message${olderThreadMessages.length === 1 ? "" : "s"}`}
                                 </button>
-                                <button
-                                  aria-label={`Remind ${thread.subject} in 3 hours`}
-                                  className="h-7 rounded-full border border-border/80 px-2 text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--primary)/0.08)]"
-                                  onClick={() => setReminder("3h", thread.id)}
-                                  type="button"
-                                >
-                                  3h
-                                </button>
-                                <button
-                                  aria-label={`Remind ${thread.subject} tomorrow at 9 AM`}
-                                  className="h-7 rounded-full border border-border/80 px-2 text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--primary)/0.08)]"
-                                  onClick={() => setReminder("tomorrow", thread.id)}
-                                  type="button"
-                                >
-                                  Tomorrow 9 AM
-                                </button>
-                              </div>
-                            </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="overflow-hidden pt-3 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none">
+                                <div className="flex flex-col gap-3">
+                                  {olderThreadMessages.map((message) => renderThreadBubble(message, true))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
                           ) : null}
+                          {latestThreadMessage ? renderThreadBubble(latestThreadMessage) : null}
                         </div>
                       </div>
 
-                      <div className="flex flex-col items-end justify-between">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-foreground/58">
-                          {thread.time}
-                        </p>
-                        <button
-                          aria-expanded={rowMenuOpen}
-                          aria-label={`Open reminder options for ${thread.subject}`}
-                          className={cn(
-                            "inline-flex h-8 w-8 items-center justify-center text-foreground/62 transition-colors hover:text-foreground",
-                            reminderByThreadId[thread.id] && "text-primary",
-                          )}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setLastSelectedThreadId(thread.id);
-                            setRowRemindMenuThreadId(rowMenuOpen ? null : thread.id);
-                          }}
-                          type="button"
-                        >
-                          <EllipsisVertical className="h-4 w-4" />
-                        </button>
+                      <div className="surface-card support-surface p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className={sectionLabelClass}>Ubik analysis</p>
+                            <p className="mt-2 text-sm leading-6 text-foreground">{selectedThread.whyThisMatters}</p>
+                          </div>
+                          {selectedThread.approvalRequired ? <StatusPill tone="alert">Approval required</StatusPill> : null}
+                        </div>
+                        <div className="mt-3 flex flex-col gap-1 text-sm leading-6 text-foreground">
+                          {threadInsights.map((line) => (
+                            <p key={line}>- {line}</p>
+                          ))}
+                        </div>
                       </div>
+
+	                      <div ref={replySectionRef} className="surface-card p-4">
+	                        <div className="overflow-hidden border border-border/70 bg-background">
+                            <Collapsible open={isDetailsExpanded} onOpenChange={setDetailsExpanded}>
+                              <div className="flex items-center justify-between border-b border-border/60 bg-card px-3 py-3">
+                                <p className="text-sm font-medium text-foreground">Details</p>
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    aria-label={isDetailsExpanded ? "Hide message details" : "Edit message details"}
+                                    className="inline-flex size-8 items-center justify-center border border-border/70 bg-background text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                                    type="button"
+                                  >
+                                    <PencilSimpleIcon className="size-4" />
+                                  </button>
+                                </CollapsibleTrigger>
+                              </div>
+
+                              <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none">
+                                <div className="space-y-3 border-b border-border/60 bg-shell/40 p-3">
+                                  <div className="border border-primary/20 bg-card p-3 shadow-sm">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                      <div className="min-w-0 flex-1">
+                                        <p className={sectionLabelClass}>Subject</p>
+                                        {isSubjectEditing ? (
+                                          <InputGroup className="mt-2 h-10 bg-card">
+                                            <InputGroupInput onChange={(event) => setEmailSubject(event.target.value)} value={emailMeta.subject} />
+                                            <InputGroupAddon align="inline-end">
+                                              <InputGroupButton variant="ghost" size="icon-sm" onClick={() => setSubjectEditing(false)} type="button">
+                                                <CheckSquareIcon />
+                                              </InputGroupButton>
+                                            </InputGroupAddon>
+                                          </InputGroup>
+                                        ) : (
+                                          <button className="mt-2 text-left text-sm text-foreground transition-colors hover:text-primary" onClick={() => setSubjectEditing(true)} type="button">
+                                            {emailMeta.subject}
+                                          </button>
+                                        )}
+                                      </div>
+                                      <Button variant="outline" size="sm" onClick={() => setSubjectEditing(!isSubjectEditing)} type="button">
+                                        {isSubjectEditing ? "Done" : "Edit"}
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {([
+                                      ["Cc", "cc", ccContacts, ccPreviews],
+                                      ["Bcc", "bcc", bccContacts, bccPreviews],
+                                    ] as const).map(([label, slot, contacts]) => (
+                                      <div key={label} className="border border-support/25 bg-card px-3 py-2.5 shadow-sm">
+                                        <div className="flex min-h-10 items-center justify-between gap-3">
+                                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                                            <p className={cn(sectionLabelClass, "shrink-0")}>{label}</p>
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                              {(slot === "cc" ? ccPreviews : bccPreviews).map((preview) => {
+                                                const isActualRecipient = contacts.some((contact) => contact.name === preview.name);
+                                                return (
+                                                  <button
+                                                    key={preview.key}
+                                                    className={cn(
+                                                      "inline-flex max-w-full items-center gap-2 border px-2 py-1 text-xs transition-colors",
+                                                      isActualRecipient
+                                                        ? "border-border bg-background text-foreground hover:border-primary/40"
+                                                        : "border-dashed border-border/70 bg-background/70 text-muted-foreground",
+                                                    )}
+                                                    onClick={() =>
+                                                      isActualRecipient ? removeRecipientContact(slot as RecipientSlot, contacts.find((contact) => contact.name === preview.name)?.id ?? "") : undefined
+                                                    }
+                                                    type="button"
+                                                  >
+                                                    <Avatar size="sm">
+                                                      <AvatarImage alt={preview.name} src={preview.avatarSrc} />
+                                                      <AvatarFallback>{preview.avatarFallback}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="truncate">{preview.name}</span>
+                                                    {isActualRecipient ? <XIcon className="size-3 text-muted-foreground" /> : null}
+                                                  </button>
+                                                );
+                                              })}
+                                              {!contacts.length ? <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Suggested</span> : null}
+                                            </div>
+                                          </div>
+                                          <Popover key={slot} open={recipientPicker === slot} onOpenChange={(open) => setRecipientPicker(open ? slot : null)}>
+                                            <PopoverTrigger asChild>
+                                              <Button variant="ghost" size="sm" type="button">
+                                                Add {label}
+                                              </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="end" className="w-72">
+                                              <div className="flex flex-col gap-3">
+                                                <InputGroup className="h-10 bg-background">
+                                                  <InputGroupAddon>
+                                                    <InputGroupText>
+                                                      <MagnifyingGlassIcon />
+                                                    </InputGroupText>
+                                                  </InputGroupAddon>
+                                                  <InputGroupInput
+                                                    onChange={(event) =>
+                                                      setRecipientQueryByThread({
+                                                        ...recipientQueryByThread,
+                                                        [selectedThread.id]: event.target.value,
+                                                      })
+                                                    }
+                                                    value={recipientQuery}
+                                                  />
+                                                </InputGroup>
+                                                <div className="flex max-h-56 flex-col gap-1.5 overflow-auto">
+                                                  {selectableRecipientContacts.map((contact) => (
+                                                    <Button
+                                                      key={contact.id}
+                                                      variant="ghost"
+                                                      className="h-auto w-full justify-start gap-3 px-3 py-2 text-left"
+                                                      onClick={() => addRecipientContact(slot, contact.id)}
+                                                      type="button"
+                                                    >
+                                                      <Avatar size="sm">
+                                                        <AvatarImage alt={contact.name} src={contact.avatarSrc} />
+                                                        <AvatarFallback>{contact.avatarFallback}</AvatarFallback>
+                                                      </Avatar>
+                                                      <div className="min-w-0">
+                                                        <p className="text-sm text-foreground">{contact.name}</p>
+                                                        <p className="text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+                                                      </div>
+                                                    </Button>
+                                                  ))}
+                                                  {!selectableRecipientContacts.length ? (
+                                                    <p className="px-3 py-2 text-sm text-muted-foreground">No contacts match this search.</p>
+                                                  ) : null}
+                                                </div>
+                                              </div>
+                                            </PopoverContent>
+                                          </Popover>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+
+	                          <RichOperatorEditor
+	                            className="border-0 bg-transparent shadow-none"
+	                            minHeight={composerMinHeight}
+                            onChange={setCurrentDraftText}
+                            placeholder=""
+                            showCopyActions={false}
+                            showMarkdownCopy={false}
+	                            showInsertBlock={false}
+	                            value={currentDraftText}
+	                          />
+
+	                          <div className="border-t border-border/60 bg-background px-3 py-2.5">
+	                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-foreground/75">
+	                              <Button variant="outline" size="sm" type="button">
+	                                <PaperclipIcon data-icon="inline-start" /> Attach file
+	                              </Button>
+	                              <Button variant="outline" size="sm" type="button">
+	                                <CalendarBlankIcon data-icon="inline-start" /> Meeting
+	                              </Button>
+	                              <Button variant="outline" size="sm" type="button">
+	                                <FolderOpenIcon data-icon="inline-start" /> Drive
+	                              </Button>
+	                              <Button size="sm" className="ml-auto" onClick={sendEmailReply} type="button">
+	                                <PaperPlaneTiltIcon data-icon="inline-start" /> Send
+	                              </Button>
+	                            </div>
+	                          </div>
+
+	                          <div className="border-t border-border/60 bg-muted/20 p-3">
+	                            <div className="flex items-center justify-between gap-2">
+	                              <p className={sectionLabelClass}>Suggested insertions</p>
+                              <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Click to prefill</p>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {artifactSuggestions.map((artifact) => {
+                                const IconComponent = artifact.icon === "salesforce" ? Salesforce : Drive;
+                                return (
+                                  <HoverCard key={artifact.id} openDelay={100} closeDelay={100}>
+                                    <HoverCardTrigger asChild>
+                                      <button
+                                        className="flex min-h-[76px] items-start gap-3 border border-border/70 bg-background px-3 py-3 text-left transition-colors hover:border-primary/30 hover:bg-secondary/35"
+                                        onClick={() => applyArtifactSuggestion(artifact)}
+                                        type="button"
+                                      >
+                                        {artifact.preview === "chart" ? (
+                                          <ChartBarIcon className="mt-0.5 size-5 shrink-0 text-foreground" />
+                                        ) : artifact.kindLabel === "PDF" || artifact.kindLabel === "XLSX" ? (
+                                          <FileMark filename={artifact.title} className="mt-0.5 size-5" />
+                                        ) : (
+                                          <IconComponent className="mt-0.5 size-5 shrink-0 text-foreground" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <p className="truncate text-sm text-foreground">{artifact.title}</p>
+                                            <span className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{artifact.kindLabel}</span>
+                                          </div>
+                                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{artifact.subtitle}</p>
+                                        </div>
+                                      </button>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent align="start" className="w-72">
+                                      <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                          {artifact.preview === "chart" ? (
+                                            <ChartBarIcon className="size-4 text-foreground" />
+                                          ) : artifact.kindLabel === "PDF" || artifact.kindLabel === "XLSX" ? (
+                                            <FileMark filename={artifact.title} className="size-4" />
+                                          ) : (
+                                            <IconComponent className="size-4 text-foreground" />
+                                          )}
+                                          <p className="text-sm font-medium text-foreground">{artifact.title}</p>
+                                        </div>
+                                        <p className="text-sm leading-6 text-muted-foreground">{artifact.hint}</p>
+                                        <p className="text-xs leading-5 text-foreground/70">{artifact.template}</p>
+                                      </div>
+                                    </HoverCardContent>
+                                  </HoverCard>
+                                );
+                              })}
+	                            </div>
+	                          </div>
+	                        </div>
+	                      </div>
+	                    </div>
+	                  </ScrollArea>
+
+                  <ScrollArea className="min-h-0">
+                    <div className="flex flex-col gap-3 pr-2">
+                      <Surface className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className={sectionLabelClass}>Quick task</p>
+                            <p className="mt-1 text-sm text-muted-foreground">Capture follow-through without leaving the thread.</p>
+                          </div>
+                          <Badge variant="outline">{suggestedTasks.length + addedTasks.length} items</Badge>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2">
+                          {suggestedTasks.map((task) => {
+                            const expanded = expandedSuggestedTask === task;
+                            const taskDraft = getQuickTaskDraft(task);
+                            const assignee = contactCards.find((contact) => contact.id === taskDraft.assigneeId);
+                            const matchingAssignees = contactCards
+                              .filter((contact) =>
+                                `${contact.name} ${contact.role} ${contact.company}`
+                                  .toLowerCase()
+                                  .includes(taskDraft.assigneeQuery.toLowerCase().trim()),
+                              )
+                              .slice(0, taskDraft.assigneeQuery.trim() ? 4 : 0);
+                            return (
+                              <Card key={task} size="sm" className="surface-card border-border/70 bg-background">
+                                <CardContent className="pt-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-sm text-foreground">{task}</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">Detected from this thread. Add it directly or route it into project follow-through.</p>
+                                    </div>
+                                    <Button
+                                      aria-label={expanded ? "Hide task actions" : "Show task actions"}
+                                      variant={expanded ? "secondary" : "outline"}
+                                      size="icon-sm"
+                                      onClick={() => toggleSuggestedTaskTray(task)}
+                                      type="button"
+                                    >
+                                      {expanded ? <CheckSquareIcon /> : <PlusIcon />}
+                                    </Button>
+                                  </div>
+                                  {expanded ? (
+                                    <div className="mt-3 flex flex-col gap-3">
+                                      <div className="border border-border/60 bg-muted/20 p-2.5">
+                                        <InputGroup className="h-9 bg-background">
+                                          <InputGroupAddon>
+                                            {assignee ? (
+                                              <Avatar size="sm">
+                                                <AvatarImage alt={assignee.name} src={assignee.avatarSrc} />
+                                                <AvatarFallback>{assignee.avatarFallback}</AvatarFallback>
+                                              </Avatar>
+                                            ) : (
+                                              <InputGroupText>
+                                                <MagnifyingGlassIcon />
+                                              </InputGroupText>
+                                            )}
+                                          </InputGroupAddon>
+                                          <InputGroupInput
+                                            onChange={(event) => updateQuickTaskDraft(task, { assigneeQuery: event.target.value })}
+                                            placeholder="Search owner"
+                                            value={taskDraft.assigneeQuery}
+                                          />
+                                        </InputGroup>
+                                        {assignee ? (
+                                          <p className="mt-2 text-xs text-muted-foreground">
+                                            Assigned by Ubik to <span className="text-foreground">{assignee.name}</span>
+                                          </p>
+                                        ) : null}
+                                        {matchingAssignees.length ? (
+                                          <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {matchingAssignees.map((contact) => (
+                                              <button
+                                                key={contact.id}
+                                                className="inline-flex items-center gap-1.5 border border-border/70 bg-background px-2 py-1 text-xs text-foreground transition-colors hover:bg-secondary/35"
+                                                onClick={() => updateQuickTaskDraft(task, { assigneeId: contact.id, assigneeQuery: "" })}
+                                                type="button"
+                                              >
+                                                <Avatar size="sm">
+                                                  <AvatarImage alt={contact.name} src={contact.avatarSrc} />
+                                                  <AvatarFallback>{contact.avatarFallback}</AvatarFallback>
+                                                </Avatar>
+                                                <span>{contact.name}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </div>
+
+                                      <div className="flex flex-wrap gap-1.5">
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className={quickTaskStripButtonClass} type="button">
+                                              <FolderOpenIcon className="size-4" />
+                                              <span>{taskDraft.project}</span>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start">
+                                            {[
+                                              selectedThread.project,
+                                              selectedThread.account,
+                                              "Inbox follow-through",
+                                            ].map((option) => (
+                                              <DropdownMenuItem key={option} onSelect={() => updateQuickTaskDraft(task, { project: option })}>
+                                                {option}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className={quickTaskStripButtonClass} type="button">
+                                              <SquareIcon className="size-4" />
+                                              <span>{taskDraft.status}</span>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start">
+                                            {quickTaskStatusOptions.map((option) => (
+                                              <DropdownMenuItem key={option} onSelect={() => updateQuickTaskDraft(task, { status: option })}>
+                                                {option}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className={quickTaskStripButtonClass} type="button">
+                                              <ArrowUpIcon className="size-4" />
+                                              <span>{taskDraft.priority}</span>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start">
+                                            {quickTaskPriorityOptions.map((option) => (
+                                              <DropdownMenuItem key={option} onSelect={() => updateQuickTaskDraft(task, { priority: option })}>
+                                                {option}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className={quickTaskStripButtonClass} type="button">
+                                              <CalendarBlankIcon className="size-4" />
+                                              <span>{taskDraft.due}</span>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start">
+                                            {quickTaskDueOptions.map((option) => (
+                                              <DropdownMenuItem key={option} onSelect={() => updateQuickTaskDraft(task, { due: option })}>
+                                                {option}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className={quickTaskStripButtonClass} type="button">
+                                              <TagIcon className="size-4" />
+                                              <span>{taskDraft.label}</span>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start">
+                                            {quickTaskLabelOptions.map((option) => (
+                                              <DropdownMenuItem key={option} onSelect={() => updateQuickTaskDraft(task, { label: option })}>
+                                                {option}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      </div>
+
+                                      <Button size="sm" variant="outline" onClick={() => addConfiguredQuickTask(task)} type="button">
+                                        <CheckSquareIcon data-icon="inline-start" /> Add task
+                                      </Button>
+                                    </div>
+                                  ) : null}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+
+                        <InputGroup className="mt-2 h-10 bg-background">
+                          <InputGroupInput
+                            onChange={(event) =>
+                              setTaskInputByThread({
+                                ...taskInputByThread,
+                                [selectedThread.id]: event.target.value,
+                              })
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                addQuickTask();
+                              }
+                            }}
+                            placeholder="Capture another task"
+                            value={taskInput}
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupButton variant="ghost" size="icon-sm" onClick={addQuickTask} type="button">
+                              <PaperPlaneTiltIcon />
+                            </InputGroupButton>
+                          </InputGroupAddon>
+                        </InputGroup>
+                        {addedTasks.length ? (
+                          <div className="mt-3 flex flex-col gap-1.5">
+                            {addedTasks.map((task) => (
+                              <Card key={task.id} size="sm" className="surface-card">
+                                <CardContent className="pt-0">
+                                  <p className="line-clamp-2 text-sm text-foreground">{task.title}</p>
+                                  <p className="mt-1 text-foreground/70">
+                                    {task.status} · Due {task.due} · <span className="font-medium text-primary">{task.priority}</span>
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {task.project} · {task.label} · {task.owner}
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs text-muted-foreground">No tasks added yet. Use the detected items above or capture a new one.</p>
+                        )}
+                      </Surface>
+                    </div>
+                  </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="border-b border-border/60 px-5 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className={sectionLabelClass}>Inbox landing</p>
+                      <h2 className="mt-1 text-[20px] leading-tight text-foreground">
+                        {selectedFolder?.title ?? "All mail"}
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {selectedFolder?.description ?? "A landing list of email threads before you open the full workspace."}
+                      </p>
+                    </div>
+                    <div className="border border-border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-foreground/70">
+                      {landingThreads.length} {landingThreads.length === 1 ? "thread" : "threads"}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="px-4 py-6">
-              <p className="text-[15px] leading-6 text-foreground">
-                {selectedBucket.kind === "customer"
-                  ? "This customer bucket is empty right now."
-                  : "No active threads match this view."}
-              </p>
-              <p className="mt-2 text-[13px] leading-5 text-foreground/68">
-                {searchQuery.trim()
-                  ? `Search is filtering inside ${selectedBucketLabel}. Clear or refine the query to continue.`
-                  : "Change the bucket, create a customer bucket, or return after new mail lands."}
-              </p>
-            </div>
-          )}
-        </div>
-      </Surface>
-    );
-  };
-
-  const renderDetailView = () => {
-    if (!selectedThread || !selectedRawThread) {
-      return (
-        <Surface className="flex min-h-[34rem] items-center justify-center bg-background p-6 xl:min-h-0">
-          <p className="text-sm text-foreground/70">This thread is no longer visible in the current view.</p>
-        </Surface>
-      );
-    }
-
-    return (
-      <Surface className="flex min-h-[34rem] flex-col overflow-hidden bg-background xl:min-h-0">
-        <div className="border-b border-border px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <button
-                aria-label="Back to list"
-                className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-foreground/58 transition-colors hover:text-foreground"
-                onClick={returnToList}
-                type="button"
-              >
-                <ChevronRight className="h-3.5 w-3.5 rotate-180" /> Back to list
-              </button>
-              <p className="mt-3 text-[13px] leading-5 text-foreground/64">
-                {selectedThread.sender} · {selectedThread.company} · {selectedThread.source} · {selectedThread.time}
-              </p>
-              <h2 className="mt-1 text-[22px] leading-tight text-foreground">{selectedThread.subject}</h2>
-              <p className="mt-2 max-w-[58rem] text-[13px] leading-[1.45] text-foreground/72">{selectedThread.preview}</p>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-foreground/74">
-                <span className={roundedMetaPillClass}>
-                  <Mail className="h-3.5 w-3.5" /> {selectedThread.account}
-                </span>
-                <span className={roundedMetaPillClass}>
-                  <FolderOpen className="h-3.5 w-3.5" /> {selectedThread.project}
-                </span>
-                <span className={roundedMetaPillClass}>
-                  <Clock3 className="h-3.5 w-3.5" /> {selectedThread.dueRisk}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                aria-label={previousThread ? `Previous thread ${previousThread.subject}` : "Previous thread"}
-                className={cn(denseActionButtonClass, !previousThread && "cursor-not-allowed opacity-40 hover:bg-background")}
-                disabled={!previousThread}
-                onClick={() => previousThread && openThreadDetail(previousThread.id)}
-                type="button"
-              >
-                <ChevronRight className="h-3.5 w-3.5 rotate-180" /> Previous
-              </button>
-              <button
-                aria-label={nextThread ? `Next thread ${nextThread.subject}` : "Next thread"}
-                className={cn(denseActionButtonClass, !nextThread && "cursor-not-allowed opacity-40 hover:bg-background")}
-                disabled={!nextThread}
-                onClick={() => nextThread && openThreadDetail(nextThread.id)}
-                type="button"
-              >
-                Next <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-b border-border px-4 py-2.5">
-          <div className="flex flex-wrap items-start gap-2">
-            <button aria-label="Reply in place" className={cn(denseActionButtonClass, "border-foreground bg-foreground text-background hover:bg-foreground/90")} onClick={focusComposer} type="button">
-              <SendHorizontal className="h-3.5 w-3.5" /> Reply
-            </button>
-            <button aria-label={`Open in Email for ${selectedThread.subject}`} className={denseActionButtonClass} onClick={() => openInGmail(selectedThread.id)} type="button">
-              <Mail className="h-3.5 w-3.5" /> Open in Email
-            </button>
-            <button aria-label={`${isThreadWatched(selectedThread) ? "Unwatch" : "Watch"} ${selectedThread.subject}`} className={cn(denseActionButtonClass, isThreadWatched(selectedThread) && "border-primary bg-[hsl(var(--primary)/0.08)] text-primary")} onClick={() => toggleWatchThread(selectedThread.id)} type="button">
-              <Clock3 className="h-3.5 w-3.5" /> {isThreadWatched(selectedThread) ? "Watching" : "Watch"}
-            </button>
-            <button aria-label={`${isThreadReviewed(selectedThread) ? "Reviewed" : "Mark reviewed"} ${selectedThread.subject}`} className={cn(denseActionButtonClass, isThreadReviewed(selectedThread) && "border-primary bg-[hsl(var(--primary)/0.08)] text-primary")} onClick={() => markThreadReviewed(selectedThread.id)} type="button">
-              <CheckSquare className="h-3.5 w-3.5" /> {isThreadReviewed(selectedThread) ? "Reviewed" : "Mark reviewed"}
-            </button>
-            <button aria-label={`Archive ${selectedThread.subject}`} className={denseActionButtonClass} onClick={() => archiveThread(selectedThread.id)} type="button">
-              <Archive className="h-3.5 w-3.5" /> Archive
-            </button>
-            <button aria-label={approvalOpen ? "Close approval and assign" : "Open approval and assign"} className={cn(denseActionButtonClass, approvalOpen && "border-primary bg-[hsl(var(--primary)/0.08)] text-primary")} onClick={() => setApprovalOpenByThread({ ...approvalOpenByThread, [selectedThread.id]: !approvalOpen })} type="button">
-              Approval/Assign
-            </button>
-            <button aria-label={discussOpen ? "Close discuss" : "Open discuss"} className={cn(denseActionButtonClass, discussOpen && "border-primary bg-[hsl(var(--primary)/0.08)] text-primary")} onClick={() => setDiscussOpenByThread({ ...discussOpenByThread, [selectedThread.id]: !discussOpen })} type="button">
-              Discuss
-            </button>
-            <button aria-label="Open in chat" className={denseActionButtonClass} onClick={openInChat} type="button">
-              <MessageSquare className="h-3.5 w-3.5" /> Chat
-            </button>
-          </div>
-
-          {approvalOpen || discussOpen ? (
-            <div className="mt-3 grid gap-2 lg:grid-cols-2">
-              {renderContactPickerPanel({
-                title: "Approval and assign",
-                description:
-                  selectedThread.approvalPacket?.whyApprovalNeeded ??
-                  "Route this thread to the next approver or assignee without leaving the page.",
-                open: approvalOpen,
-                query: approvalQuery,
-                placeholder: "Search contact to assign",
-                selectedId: approvalSelectedId,
-                sent: approvalSent,
-                selectedName: selectedContact?.name,
-                contacts: matchingContacts,
-                onQueryChange: (value) =>
-                  setApprovalQueryByThread({
-                    ...approvalQueryByThread,
-                    [selectedThread.id]: value,
-                  }),
-                onSelect: (id) => {
-                  setApprovalSelectedByThread({
-                    ...approvalSelectedByThread,
-                    [selectedThread.id]: id,
-                  });
-                  setApprovalSentByThread({ ...approvalSentByThread, [selectedThread.id]: false });
-                },
-                onSend: sendApprovalAssign,
-                sendLabel: "Send",
-                sentLabel: `Sent to ${selectedContact?.name ?? "assignee"}.`,
-              })}
-              {renderContactPickerPanel({
-                title: "Discuss",
-                description: "Loop in one teammate while keeping this thread and its context in the same workspace.",
-                open: discussOpen,
-                query: discussQuery,
-                placeholder: "Search teammate to discuss",
-                selectedId: discussSelectedId,
-                sent: discussSent,
-                selectedName: selectedDiscussContact?.name,
-                contacts: matchingDiscussContacts,
-                onQueryChange: (value) =>
-                  setDiscussQueryByThread({
-                    ...discussQueryByThread,
-                    [selectedThread.id]: value,
-                  }),
-                onSelect: (id) => {
-                  setDiscussSelectedByThread({
-                    ...discussSelectedByThread,
-                    [selectedThread.id]: id,
-                  });
-                  setDiscussSentByThread({ ...discussSentByThread, [selectedThread.id]: false });
-                },
-                onSend: sendDiscuss,
-                sendLabel: "Share",
-                sentLabel: `Shared with ${selectedDiscussContact?.name ?? "teammate"}.`,
-              })}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-          <div className="grid gap-2 xl:grid-cols-[1.18fr_0.82fr]">
-            <div className="space-y-2">
-              <div className="grid gap-2 md:grid-cols-2">
-                {[
-                  { title: "Why this matters", body: selectedThread.whyThisMatters, tone: "neutral" as const },
-                  { title: "What changed", body: selectedThread.whatChanged, tone: "neutral" as const },
-                  { title: "What is blocked", body: selectedThread.whatIsBlocked, tone: "critical" as const },
-                  { title: "Recommended next step", body: selectedThread.nextAction, tone: "inverted" as const },
-                ].map(({ title, body, tone }) => (
-                  <div
-                    key={title}
-                    className={cn(
-                      "border p-3",
-                      tone === "critical"
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : tone === "inverted"
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border/80 bg-background text-foreground",
-                    )}
-                  >
-                    <p
-                      className={cn(
-                        "font-mono text-[10px] uppercase tracking-[0.12em]",
-                        tone === "neutral" ? "text-foreground/70" : "text-current/80",
-                      )}
-                    >
-                      {title}
-                    </p>
-                    <p className="mt-2 text-[13px] leading-6">{body}</p>
-                  </div>
-                ))}
-              </div>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>UBIK analysis</p>
-                <div className="mt-2 space-y-1.5 text-[13px] leading-6 text-foreground/84">
-                  {selectedThreadInsights.map((line) => (
-                    <p key={line}>- {line}</p>
-                  ))}
                 </div>
-              </section>
 
-              <section className="border border-border/80 bg-background p-3">
-                <Collapsible
-                  onOpenChange={(open) =>
-                    setThreadMessagesOpenByThread({
-                      ...threadMessagesOpenByThread,
-                      [selectedThread.id]: open,
-                    })
-                  }
-                  open={threadMessagesOpen}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className={sectionLabelClass}>Thread messages</p>
-                    <CollapsibleTrigger
-                      aria-label={threadMessagesOpen ? "Collapse thread messages" : "Expand thread messages"}
-                      className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.08em] text-foreground/58 transition-colors hover:text-foreground"
-                      type="button"
-                    >
-                      {threadMessagesOpen ? "Collapse" : "Expand"}
-                      {threadMessagesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                    </CollapsibleTrigger>
-                  </div>
-
-                  <CollapsibleContent className="mt-3">
-                    <div className="space-y-2">
-                      {selectedThread.timeline.map((entry) => {
-                        const isInternal =
-                          entry.sender === selectedThread.owner ||
-                          entry.sender === "You" ||
-                          entry.role.toLowerCase().includes("internal");
+                <ScrollArea className="min-h-0 flex-1">
+                  {landingThreads.length ? (
+                    <div className="flex flex-col">
+                      {landingThreads.map((thread) => {
+                        const isUnread = isThreadUnread(thread);
+                        const needsAttention =
+                          thread.priority === "Critical" ||
+                          thread.priority === "High" ||
+                          ["blocked_by_approval", "due_soon", "overdue"].includes(thread.followUpStatus);
+                        const isWatched =
+                          Boolean(watchStateByThread[thread.id] || reminderByThreadId[thread.id]) ||
+                          thread.waitingState.toLowerCase().includes("watch") ||
+                          thread.tags.some((tag) => /watch/i.test(tag)) ||
+                          thread.followUpStatus === "auto_handled";
 
                         return (
-                          <div
-                            key={entry.id}
-                            className={cn(
-                              "max-w-[94%] border px-4 py-3",
-                              isInternal
-                                ? "ml-auto border-primary/50 bg-[hsl(var(--primary)/0.04)]"
-                                : "mr-auto border-border/80 bg-background",
-                            )}
+                          <button
+                            key={thread.id}
+                            className="flex w-full items-start gap-4 border-b border-border/60 px-5 py-5 text-left transition-colors hover:bg-secondary/35"
+                            onClick={() => selectThread(thread.id)}
+                            type="button"
                           >
-                            <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-foreground/62">
-                              {entry.sender} · {entry.role} · {entry.time}
-                            </p>
-                            <p className="mt-1 text-[13px] leading-6 text-foreground/84">{entry.body}</p>
-                            {entry.summary ? (
-                              <p className="mt-2 text-[12px] leading-5 text-foreground/65">{entry.summary}</p>
-                            ) : null}
-                            {entry.attachments?.length ? (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {entry.attachments.map((attachment) => (
-                                  <SquareTag key={attachment}>
-                                    {attachment}
-                                  </SquareTag>
-                                ))}
+                            <span className={cn("mt-2 size-3 shrink-0 rounded-full", isUnread ? "bg-primary/25" : "bg-border")} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start gap-3">
+                                <p className="shrink-0 text-[15px] text-foreground/80">{thread.sender}</p>
+                                <h3 className="min-w-0 flex-1 text-[17px] font-medium leading-6 text-foreground">{thread.subject}</h3>
+                                <span className="shrink-0 text-sm text-foreground/70">{thread.time}</span>
                               </div>
-                            ) : null}
-                          </div>
+                              <p className="mt-1 max-w-6xl text-sm leading-7 text-muted-foreground">{thread.preview}</p>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <Badge variant="outline">{thread.account}</Badge>
+                                <Badge variant="outline">{thread.project}</Badge>
+                                {needsAttention ? <StatusPill tone="alert">Needs attention</StatusPill> : null}
+                                {thread.approvalRequired ? <StatusPill tone="alert">Approval</StatusPill> : null}
+                                {isWatched ? <StatusPill tone="muted">Watched</StatusPill> : null}
+                              </div>
+                            </div>
+                          </button>
                         );
                       })}
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <button
-                  className="flex w-full items-center justify-between text-left"
-                  onClick={() =>
-                    setEmailMetaOpenByThread({
-                      ...emailMetaOpenByThread,
-                      [selectedThread.id]: !emailMetaOpen,
-                    })
-                  }
-                  type="button"
-                >
-                  <p className={sectionLabelClass}>Recipients and subject</p>
-                  {emailMetaOpen ? (
-                    <ChevronUp className="h-4 w-4 text-foreground/60" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-foreground/60" />
-                  )}
-                </button>
-
-                {emailMetaOpen ? (
-                  <div className="mt-3 grid gap-2">
-                    {[
-                      { label: "To", value: emailMeta.to, placeholder: "Recipient", onChange: setEmailTo },
-                      { label: "Cc", value: emailCc, placeholder: "Add Cc recipients", onChange: setEmailCc },
-                      { label: "Bcc", value: emailBcc, placeholder: "Add Bcc recipients", onChange: setEmailBcc },
-                      { label: "Subject", value: emailMeta.subject, placeholder: "Subject", onChange: setEmailSubject },
-                    ].map(({ label, value, placeholder, onChange }) => (
-                      <div key={label} className="grid gap-2 md:grid-cols-[72px_1fr] md:items-center">
-                        <p className={sectionLabelClass}>{label}</p>
-                        <input
-                          className="h-9 w-full border border-border/80 bg-background px-3 text-sm text-foreground outline-none"
-                          onChange={(event) => onChange(event.target.value)}
-                          placeholder={placeholder}
-                          value={value}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-foreground/78">
-                    <span className={cn(squareTagClass, "border-border text-foreground/66")}>
-                      To: {emailMeta.to || "Recipient"}
-                    </span>
-                    {emailCc ? (
-                      <span className={cn(squareTagClass, "border-border text-foreground/66")}>Cc</span>
-                    ) : null}
-                    {emailBcc ? (
-                      <span className={cn(squareTagClass, "border-border text-foreground/66")}>Bcc</span>
-                    ) : null}
-                  </div>
-                )}
-
-                <div className="mt-3" ref={composerRef}>
-                  <RichOperatorEditor
-                    className="border-border/80"
-                    compactCopyActions
-                    minHeight={112}
-                    onChange={setCurrentDraftText}
-                    placeholder={`Draft your outbound reply. Suggestion: ${suggestedReply}`}
-                    showInsertBlock={false}
-                    showMarkdownCopy={false}
-                    value={currentDraftText}
-                  />
-
-                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12px] text-foreground/74">
-                    <button
-                      className="inline-flex items-center gap-1.5 border border-primary/45 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-primary transition-colors hover:bg-[hsl(var(--primary)/0.06)]"
-                      type="button"
-                    >
-                      <Paperclip className="h-3.5 w-3.5" /> Attach file
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-1.5 border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-[hsl(var(--foreground)/0.03)]"
-                      type="button"
-                    >
-                      <CalendarDays className="h-3.5 w-3.5" /> Meeting
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-1.5 border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-[hsl(var(--foreground)/0.03)]"
-                      type="button"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5" /> Drive
-                    </button>
-                    <span className="ml-auto text-[11px] text-foreground/62">Connected: Gmail, Calendar, Drive</span>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <SmallButton active onClick={sendEmailReply}>
-                      <SendHorizontal className="mr-2 h-3.5 w-3.5" /> Send
-                    </SmallButton>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div className="space-y-2">
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>Operational context</p>
-                <div className="mt-2 space-y-2 text-[13px] leading-5 text-foreground/82">
-                  <p>
-                    <span className="text-foreground/56">Account:</span> {selectedThread.account}
-                  </p>
-                  <p>
-                    <span className="text-foreground/56">Project:</span> {selectedThread.project}
-                  </p>
-                  <p>
-                    <span className="text-foreground/56">Owner:</span> {selectedThread.owner}
-                  </p>
-                  <p>
-                    <span className="text-foreground/56">Waiting state:</span> {selectedThread.waitingState}
-                  </p>
-                  {selectedThread.linkedTask ? (
-                    <p>
-                      <span className="text-foreground/56">Linked task:</span> {selectedThread.linkedTask.label} ·{" "}
-                      {selectedThread.linkedTask.status}
-                    </p>
-                  ) : null}
-                  {selectedThread.linkedWorkflow ? (
-                    <p>
-                      <span className="text-foreground/56">Linked workflow:</span> {selectedThread.linkedWorkflow.label} ·{" "}
-                      {selectedThread.linkedWorkflow.status}
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>Suggested actions</p>
-                <div className="mt-2 space-y-2">
-                  {selectedThread.actionRecommendations.slice(0, 4).map((action) => (
-                    <div key={action.key} className="border border-border/80 bg-[hsl(var(--foreground)/0.01)] p-2">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-foreground/62">
-                        {action.kind}
-                      </p>
-                      <p className="mt-1 text-sm text-foreground">{action.label}</p>
-                      <p className="mt-1 text-[12px] leading-5 text-foreground/65">{action.description}</p>
+                    <div className="px-5 py-8">
+                      <p className="text-sm text-muted-foreground">No threads match this landing view yet.</p>
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>Quick task</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    aria-label={taskInputEnabled ? "Disable task input" : "Enable task input"}
-                    className={cn(
-                      "transition-colors",
-                      taskInputEnabled ? "text-primary" : "text-foreground/70 hover:text-foreground",
-                    )}
-                    onClick={() =>
-                      setTaskInputEnabledByThread({
-                        ...taskInputEnabledByThread,
-                        [selectedThread.id]: !taskInputEnabled,
-                      })
-                    }
-                    type="button"
-                  >
-                    {taskInputEnabled ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                  </button>
-                  <input
-                    className="h-9 flex-1 border border-border bg-background px-3 text-sm text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!taskInputEnabled}
-                    onChange={(event) =>
-                      setTaskInputByThread({
-                        ...taskInputByThread,
-                        [selectedThread.id]: event.target.value,
-                      })
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addQuickTask();
-                      }
-                    }}
-                    placeholder="Add task line and press Enter"
-                    value={taskInput}
-                  />
-                </div>
-
-                <p className="mt-2 text-[12px] text-foreground/64">
-                  Existing packet: {selectedThread.taskPacket.taskTitle}
-                </p>
-
-                {addedTasks.length ? (
-                  <div className="mt-3 space-y-1.5">
-                    {addedTasks.map((task) => (
-                      <div key={task.id} className="border border-border/80 bg-background p-2 text-xs">
-                        <p className="line-clamp-2 text-sm text-foreground">{task.title}</p>
-                        <p className="mt-1 text-foreground/70">
-                          {task.status} · Due {task.due} · <span className="text-primary">{task.priority}</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-[12px] text-foreground/68">No extra quick tasks added yet.</p>
-                )}
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>Attachments</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {selectedThread.attachments.length ? (
-                    selectedThread.attachments.map((attachment) => (
-                      <SquareTag key={attachment}>
-                        {attachment}
-                      </SquareTag>
-                    ))
-                  ) : (
-                    <p className="text-[12px] text-foreground/66">No attachments on this thread.</p>
                   )}
-                </div>
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>Provenance</p>
-                <div className="mt-2 space-y-1.5">
-                  {selectedRawThread.provenance.map((entry) => (
-                    <div key={`${entry.label}-${entry.value}`} className="text-[13px] leading-5 text-foreground/78">
-                      <span className="text-foreground/54">{entry.label}:</span> {entry.value}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="border border-border/80 bg-background p-3">
-                <p className={sectionLabelClass}>People</p>
-                <div className="mt-2 space-y-2 text-[13px] text-foreground/82">
-                  <p>
-                    <span className="text-foreground/56">Sender:</span> {selectedThread.sender}
-                  </p>
-                  <p>
-                    <span className="text-foreground/56">Owner:</span> {selectedThread.owner}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedThread.participants.map((participant) => (
-                      <SquareTag key={participant}>
-                        {participant}
-                      </SquareTag>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
+                </ScrollArea>
+              </div>
+            )}
+          </section>
         </div>
-      </Surface>
-    );
-  };
-
-  return (
-    <div className="px-3 py-4 lg:px-6 lg:py-5 xl:h-[calc(100vh-3.5rem)] xl:min-h-0 xl:overflow-hidden">
-      <PageContainer className="xl:h-full xl:min-h-0">
-        <div className="grid gap-2 xl:h-full xl:min-h-0 xl:grid-cols-[292px_minmax(0,1fr)]">
-          <Surface className="flex min-h-[24rem] flex-col overflow-hidden bg-background xl:min-h-0">
-            <div className="border-b border-border px-3 py-3">
-              <div className="flex items-center gap-2 border border-border bg-background px-3 py-2">
-                <Search className="h-4 w-4 text-foreground/70" />
-                <input
-                  aria-label="Search inbox"
-                  className="w-full bg-transparent text-sm text-foreground outline-none"
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search sender, subject, company"
-                  value={searchQuery}
-                />
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto">
-              <div className="border-b border-border px-0 py-1.5">
-                {builtInBuckets.map((bucket) => {
-                  const isActive = selectedBucket.kind === "system" && selectedBucket.id === bucket.id;
-                  return (
-                    <button
-                      key={bucket.id}
-                      className={cn(
-                        railRowBaseClass,
-                        isActive
-                          ? "border-b-foreground bg-foreground text-background"
-                          : "border-b-border bg-background text-foreground hover:bg-[hsl(var(--foreground)/0.03)]",
-                      )}
-                      onClick={() => setSelectedBucket({ kind: "system", id: bucket.id })}
-                      type="button"
-                    >
-                      <span className="flex w-full min-w-0 items-center justify-between gap-[var(--panel-row-content-gap)] py-[var(--panel-row-y)] text-left">
-                        <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em]">
-                          {bucket.label}
-                        </span>
-                        <span
-                          aria-label={`${bucket.label} count ${bucket.count}`}
-                          className={cn(
-                            "shrink-0 border px-[var(--panel-chip-padding-x)] py-[var(--panel-chip-padding-y)] font-mono text-[10px] uppercase tracking-[0.12em]",
-                            isActive ? "border-background/30 text-background" : "border-border text-foreground/65",
-                          )}
-                        >
-                          {bucket.count}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="px-0 py-1.5">
-                {customerBucketsWithCounts.length ? (
-                  customerBucketsWithCounts.map((bucket) => {
-                    const isActive = selectedBucket.kind === "customer" && selectedBucket.id === bucket.id;
-                    return (
-                      <button
-                        aria-label={bucket.name}
-                        key={bucket.id}
-                        className={cn(
-                          railRowBaseClass,
-                          isActive
-                            ? "border-b-foreground bg-foreground text-background"
-                            : "border-b-border bg-background text-foreground hover:bg-[hsl(var(--foreground)/0.03)]",
-                        )}
-                        onClick={() => setSelectedBucket({ kind: "customer", id: bucket.id })}
-                        type="button"
-                      >
-                        <span className="flex w-full min-w-0 items-center justify-between gap-[var(--panel-row-content-gap)] py-[var(--panel-row-y)] text-left">
-                          <span className="truncate font-mono text-[10px] uppercase tracking-[0.14em]">
-                            {bucket.name}
-                          </span>
-                          <span
-                            aria-label={`${bucket.name} count ${bucket.count}`}
-                            className={cn(
-                              "shrink-0 border px-[var(--panel-chip-padding-x)] py-[var(--panel-chip-padding-y)] font-mono text-[10px] uppercase tracking-[0.12em]",
-                              isActive ? "border-background/30 text-background" : "border-border text-foreground/65",
-                            )}
-                          >
-                            {bucket.count}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <p className="px-3 py-2 text-[13px] text-foreground/64">No custom filters yet.</p>
-                )}
-
-                <button
-                  aria-label="Create custom filter"
-                  className="mt-2 flex w-full items-center justify-between border-b border-dashed border-border px-3 py-[var(--panel-add-row-y)] text-left text-sm text-foreground/72 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
-                  onClick={() => setIsCreateBucketOpen(true)}
-                  type="button"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Plus className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" /> Custom filter
-                  </span>
-                  <ChevronRight className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" />
-                </button>
-              </div>
-            </div>
-          </Surface>
-
-          {isDetailRoute ? renderDetailView() : renderListView()}
-        </div>
+      </div>
       </PageContainer>
-
-      {isCreateBucketOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/10 px-4">
-          <div className="w-full max-w-md border border-border bg-background shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-            <div className="border-b border-border px-4 py-3">
-              <p className={sectionLabelClass}>Create bucket</p>
-              <h3 className="mt-1 text-base text-foreground">Add custom filter</h3>
-            </div>
-            <div className="px-4 py-4">
-              <input
-                aria-label="New custom filter name"
-                className="h-11 w-full border border-border bg-background px-3 text-sm text-foreground outline-none"
-                onChange={(event) => setNewBucketName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    createCustomerBucketAction();
-                  }
-                }}
-                placeholder="Custom filter name"
-                value={newBucketName}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-              <SmallButton
-                onClick={() => {
-                  setIsCreateBucketOpen(false);
-                  setNewBucketName("");
-                }}
-              >
-                Cancel
-              </SmallButton>
-              <SmallButton active onClick={createCustomerBucketAction}>
-                Create
-              </SmallButton>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

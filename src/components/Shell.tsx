@@ -1,7 +1,6 @@
 import { AppSidebar } from "./AppSidebar";
 import { CommandPalette } from "./CommandPalette";
 import { RightDrawer, RuntimePanel } from "./ShellPanels";
-import { TopBar } from "./TopBar";
 import { WorkbenchTabs } from "./WorkbenchTabs";
 import { ShellStateProvider } from "./shell-state";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -26,7 +25,6 @@ export function Shell({ children }: ShellProps) {
           <AppSidebar />
           <SidebarInset className="min-h-0 min-w-0 border-l border-border">
             <WorkbenchTabs />
-            <TopBar />
             <CommandPalette />
             <div className="flex min-h-0 flex-1 overflow-hidden">
               <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</main>

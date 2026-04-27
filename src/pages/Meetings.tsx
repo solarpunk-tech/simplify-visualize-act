@@ -1,48 +1,129 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AudioLines,
-  CalendarDays,
-  CheckSquare,
-  ChevronsDown,
-  Clock3,
-  ChevronRight,
-  Files,
-  FolderPlus,
-  Folder,
-  FolderClosed,
-  Lock,
-  Link2,
-  Mic,
-  NotebookPen,
-  SearchCheck,
-  Search,
-  Send,
-  Share2,
-  Trash2,
-  Pin,
-  Users,
-} from "lucide-react";
+  ArrowLeftIcon,
+  BellIcon,
+  CalendarBlankIcon,
+  CalendarPlusIcon,
+  CaretDownIcon,
+  CaretRightIcon,
+  ChatCircleTextIcon,
+  CheckIcon,
+  CheckSquareIcon,
+  ClockIcon,
+  CopyIcon,
+  DotsThreeIcon,
+  EnvelopeSimpleIcon,
+  FileImageIcon,
+  FileTextIcon,
+  FilesIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  FolderPlusIcon,
+  LinkIcon,
+  LockIcon,
+  MagnifyingGlassIcon,
+  MicrophoneIcon,
+  NotePencilIcon,
+  PaperPlaneTiltIcon,
+  PushPinIcon,
+  SidebarSimpleIcon,
+  SlackLogoIcon,
+  TrashIcon,
+  UsersIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 
-import { SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
+import { Surface } from "@/components/ubik-primitives";
 import { PageContainer } from "@/components/page-container";
+import { RichOperatorEditor } from "@/components/rich-operator-editor";
 import { useWorkbenchState } from "@/hooks/use-shell-state";
-import { meetings } from "@/lib/ubik-data";
+import { contactCards, meetings } from "@/lib/ubik-data";
 import type { MeetingRecord } from "@/lib/ubik-types";
-import { cn } from "@/lib/utils";
+import { cn, shouldIgnoreSurfaceHotkeys } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupTextarea,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { GoogleCalendar } from "@/components/ui/svgs/googleCalendar";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { findContactCard, getInitials } from "@/lib/contact-helpers";
 
-type BuiltInMeetingSpaceId = "all" | "my-notes" | "thai-union" | "maersk" | "redwood-foods" | "harbor-retail";
+type BuiltInMeetingSpaceId =
+  | "all"
+  | "quick-notes"
+  | "my-notes"
+  | "this-week"
+  | "this-month"
+  | "history"
+  | "thai-union"
+  | "maersk"
+  | "redwood-foods"
+  | "harbor-retail";
 type MeetingSpaceId = BuiltInMeetingSpaceId | `custom-${string}`;
-type FolderTab = "notes" | "files" | "people";
+type MeetingSidebarMode = "folders" | "meetings";
+type MeetingSpaceSegment = "folders" | "notes" | "org" | "customers";
 type FolderCanvasMode = "workspace" | "note";
 type FolderActionKind = "todos" | "summary" | "projects" | "custom";
+type LandingChatScope = "all" | MeetingSpaceId;
+type LandingChatRange = "recent-25" | "all";
+type MeetingDetailTab = "summary" | "transcript" | "files";
+type FolderIconKey = "folder" | "people" | "notes" | "signal";
+type TimelineSectionKey = "upcoming" | "today" | "previous";
 
 type CustomerSpace = {
   id: MeetingSpaceId;
   name: string;
   description: string;
   initials: string;
+  icon: FolderIconKey;
+  prompt?: string;
+  memberIds?: string[];
+  segment: MeetingSpaceSegment;
   locked?: boolean;
   shared?: boolean;
   pinned?: boolean;
@@ -54,10 +135,12 @@ type GeneratedFolderNote = {
   prompt: string;
   sourceLabel: string;
   sections: { heading: string; items: string[] }[];
+  contextScopeId: LandingChatScope;
+  contextLabel: string;
 };
 
 type MeetingWorkspaceRecord = MeetingRecord & {
-  customerId: Exclude<BuiltInMeetingSpaceId, "all">;
+  customerId: MeetingSpaceId;
   customerName: string;
   dayGroup: "Today" | "Yesterday" | "Last week";
   duration: string;
@@ -74,6 +157,13 @@ type MeetingWorkspaceRecord = MeetingRecord & {
   risksAndBlockers?: string[];
   keyInsights?: string[];
   topicsCovered?: string[];
+  files?: { name: string; kind: "doc" | "image" | "sheet" | "link"; addedBy: string; addedAt: string }[];
+};
+
+type ChecklistItem = {
+  text: string;
+  checked: boolean;
+  routed?: boolean;
 };
 
 const meetingIndex = new Map(meetings.map((meeting) => [meeting.id, meeting]));
@@ -126,6 +216,10 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
       { speaker: "Raj Mehta", text: "We can tolerate a short extension, but not if the workflow unlocks before the files are validated." },
       { speaker: "You", text: "The meeting should settle the extension window, the follow-up owner, and the release guardrail in one pass." },
     ],
+    files: [
+      { name: "thai-union-exception-packet.pdf", kind: "doc", addedBy: "Compliance Bot", addedAt: "09:42 AM" },
+      { name: "document-gap-checklist.png", kind: "image", addedBy: "Raj Mehta", addedAt: "09:55 AM" },
+    ],
     kind: "meeting",
     nextJoinIn: "in 22m",
   }),
@@ -158,12 +252,16 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
       { speaker: "Sarah Kim", text: "If we wait too long to update the buyer, the surprise matters more than the six-hour slip." },
       { speaker: "You", text: "The meeting should end with one ETA, one owner, and one outbound communication plan." },
     ],
+    files: [
+      { name: "maersk-delay-card.pdf", kind: "doc", addedBy: "Ops desk", addedAt: "01:10 PM" },
+      { name: "eta-revision-sheet.xlsx", kind: "sheet", addedBy: "Sarah Kim", addedAt: "01:18 PM" },
+    ],
     kind: "meeting",
     nextJoinIn: "in 3h",
   }),
   buildWorkspaceMeeting(getMeeting("meeting-3"), {
-    customerId: "redwood-foods",
-    customerName: "Redwood Foods",
+    customerId: "my-notes",
+    customerName: "Plant Operations",
     dayGroup: "Today",
     duration: "18 min",
     startClock: "8:15 AM",
@@ -190,6 +288,9 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
       { speaker: "Pricing monitor", text: "No cadence change recommended, only a watch on the Atlantic Fresh anomalies." },
       { speaker: "You", text: "Keep the day organized around approvals first, then convert them into meeting prep and follow-through." },
     ],
+    files: [
+      { name: "morning-brief-recap.md", kind: "doc", addedBy: "Ubik", addedAt: "08:28 AM" },
+    ],
     kind: "meeting",
   }),
   {
@@ -199,18 +300,18 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
     stage: "Completed",
     owner: "Hemanth",
     participants: ["Me"],
-    summary: "A short scratchpad note before the commercial renewal call to capture objections, prep language, and stakeholder sequence.",
+    summary: "A short internal working note before the commercial renewal call to capture objections, prep language, and stakeholder sequence.",
     agenda: ["Renewal risks", "Who to involve", "Customer tone"],
     decisions: ["Keep legal copied on commercial language review."],
     actionItems: ["Move the best objections into the renewal prep packet."],
-    customerId: "my-notes",
-    customerName: "My notes",
+    customerId: "quick-notes",
+    customerName: "Quick notes",
     dayGroup: "Today",
     duration: "7 min",
     startClock: "11:58 AM",
     participantsCount: 1,
     labels: ["Quick note", "Commercial"],
-    prepSummary: "This is a scratchpad capture, it should stay easy to reuse and easy to move into a customer folder later.",
+    prepSummary: "This is an internal plant-ops capture, so it should stay easy to reuse and easy to move into a customer folder later.",
     prepChecklist: [
       "Promote reusable objections into the customer prep packet.",
       "Keep the quick note private until the commercial language is final.",
@@ -228,7 +329,11 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
     ],
     transcript: [
       { speaker: "Me", text: "Capture the top objections before the renewal call so prep feels deliberate instead of reactive." },
-      { speaker: "Me", text: "Keep this in private notes until the commercial angle is ready to share." },
+      { speaker: "Me", text: "Keep this in the plant-ops lane until the commercial angle is ready to share." },
+    ],
+    files: [
+      { name: "renewal-objections.md", kind: "doc", addedBy: "You", addedAt: "11:58 AM" },
+      { name: "pricing-objection-screenshot.png", kind: "image", addedBy: "You", addedAt: "12:01 PM" },
     ],
     kind: "quick_note",
   },
@@ -270,6 +375,9 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
       { speaker: "Alicia Torres", text: "The revised ETA matters, but the bigger issue is hearing nothing after a promise was made." },
       { speaker: "Ops desk", text: "We have the new timing now, we can commit to a precise morning checkpoint." },
       { speaker: "You", text: "Let's reset trust with one note now and one explicit follow-up time tomorrow." },
+    ],
+    files: [
+      { name: "harbor-retail-reset-note.pdf", kind: "doc", addedBy: "Ops desk", addedAt: "04:48 PM" },
     ],
     kind: "meeting",
   },
@@ -318,6 +426,10 @@ const workspaceMeetings: MeetingWorkspaceRecord[] = [
       { speaker: "Sai Kiran", text: "Folders by customer will make the notes feel practical, not just pretty." },
       { speaker: "You", text: "Prep, notes, and history need to sit together so it feels like a real meeting workspace." },
     ],
+    files: [
+      { name: "meeting-space-wireframe.png", kind: "image", addedBy: "Sai Kiran", addedAt: "Thu 2:12 PM" },
+      { name: "meeting-backend-notes.md", kind: "doc", addedBy: "Ganesh", addedAt: "Thu 2:25 PM" },
+    ],
     kind: "meeting",
   },
 ];
@@ -328,13 +440,49 @@ const fixedCustomerSpaces: CustomerSpace[] = [
     name: "All meetings",
     description: "All notes and calls",
     initials: "AM",
+    icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "quick-notes",
+    name: "Quick Note",
+    description: "Prompt-based labels and scratchpads",
+    initials: "QN",
+    icon: "notes",
+    segment: "folders",
   },
   {
     id: "my-notes",
-    name: "My notes",
-    description: "Private notes",
-    initials: "MN",
-    locked: true,
+    name: "Private",
+    description: "Internal notes and restricted continuity",
+    initials: "PV",
+    icon: "signal",
+    segment: "folders",
+    shared: true,
+  },
+  {
+    id: "this-week",
+    name: "This Week",
+    description: "Recent meetings and notes still in motion",
+    initials: "TW",
+    icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "this-month",
+    name: "This Month",
+    description: "Broader month-level continuity and summaries",
+    initials: "TM",
+    icon: "folder",
+    segment: "folders",
+  },
+  {
+    id: "history",
+    name: "History",
+    description: "Completed meetings and older decision trails",
+    initials: "HS",
+    icon: "folder",
+    segment: "folders",
   },
 ];
 
@@ -344,6 +492,8 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     name: "Thai Union",
     description: "Supplier review",
     initials: "TU",
+    icon: "people",
+    segment: "customers",
     shared: true,
   },
   {
@@ -351,6 +501,8 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     name: "Maersk",
     description: "Logistics sync",
     initials: "MK",
+    icon: "signal",
+    segment: "customers",
     shared: true,
   },
   {
@@ -358,6 +510,8 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     name: "Redwood Foods",
     description: "Commercial planning",
     initials: "RF",
+    icon: "folder",
+    segment: "customers",
     shared: true,
   },
   {
@@ -365,6 +519,8 @@ const initialMovableCustomerSpaces: CustomerSpace[] = [
     name: "Harbor Retail",
     description: "Delivery reset",
     initials: "HR",
+    icon: "people",
+    segment: "customers",
     shared: true,
   },
 ];
@@ -373,13 +529,65 @@ const dayGroupOrder: MeetingWorkspaceRecord["dayGroup"][] = ["Today", "Yesterday
 
 function matchesSpace(meeting: MeetingWorkspaceRecord, spaceId: MeetingSpaceId) {
   if (spaceId === "all") return true;
-  if (spaceId === "my-notes") return meeting.kind === "quick_note";
-  if (spaceId.startsWith("custom-")) return false;
+  if (spaceId === "quick-notes") return meeting.kind === "quick_note";
+  if (spaceId === "my-notes") return meeting.customerId === "my-notes";
+  if (spaceId === "this-week") return meeting.dayGroup === "Today" || meeting.dayGroup === "Yesterday";
+  if (spaceId === "this-month") return ["Today", "Yesterday", "Last week"].includes(meeting.dayGroup);
+  if (spaceId === "history") return meeting.dayGroup === "Last week" || meeting.stage === "Completed";
   return meeting.customerId === spaceId;
+}
+
+function getSpaceSegment(spaces: CustomerSpace[], spaceId: MeetingSpaceId): MeetingSpaceSegment {
+  return spaces.find((space) => space.id === spaceId)?.segment ?? "folders";
+}
+
+function getSidebarModeForSegment(segment: MeetingSpaceSegment): MeetingSidebarMode {
+  return segment === "folders" ? "folders" : "meetings";
+}
+
+function getSegmentForNewSpace(sidebarMode: MeetingSidebarMode, icon: FolderIconKey): MeetingSpaceSegment {
+  if (sidebarMode === "folders") return "folders";
+  if (icon === "notes") return "notes";
+  if (icon === "signal") return "org";
+  return "customers";
 }
 
 function buildFolderId(name: string) {
   return `custom-${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "folder"}-${Date.now()}` as const;
+}
+
+function buildMeetingSummaryDocument({
+  prepSummary,
+  decisions,
+  checklist,
+  risks,
+  insights,
+}: {
+  prepSummary: string;
+  decisions: string[];
+  checklist: ChecklistItem[];
+  risks: string[];
+  insights: string[];
+}) {
+  return [
+    "# Overview",
+    prepSummary.trim(),
+    "",
+    "## Decisions",
+    ...(decisions.length ? decisions.map((item) => `- ${item}`) : ["- Add a decision"]),
+    "",
+    "## Action items",
+    ...(checklist.length ? checklist.map((item) => `- [${item.checked ? "x" : " "}] ${item.text}`) : ["- [ ] Add an action item"]),
+    "",
+    "## Risks & blockers",
+    ...(risks.length ? risks.map((item) => `- ${item}`) : ["- Add a blocker"]),
+    "",
+    "## Key insights",
+    ...(insights.length ? insights.map((item) => `- ${item}`) : ["- Add an insight"]),
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function buildInitials(name: string) {
@@ -392,35 +600,80 @@ function buildInitials(name: string) {
   return (parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "CF").slice(0, 2);
 }
 
-function parseDurationMinutes(duration: string) {
-  const value = parseInt(duration, 10);
-  return Number.isFinite(value) ? value : 0;
+function parseStartClockMinutes(clock: string) {
+  const [time, meridiem] = clock.trim().split(" ");
+  const [hourValue, minuteValue] = time.split(":").map(Number);
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) return 0;
+
+  let hour = hourValue % 12;
+  if (meridiem?.toUpperCase() === "PM") {
+    hour += 12;
+  }
+
+  return hour * 60 + minuteValue;
 }
 
-function LabelCreatorPlaceholder({ labels }: { labels: string[] }) {
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      {labels.map((label) => (
-        <span
-          key={label}
-          className="inline-flex items-center rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1 text-[12px] text-foreground/62"
-        >
-          {label}
-        </span>
-      ))}
-      <button
-        className="inline-flex h-7 items-center rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 text-[11px] text-foreground/52 transition-colors hover:bg-[hsl(var(--foreground)/0.1)] hover:text-foreground/72"
-        onClick={() =>
-          toast("Labels coming next", {
-            description: "This will open label creation once the meeting label system is wired in.",
-          })
-        }
-        type="button"
-      >
-        Add label
-      </button>
-    </div>
-  );
+function meetingChronologyScore(meeting: MeetingWorkspaceRecord) {
+  const dayRank = {
+    Today: 0,
+    Yesterday: 1,
+    "Last week": 2,
+  }[meeting.dayGroup];
+
+  return dayRank * 1440 + parseStartClockMinutes(meeting.startClock);
+}
+
+function sortMeetingsByChronology(meetingList: MeetingWorkspaceRecord[], direction: "asc" | "desc" = "asc") {
+  return [...meetingList].sort((left, right) => {
+    const leftScore = meetingChronologyScore(left);
+    const rightScore = meetingChronologyScore(right);
+    return direction === "asc" ? leftScore - rightScore : rightScore - leftScore;
+  });
+}
+
+function getMeetingAccent(meeting: MeetingWorkspaceRecord) {
+  switch (meeting.customerId) {
+    case "quick-notes":
+      return "bg-orange-500 text-white";
+    case "my-notes":
+      return "bg-slate-700 text-white";
+    case "thai-union":
+      return "bg-amber-500 text-white";
+    case "maersk":
+      return "bg-sky-500 text-white";
+    case "redwood-foods":
+      return "bg-emerald-500 text-white";
+    case "harbor-retail":
+      return "bg-violet-500 text-white";
+    default:
+      return "bg-slate-500 text-white";
+  }
+}
+
+function renderFolderIcon(icon: FolderIconKey) {
+  switch (icon) {
+    case "people":
+      return <UsersIcon className="h-4 w-4" />;
+    case "notes":
+      return <NotePencilIcon className="h-4 w-4" />;
+    case "signal":
+      return <WaveformIcon className="h-4 w-4" />;
+    default:
+      return <FolderOpenIcon className="h-4 w-4" />;
+  }
+}
+
+function fileKindIcon(kind: NonNullable<MeetingWorkspaceRecord["files"]>[number]["kind"]) {
+  switch (kind) {
+    case "image":
+      return <FileImageIcon className="h-4 w-4" />;
+    case "sheet":
+      return <FilesIcon className="h-4 w-4" />;
+    case "link":
+      return <LinkIcon className="h-4 w-4" />;
+    default:
+      return <FileTextIcon className="h-4 w-4" />;
+  }
 }
 
 export default function Meetings() {
@@ -431,29 +684,86 @@ export default function Meetings() {
   const [selectedMeetingId, setSelectedMeetingId] = useWorkbenchState<string>("meeting-id", workspaceMeetings[0].id);
   const [searchQuery, setSearchQuery] = useWorkbenchState<string>("meetings-search", "");
   const [folderPrompt, setFolderPrompt] = useWorkbenchState<string>("meetings-folder-prompt", "");
-  const [meetingChatPrompt, setMeetingChatPrompt] = useWorkbenchState<string>("meetings-chat-prompt", "");
+  const [secondaryRailCollapsed, setSecondaryRailCollapsed] = useWorkbenchState<boolean>("meetings-secondary-rail-collapsed", false);
+  const [sidebarMode, setSidebarMode] = useWorkbenchState<MeetingSidebarMode>("meetings-sidebar-mode", "folders");
+  const [customMeetings, setCustomMeetings] = useWorkbenchState<MeetingWorkspaceRecord[]>("meetings-custom-records", []);
+  const [meetingFolderOverrides, setMeetingFolderOverrides] = useWorkbenchState<Record<string, MeetingSpaceId>>(
+    "meetings-folder-overrides",
+    {},
+  );
+  const [deletedMeetingIds, setDeletedMeetingIds] = useWorkbenchState<string[]>("meetings-deleted-records", []);
+  const [landingChatRange, setLandingChatRange] = useWorkbenchState<LandingChatRange>("meetings-landing-chat-range", "recent-25");
   const [generatedNoteFollowUpPrompt, setGeneratedNoteFollowUpPrompt] = useWorkbenchState<string>(
     "meetings-generated-note-follow-up",
     "",
   );
-  const [folderTab, setFolderTab] = useWorkbenchState<FolderTab>("meetings-folder-tab", "notes");
-  const [suggestionDismissed, setSuggestionDismissed] = useWorkbenchState<boolean>("meetings-folder-suggestion-dismissed", false);
   const [folderCanvasMode, setFolderCanvasMode] = useWorkbenchState<FolderCanvasMode>("meetings-folder-canvas-mode", "workspace");
   const [folderActionKind, setFolderActionKind] = useWorkbenchState<FolderActionKind>("meetings-folder-action-kind", "custom");
   const [generatedFolderNote, setGeneratedFolderNote] = useWorkbenchState<GeneratedFolderNote | null>("meetings-generated-folder-note", null);
   const [isGeneratedPromptExpanded, setIsGeneratedPromptExpanded] = useState(false);
-  const [isCreateFolderOpen, setIsCreateFolderOpen] = useWorkbenchState<boolean>("meetings-create-folder-open", false);
+  const [isCreateFolderExpanded, setIsCreateFolderExpanded] = useWorkbenchState<boolean>("meetings-create-folder-expanded", false);
   const [newFolderName, setNewFolderName] = useWorkbenchState<string>("meetings-new-folder-name", "");
+  const [newFolderIcon, setNewFolderIcon] = useWorkbenchState<FolderIconKey>("meetings-new-folder-icon", "folder");
+  const [newFolderPrompt, setNewFolderPrompt] = useWorkbenchState<string>("meetings-new-folder-filter-prompt", "");
+  const [newFolderMemberIds, setNewFolderMemberIds] = useWorkbenchState<string[]>("meetings-new-folder-member-ids", []);
   const [movableCustomerSpaces, setMovableCustomerSpaces] = useWorkbenchState<CustomerSpace[]>(
     "meetings-movable-customer-spaces",
     initialMovableCustomerSpaces,
   );
+  const [detailTabByMeeting, setDetailTabByMeeting] = useWorkbenchState<Record<string, MeetingDetailTab>>("meetings-detail-tab", {});
+  const [prepSummaryByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-prep-summary", {});
+  const [decisionsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-decisions", {});
+  const [checklistByMeeting, setChecklistByMeeting] = useWorkbenchState<Record<string, ChecklistItem[]>>("meetings-checklist", {});
+  const [risksByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-risks", {});
+  const [insightsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-detail-insights", {});
+  const [summaryDocumentByMeeting, setSummaryDocumentByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-summary-document", {});
+  const [meetingQuestionByMeeting, setMeetingQuestionByMeeting] = useWorkbenchState<Record<string, string>>("meetings-detail-question", {});
+  const [shareRecipientIdsByMeeting, setShareRecipientIdsByMeeting] = useWorkbenchState<Record<string, string[]>>("meetings-share-recipients", {});
+  const [shareQueryByMeeting, setShareQueryByMeeting] = useWorkbenchState<Record<string, string>>("meetings-share-query", {});
+  const [approvedMeetingIds, setApprovedMeetingIds] = useWorkbenchState<string[]>("meetings-approved-records", []);
+  const [remindedMeetingIds, setRemindedMeetingIds] = useWorkbenchState<string[]>("meetings-reminded-records", []);
+  const [timelineSectionOpen, setTimelineSectionOpen] = useWorkbenchState<Record<TimelineSectionKey, boolean>>("meetings-timeline-sections", {
+    upcoming: true,
+    today: true,
+    previous: true,
+  });
   const [draggingSpaceId, setDraggingSpaceId] = useState<MeetingSpaceId | null>(null);
+  const [discussCommandOpen, setDiscussCommandOpen] = useState(false);
+  const [newMeetingDialogOpen, setNewMeetingDialogOpen] = useState(false);
+  const [draftMeetingTitle, setDraftMeetingTitle] = useWorkbenchState<string>("meetings-draft-title", "");
+  const [draftMeetingSpaceId, setDraftMeetingSpaceId] = useWorkbenchState<MeetingSpaceId>("meetings-draft-space-id", "redwood-foods");
+  const [draftMeetingStartClock, setDraftMeetingStartClock] = useWorkbenchState<string>("meetings-draft-start-clock", "4:30 PM");
+  const [draftMeetingDuration, setDraftMeetingDuration] = useWorkbenchState<string>("meetings-draft-duration", "30 min");
+  const [draftMeetingAttendees, setDraftMeetingAttendees] = useWorkbenchState<string>("meetings-draft-attendees", "Priya, Ganesh");
 
+  const customerSpaces = useMemo(() => [...fixedCustomerSpaces, ...movableCustomerSpaces], [movableCustomerSpaces]);
+  const allWorkspaceMeetings = useMemo(() => [...workspaceMeetings, ...customMeetings], [customMeetings]);
+  const effectiveWorkspaceMeetings = useMemo(
+    () =>
+      allWorkspaceMeetings
+        .filter((meeting) => !deletedMeetingIds.includes(meeting.id))
+        .map((meeting) => {
+          const overrideSpaceId = meetingFolderOverrides[meeting.id];
+          if (!overrideSpaceId) return meeting;
+
+          const overrideSpace = customerSpaces.find((space) => space.id === overrideSpaceId);
+          if (!overrideSpace) return meeting;
+
+          return {
+            ...meeting,
+            customerId: overrideSpace.id,
+            customerName: overrideSpace.name,
+          };
+        }),
+    [allWorkspaceMeetings, customerSpaces, deletedMeetingIds, meetingFolderOverrides],
+  );
+  const selectedScopeMeetings = useMemo(
+    () => effectiveWorkspaceMeetings.filter((meeting) => matchesSpace(meeting, selectedSpaceId)),
+    [effectiveWorkspaceMeetings, selectedSpaceId],
+  );
   const visibleMeetings = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return workspaceMeetings.filter((meeting) => {
-      if (!matchesSpace(meeting, selectedSpaceId)) return false;
+    return selectedScopeMeetings.filter((meeting) => {
       if (!query) return true;
 
       const haystack = [
@@ -468,82 +778,225 @@ export default function Meetings() {
 
       return haystack.includes(query);
     });
-  }, [searchQuery, selectedSpaceId]);
+  }, [searchQuery, selectedScopeMeetings]);
   const routeMeeting = useMemo(
-    () => (meetingId ? workspaceMeetings.find((meeting) => meeting.id === meetingId) ?? null : null),
-    [meetingId],
+    () => (meetingId ? effectiveWorkspaceMeetings.find((meeting) => meeting.id === meetingId) ?? null : null),
+    [effectiveWorkspaceMeetings, meetingId],
   );
-  const customerSpaces = useMemo(() => [...fixedCustomerSpaces, ...movableCustomerSpaces], [movableCustomerSpaces]);
   const isMeetingDetailView = Boolean(meetingId);
 
   useEffect(() => {
-    if (!visibleMeetings.length) return;
-    if (!visibleMeetings.some((meeting) => meeting.id === selectedMeetingId)) {
-      setSelectedMeetingId(visibleMeetings[0].id);
+    if (!selectedScopeMeetings.length) return;
+    if (!selectedScopeMeetings.some((meeting) => meeting.id === selectedMeetingId)) {
+      setSelectedMeetingId(selectedScopeMeetings[0].id);
     }
-  }, [selectedMeetingId, setSelectedMeetingId, visibleMeetings]);
+  }, [selectedMeetingId, selectedScopeMeetings, setSelectedMeetingId]);
   useEffect(() => {
     if (!routeMeeting) return;
-    if (selectedSpaceId !== routeMeeting.customerId) {
+    if (selectedSpaceId !== "all" && selectedSpaceId !== routeMeeting.customerId) {
       setSelectedSpaceId(routeMeeting.customerId);
+    }
+    const routeSegment = getSpaceSegment(customerSpaces, routeMeeting.customerId);
+    const nextSidebarMode = getSidebarModeForSegment(routeSegment);
+    if (sidebarMode !== nextSidebarMode) {
+      setSidebarMode(nextSidebarMode);
     }
     if (selectedMeetingId !== routeMeeting.id) {
       setSelectedMeetingId(routeMeeting.id);
     }
-  }, [routeMeeting, selectedMeetingId, selectedSpaceId, setSelectedMeetingId, setSelectedSpaceId]);
+  }, [customerSpaces, routeMeeting, selectedMeetingId, selectedSpaceId, setSelectedMeetingId, setSelectedSpaceId, setSidebarMode, sidebarMode]);
 
   const selectedMeeting =
     routeMeeting ??
-    visibleMeetings.find((meeting) => meeting.id === selectedMeetingId) ??
+    selectedScopeMeetings.find((meeting) => meeting.id === selectedMeetingId) ??
     visibleMeetings[0] ??
+    selectedScopeMeetings[0] ??
+    effectiveWorkspaceMeetings[0] ??
     workspaceMeetings[0];
   const selectedSpace = customerSpaces.find((space) => space.id === selectedSpaceId) ?? customerSpaces[0];
-  const groupedHistory = dayGroupOrder
-    .map((dayGroup) => ({
-      dayGroup,
-      meetings: visibleMeetings.filter((meeting) => meeting.dayGroup === dayGroup),
-    }))
-    .filter((group) => group.meetings.length > 0);
-  const folderPeople = Array.from(
-    new Set(
-      visibleMeetings.flatMap((meeting) => meeting.participants),
-    ),
+  const todayMeetings = useMemo(
+    () => sortMeetingsByChronology(visibleMeetings.filter((meeting) => meeting.dayGroup === "Today"), "asc"),
+    [visibleMeetings],
   );
-  const folderFiles = visibleMeetings.map((meeting) => ({
-    id: `file-${meeting.id}`,
-    name: `${meeting.title} notes.md`,
-    scope: meeting.customerName,
-    time: meeting.startClock,
-  }));
+  const upcomingMeetings = useMemo(
+    () => sortMeetingsByChronology(visibleMeetings.filter((meeting) => meeting.stage === "Upcoming"), "asc"),
+    [visibleMeetings],
+  );
+  const previousMeetings = useMemo(
+    () => sortMeetingsByChronology(
+      visibleMeetings.filter((meeting) => meeting.stage !== "Upcoming" && meeting.dayGroup !== "Today"),
+      "desc",
+    ),
+    [visibleMeetings],
+  );
+  const landingTimelineSections = useMemo(
+    () => [
+      { key: "upcoming" as const, label: "Upcoming", meetings: upcomingMeetings },
+      {
+        key: "today" as const,
+        label: "Today",
+        meetings: sortMeetingsByChronology(
+          visibleMeetings.filter((meeting) => meeting.dayGroup === "Today" && meeting.stage !== "Upcoming"),
+          "desc",
+        ),
+      },
+      { key: "previous" as const, label: "Previous", meetings: previousMeetings },
+    ].filter((section) => section.meetings.length > 0),
+    [previousMeetings, upcomingMeetings, visibleMeetings],
+  );
 
   const spacesWithCounts = customerSpaces.map((space) => ({
     ...space,
-    count: workspaceMeetings.filter((meeting) => matchesSpace(meeting, space.id)).length,
+    count: effectiveWorkspaceMeetings.filter((meeting) => matchesSpace(meeting, space.id)).length,
   }));
-  const suggestedNote = workspaceMeetings.find((meeting) => !matchesSpace(meeting, selectedSpaceId));
-  const showSuggestedNote = !isMeetingDetailView && !suggestionDismissed && suggestedNote;
-  const sectionLabelClass = "font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/70";
-  const railButtonClass =
-    "inline-flex h-11 min-w-0 w-full items-center justify-start gap-2 overflow-hidden border border-border bg-background px-3 text-left text-[11px] uppercase tracking-[0.08em] text-foreground transition-colors hover:bg-[hsl(var(--foreground)/0.03)]";
+  const sectionLabelClass = "section-label";
+  const commandRailClass =
+    "flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-background px-1.5 py-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  const commandRailGroupClass = "flex shrink-0 items-center gap-1";
+  const commandRailDividerClass = "h-4 w-px shrink-0 bg-border/80";
+  const commandRailButtonClass =
+    "inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none disabled:pointer-events-none disabled:opacity-45";
+  const commandRailIconButtonClass =
+    "inline-flex size-7 shrink-0 items-center justify-center border border-transparent text-foreground/75 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none disabled:pointer-events-none disabled:opacity-45";
+  const commandRailActiveButtonClass =
+    "border-border/70 bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground";
+  const commandRailPrimaryButtonClass =
+    "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground";
+  const commandRailShortcutClass =
+    "inline-flex min-w-[1.3rem] items-center justify-center border border-border/70 bg-background px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground";
+  const selectedDetailTab = detailTabByMeeting[selectedMeeting.id] ?? "summary";
+  const selectedMeetingFiles = selectedMeeting.files ?? [];
   const getFolderActionLabel = (kind: FolderActionKind) => {
     if (kind === "todos") return "follow-through note";
     if (kind === "projects") return "project snapshot";
     if (kind === "summary") return "folder summary";
     return "custom note";
   };
-  const buildFolderPrompt = (kind: FolderActionKind) => {
-    const baseMeetingTitles = visibleMeetings.slice(0, 5).map((meeting) => meeting.title).join("; ");
+  const renderPersonAvatar = (name: string, size: "sm" | "default" = "default") => {
+    const contact = findContactCard(name);
+    return (
+      <Avatar key={name} size={size}>
+        <AvatarImage alt={name} src={contact?.avatarSrc} />
+        <AvatarFallback>{contact?.avatarFallback ?? getInitials(name)}</AvatarFallback>
+      </Avatar>
+    );
+  };
+  const resolvePromptScope = (scopeId: LandingChatScope, range: LandingChatRange = landingChatRange) => {
+    const scopedMeetings =
+      scopeId === "all"
+        ? sortMeetingsByChronology(effectiveWorkspaceMeetings, "desc")
+        : sortMeetingsByChronology(effectiveWorkspaceMeetings.filter((meeting) => matchesSpace(meeting, scopeId)), "desc");
+    const scopeSpace = customerSpaces.find((space) => space.id === scopeId);
+    return {
+      id: scopeId,
+      label: scopeId === "all" ? "All meetings" : scopeSpace ? `${scopeSpace.name} journey` : "Folder journey",
+      description: scopeId === "all" ? "Every meeting, note, and quick capture." : scopeSpace?.description ?? "Folder-linked meeting history.",
+      meetings: range === "recent-25" ? scopedMeetings.slice(0, 25) : scopedMeetings,
+    };
+  };
+  const landingPromptScope = resolvePromptScope(selectedSpaceId, landingChatRange);
+
+  useEffect(() => {
+    if (checklistByMeeting[selectedMeeting.id]) return;
+    setChecklistByMeeting({
+      ...checklistByMeeting,
+      [selectedMeeting.id]: selectedMeeting.actionItems.map((item) => ({ text: item, checked: false })),
+    });
+  }, [checklistByMeeting, selectedMeeting, setChecklistByMeeting]);
+
+  const detailChecklist = checklistByMeeting[selectedMeeting.id] ?? selectedMeeting.actionItems.map((item) => ({ text: item, checked: false }));
+  const detailPrepSummary = prepSummaryByMeeting[selectedMeeting.id] ?? selectedMeeting.prepSummary;
+  const detailDecisions = decisionsByMeeting[selectedMeeting.id] ?? selectedMeeting.decisions;
+  const detailRisks = risksByMeeting[selectedMeeting.id] ?? (selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist);
+  const detailInsights = insightsByMeeting[selectedMeeting.id] ?? (selectedMeeting.keyInsights ?? selectedMeeting.highlights);
+  const detailSummaryDocument =
+    summaryDocumentByMeeting[selectedMeeting.id] ??
+    buildMeetingSummaryDocument({
+      prepSummary: detailPrepSummary,
+      decisions: detailDecisions,
+      checklist: detailChecklist,
+      risks: detailRisks,
+      insights: detailInsights,
+    });
+  const meetingQuestion = meetingQuestionByMeeting[selectedMeeting.id] ?? "";
+  const shareRecipientIds = shareRecipientIdsByMeeting[selectedMeeting.id] ?? [];
+  const shareQuery = shareQueryByMeeting[selectedMeeting.id] ?? "";
+  const shareRecipients = shareRecipientIds
+    .map((contactId) => contactCards.find((contact) => contact.id === contactId))
+    .filter((contact): contact is (typeof contactCards)[number] => Boolean(contact));
+  const availableShareContacts = contactCards.filter((contact) => {
+    if (shareRecipientIds.includes(contact.id)) return false;
+    if (!shareQuery.trim()) return true;
+    return `${contact.name} ${contact.role} ${contact.company}`.toLowerCase().includes(shareQuery.toLowerCase());
+  });
+
+  const updateChecklist = (index: number, next: Partial<ChecklistItem>) => {
+    setChecklistByMeeting({
+      ...checklistByMeeting,
+      [selectedMeeting.id]: detailChecklist.map((item, itemIndex) => (itemIndex === index ? { ...item, ...next } : item)),
+    });
+  };
+
+  const routeChecklistTask = (index: number) => {
+    const routing = {
+      project: selectedMeeting.customerName,
+      status: "Open",
+      priority: "High",
+      due: "Today",
+    };
+    updateChecklist(index, { routed: true });
+    toast("Added to tasks", {
+      description: `${routing.project} · ${routing.status} · ${routing.priority} · ${routing.due}`,
+    });
+  };
+
+  const addShareRecipient = (contactId: string) => {
+    setShareRecipientIdsByMeeting({
+      ...shareRecipientIdsByMeeting,
+      [selectedMeeting.id]: [...shareRecipientIds, contactId],
+    });
+    setShareQueryByMeeting({
+      ...shareQueryByMeeting,
+      [selectedMeeting.id]: "",
+    });
+  };
+
+  const removeShareRecipient = (contactId: string) => {
+    setShareRecipientIdsByMeeting({
+      ...shareRecipientIdsByMeeting,
+      [selectedMeeting.id]: shareRecipientIds.filter((id) => id !== contactId),
+    });
+  };
+
+  const triggerShare = (channel: "email" | "link" | "slack") => {
+    const label = channel === "email" ? "Email" : channel === "link" ? "Copy link" : "Slack";
+    const extra = shareRecipients.length ? ` with ${shareRecipients.map((contact) => contact.name).join(", ")}` : "";
+    toast("Share prepared", {
+      description: `${label} is ready for ${selectedMeeting.title}${extra}.`,
+    });
+  };
+  const setMeetingQuestion = (value: string) => {
+    setMeetingQuestionByMeeting({
+      ...meetingQuestionByMeeting,
+      [selectedMeeting.id]: value,
+    });
+  };
+
+  const buildFolderPrompt = (kind: FolderActionKind, scopeId: LandingChatScope = selectedSpaceId) => {
+    const scope = resolvePromptScope(scopeId);
+    const scopeMeetings = scope.meetings;
+    const baseMeetingTitles = scopeMeetings.slice(0, 5).map((meeting) => meeting.title).join("; ");
     if (kind === "todos") {
       return [
-        `List the recent todos for the ${selectedSpace.name} folder.`,
-        `Focus on what still needs follow-through across ${visibleMeetings.length} notes.`,
+        `List the recent todos for ${scope.label.toLowerCase()}.`,
+        `Focus on what still needs follow-through across ${scopeMeetings.length} notes.`,
         `Recent notes: ${baseMeetingTitles}`,
       ].join(" ");
     }
 
     if (kind === "summary") {
       return [
-        `Summarize the ${selectedSpace.name} folder.`,
+        `Summarize ${scope.label.toLowerCase()}.`,
         "Group the output into active themes, open loops, and what should happen next.",
         `Recent notes: ${baseMeetingTitles}`,
       ].join(" ");
@@ -551,33 +1004,35 @@ export default function Meetings() {
 
     if (kind === "projects") {
       return [
-        `Show in-flight projects for the ${selectedSpace.name} folder.`,
+        `Show in-flight projects across ${scope.label.toLowerCase()}.`,
         "Organize by current motion, owner, and next checkpoint.",
         `Recent notes: ${baseMeetingTitles}`,
       ].join(" ");
     }
 
-    return folderPrompt.trim() || `Summarize key notes and open tasks in the ${selectedSpace.name} folder.`;
+    return folderPrompt.trim() || `Summarize key notes and open tasks across ${scope.label.toLowerCase()}.`;
   };
 
-  const presetFolderPrompt = (kind: FolderActionKind) => {
+  const presetFolderPrompt = (kind: FolderActionKind, scopeId: LandingChatScope = selectedSpaceId) => {
     setFolderActionKind(kind);
-    setFolderPrompt(buildFolderPrompt(kind));
+    setFolderPrompt(buildFolderPrompt(kind, scopeId));
   };
 
-  const generateFolderNote = (kind = folderActionKind, promptOverride?: string) => {
-    const prompt = promptOverride?.trim() || folderPrompt.trim() || buildFolderPrompt(kind);
-    const recentMeetings = visibleMeetings.slice(0, 5);
-    const allActionItems = Array.from(new Set(visibleMeetings.flatMap((meeting) => meeting.actionItems))).slice(0, 8);
-    const allDecisions = Array.from(new Set(visibleMeetings.flatMap((meeting) => meeting.decisions))).slice(0, 6);
-    const allHighlights = Array.from(new Set(visibleMeetings.flatMap((meeting) => meeting.highlights))).slice(0, 6);
+  const generateFolderNote = (kind = folderActionKind, promptOverride?: string, scopeId: LandingChatScope = selectedSpaceId) => {
+    const scope = resolvePromptScope(scopeId);
+    const scopedMeetings = scope.meetings;
+    const prompt = promptOverride?.trim() || folderPrompt.trim() || buildFolderPrompt(kind, scopeId);
+    const recentMeetings = scopedMeetings.slice(0, 5);
+    const allActionItems = Array.from(new Set(scopedMeetings.flatMap((meeting) => meeting.actionItems))).slice(0, 8);
+    const allDecisions = Array.from(new Set(scopedMeetings.flatMap((meeting) => meeting.decisions))).slice(0, 6);
+    const allHighlights = Array.from(new Set(scopedMeetings.flatMap((meeting) => meeting.highlights))).slice(0, 6);
 
     const title =
       kind === "todos"
-        ? `${selectedSpace.name} follow-through`
+        ? `${scope.label} follow-through`
         : kind === "projects"
-          ? `${selectedSpace.name} active work`
-          : `${selectedSpace.name} note summary`;
+          ? `${scope.label} active work`
+          : `${scope.label} summary`;
 
     const sections =
       kind === "todos"
@@ -630,42 +1085,77 @@ export default function Meetings() {
       prompt,
       sourceLabel: getFolderActionLabel(kind),
       sections,
+      contextScopeId: scope.id,
+      contextLabel: scope.label,
     });
     setIsGeneratedPromptExpanded(false);
     setFolderCanvasMode("note");
   };
 
-  const askFolder = () => {
+  const askFolder = (scopeId: LandingChatScope = selectedSpaceId) => {
     setFolderActionKind("custom");
-    generateFolderNote("custom");
+    generateFolderNote("custom", undefined, scopeId);
   };
   const continueGeneratedNote = () => {
     const prompt = generatedNoteFollowUpPrompt.trim();
-    if (!prompt) return;
+    if (!prompt || !generatedFolderNote) return;
     setFolderPrompt(prompt);
     setFolderActionKind("custom");
-    generateFolderNote("custom", prompt);
+    generateFolderNote("custom", prompt, generatedFolderNote.contextScopeId);
     setGeneratedNoteFollowUpPrompt("");
   };
   const createFolder = () => {
     const name = newFolderName.trim();
     if (!name) return;
+    const selectedMembers = contactCards.filter((contact) => newFolderMemberIds.includes(contact.id));
+    const prompt = newFolderPrompt.trim();
+    const description =
+      prompt ||
+      (selectedMembers.length
+        ? `${selectedMembers
+            .slice(0, 2)
+            .map((contact) => contact.name)
+            .join(", ")} continuity`
+        : sidebarMode === "meetings" && newFolderIcon === "notes"
+          ? "Prompt-based note label"
+          : sidebarMode === "meetings" && newFolderIcon === "signal"
+            ? "Org continuity space"
+            : sidebarMode === "meetings"
+              ? "Customer continuity space"
+              : "Custom folder");
 
     const nextSpace: CustomerSpace = {
       id: buildFolderId(name),
       name,
-      description: "Custom folder",
+      description,
       initials: buildInitials(name),
+      icon: newFolderIcon,
+      prompt: prompt || undefined,
+      memberIds: newFolderMemberIds,
+      segment: getSegmentForNewSpace(sidebarMode, newFolderIcon),
+      shared: newFolderIcon === "people" || newFolderMemberIds.length > 0,
       isCustom: true,
     };
 
     setMovableCustomerSpaces([...movableCustomerSpaces, nextSpace]);
     setSelectedSpaceId(nextSpace.id);
+    setSidebarMode(getSidebarModeForSegment(nextSpace.segment));
+    setIsCreateFolderExpanded(false);
     toast("Folder created", {
-      description: `${name} is ready for notes and meeting history.`,
+      description: `${name} is ready in ${meetingScopeMeta.railLabel.toLowerCase()}.`,
     });
     setNewFolderName("");
-    setIsCreateFolderOpen(false);
+    setNewFolderIcon("folder");
+    setNewFolderPrompt("");
+    setNewFolderMemberIds([]);
+  };
+  const applyCustomerSeed = (contactId: string) => {
+    const contact = contactCards.find((entry) => entry.id === contactId);
+    if (!contact) return;
+    setNewFolderName(contact.company);
+    setNewFolderIcon("people");
+    setNewFolderPrompt(`Keep ${contact.company} customer continuity, meeting prep, and follow-through together.`);
+    setNewFolderMemberIds(newFolderMemberIds.includes(contact.id) ? newFolderMemberIds : [...newFolderMemberIds, contact.id]);
   };
   const togglePinSpace = (spaceId: MeetingSpaceId) => {
     setMovableCustomerSpaces(
@@ -700,6 +1190,17 @@ export default function Meetings() {
     nextSpaces.splice(targetIndex, 0, movedSpace);
     setMovableCustomerSpaces(nextSpaces);
   };
+  const selectSpace = (spaceId: MeetingSpaceId) => {
+    setSelectedSpaceId(spaceId);
+    setSidebarMode(getSidebarModeForSegment(getSpaceSegment(customerSpaces, spaceId)));
+    setFolderCanvasMode("workspace");
+    if (isMeetingDetailView) {
+      navigate({
+        pathname: "/meetings",
+        search: location.search,
+      });
+    }
+  };
   const openMeetingDetail = (nextMeetingId: string) => {
     setSelectedMeetingId(nextMeetingId);
     navigate({
@@ -713,661 +1214,1442 @@ export default function Meetings() {
       search: location.search,
     });
   };
+  const toggleFolderMember = (contactId: string) => {
+    setNewFolderMemberIds(
+      newFolderMemberIds.includes(contactId)
+        ? newFolderMemberIds.filter((id) => id !== contactId)
+        : [...newFolderMemberIds, contactId],
+    );
+  };
+  const moveMeetingToSpace = (meetingId: string, spaceId: MeetingSpaceId) => {
+    const destination = customerSpaces.find((space) => space.id === spaceId);
+    if (!destination) return;
+
+    setMeetingFolderOverrides({
+      ...meetingFolderOverrides,
+      [meetingId]: spaceId,
+    });
+    toast("Moved to folder", {
+      description: `${effectiveWorkspaceMeetings.find((meeting) => meeting.id === meetingId)?.title ?? "Meeting"} now lives in ${destination.name}.`,
+    });
+  };
+  const deleteMeetingRecord = (meetingId: string) => {
+    const meeting = effectiveWorkspaceMeetings.find((item) => item.id === meetingId);
+    if (!meeting) return;
+
+    setDeletedMeetingIds([...new Set([...deletedMeetingIds, meetingId])]);
+
+    if (meetingFolderOverrides[meetingId]) {
+      const nextOverrides = { ...meetingFolderOverrides };
+      delete nextOverrides[meetingId];
+      setMeetingFolderOverrides(nextOverrides);
+    }
+
+    const fallbackMeeting = effectiveWorkspaceMeetings.find((item) => item.id !== meetingId && matchesSpace(item, selectedSpaceId));
+    if (selectedMeetingId === meetingId && fallbackMeeting) {
+      setSelectedMeetingId(fallbackMeeting.id);
+    }
+    if (routeMeeting?.id === meetingId) {
+      closeMeetingDetail();
+    }
+    toast("Moved to trash", {
+      description: `${meeting.title} was removed from the meeting list.`,
+    });
+  };
+  const toggleApproval = (meetingId: string) => {
+    const nextApproved = approvedMeetingIds.includes(meetingId)
+      ? approvedMeetingIds.filter((id) => id !== meetingId)
+      : [...approvedMeetingIds, meetingId];
+    setApprovedMeetingIds(nextApproved);
+    toast(nextApproved.includes(meetingId) ? "Meeting approved" : "Approval cleared", {
+      description: effectiveWorkspaceMeetings.find((meeting) => meeting.id === meetingId)?.title ?? "Meeting",
+    });
+  };
+  const toggleReminder = (meetingId: string) => {
+    const nextReminded = remindedMeetingIds.includes(meetingId)
+      ? remindedMeetingIds.filter((id) => id !== meetingId)
+      : [...remindedMeetingIds, meetingId];
+    setRemindedMeetingIds(nextReminded);
+    toast(nextReminded.includes(meetingId) ? "Reminder set" : "Reminder cleared", {
+      description: nextReminded.includes(meetingId)
+        ? `Tomorrow follow-up queued for ${effectiveWorkspaceMeetings.find((meeting) => meeting.id === meetingId)?.title ?? "this meeting"}.`
+        : "The reminder was removed.",
+    });
+  };
+  const createMeetingRecord = () => {
+    const title = draftMeetingTitle.trim();
+    const destination = customerSpaces.find((space) => space.id === draftMeetingSpaceId);
+    if (!title || !destination || draftMeetingSpaceId === "all") return;
+
+    const attendees = draftMeetingAttendees
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const nextMeeting: MeetingWorkspaceRecord = {
+      id: `meeting-custom-${Date.now()}`,
+      title,
+      time: `Today · ${draftMeetingStartClock} PST`,
+      stage: "Upcoming",
+      owner: "Hemanth",
+      participants: attendees.length ? attendees : ["Hemanth"],
+      summary: `A newly drafted meeting for ${destination.name}.`,
+      agenda: ["Context", "Next steps", "Owner alignment"],
+      decisions: ["Capture the decision after the meeting starts."],
+      actionItems: ["Confirm the next checkpoint and owner."],
+      customerId: destination.id,
+      customerName: destination.name,
+      dayGroup: "Today",
+      duration: draftMeetingDuration,
+      startClock: draftMeetingStartClock,
+      participantsCount: attendees.length || 1,
+      labels: [],
+      prepSummary: `New meeting draft for ${destination.name}. Use this popup as a fast way to seed a record before details arrive.`,
+      prepChecklist: [
+        "Attach the relevant inbox or project context.",
+        "Confirm attendee list before join time.",
+        "Convert outcomes into a follow-up note after the call.",
+      ],
+      highlights: ["Fresh draft meeting created from the top command rail."],
+      notes: ["Use this record as the initial shell before the actual conversation begins."],
+      transcript: [{ speaker: "Ubik", text: "New meeting created. Add transcript or notes once the call starts." }],
+      files: [],
+      kind: "meeting",
+      nextJoinIn: "new",
+    };
+
+    setCustomMeetings([nextMeeting, ...customMeetings]);
+    setSelectedSpaceId(destination.id);
+    setSelectedMeetingId(nextMeeting.id);
+    setSidebarMode(getSidebarModeForSegment(destination.segment));
+    setNewMeetingDialogOpen(false);
+    setDraftMeetingTitle("");
+    setDraftMeetingAttendees("Priya, Ganesh");
+    setDraftMeetingDuration("30 min");
+    setDraftMeetingStartClock("4:30 PM");
+    toast("Meeting created", {
+      description: `${title} is ready in ${destination.name}.`,
+    });
+    navigate({
+      pathname: `/meetings/${nextMeeting.id}`,
+      search: location.search,
+    });
+  };
+  const visibleScopes = spacesWithCounts.filter((space) => {
+    const matchesSidebarMode = sidebarMode === "folders" ? space.segment === "folders" : space.segment !== "folders";
+    return matchesSidebarMode && (space.segment === "folders" || space.count > 0 || space.isCustom || space.id === "all");
+  });
+  useEffect(() => {
+    if (!visibleScopes.length) return;
+    if (visibleScopes.some((space) => space.id === selectedSpaceId)) return;
+    setSelectedSpaceId(visibleScopes[0].id);
+  }, [selectedSpaceId, setSelectedSpaceId, visibleScopes]);
+  const toggleTimelineSection = (sectionKey: TimelineSectionKey) => {
+    setTimelineSectionOpen({
+      ...timelineSectionOpen,
+      [sectionKey]: !timelineSectionOpen[sectionKey],
+    });
+  };
+
+  const folderIconOptions: { value: FolderIconKey; label: string }[] = [
+    { value: "folder", label: "Folder" },
+    { value: "people", label: "Shared" },
+    { value: "notes", label: "Notes" },
+    { value: "signal", label: "Signal" },
+  ];
+  const commandMeeting = isMeetingDetailView ? routeMeeting : visibleMeetings[0] ?? null;
+  const commandMeetingApproved = commandMeeting ? approvedMeetingIds.includes(commandMeeting.id) : false;
+  const commandMeetingReminded = commandMeeting ? remindedMeetingIds.includes(commandMeeting.id) : false;
+  const commandDiscussCandidates = contactCards
+    .filter((contact) =>
+      commandMeeting
+        ? `${contact.name} ${contact.company} ${contact.role}`.toLowerCase().includes(commandMeeting.customerName.toLowerCase()) ||
+          commandMeeting.participants.some((participant) => contact.name.toLowerCase().includes(participant.toLowerCase()))
+        : false,
+    )
+    .slice(0, 5);
+  const selectedNewFolderMembers = contactCards.filter((contact) => newFolderMemberIds.includes(contact.id));
+  const meetingScopeMeta = {
+    folders: {
+      railLabel: "Folders",
+      composerLabel: "New folder",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "New folder",
+      submitLabel: "Create folder",
+      namePlaceholder: "Folder name",
+      promptPlaceholder: "Collect renewal prep, decisions, and follow-through in one folder",
+      helper: "Create a durable meeting journey that groups related calls and notes.",
+    },
+    meetings: {
+      railLabel: "Meetings",
+      composerLabel: "New meeting space",
+      triggerLabel: isCreateFolderExpanded ? "Hide" : "New meeting space",
+      submitLabel: "Create meeting space",
+      namePlaceholder: "Space name",
+      promptPlaceholder: "Keep the customer thread, quick note, or operator handoff together",
+      helper: "Use one combined meetings rail for customer continuity, quick notes, and internal handoffs.",
+    },
+  }[sidebarMode];
+  const detailSpace = customerSpaces.find((space) => space.id === selectedMeeting.customerId);
+  const detailBreadcrumbLabel = detailSpace?.name ?? selectedMeeting.customerName;
+  const focusMeetingSearch = () => {
+    if (secondaryRailCollapsed) {
+      setSecondaryRailCollapsed(false);
+    }
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('input[aria-label="Search meetings, notes, or folders"]')?.focus();
+    }, 40);
+  };
+  const openNewMeeting = () => {
+    setDraftMeetingSpaceId(selectedSpaceId === "all" ? customerSpaces.find((space) => space.id !== "all")?.id ?? "redwood-foods" : selectedSpaceId);
+    setNewMeetingDialogOpen(true);
+  };
+  const joinNextMeeting = () => {
+    const nextMeeting = upcomingMeetings[0];
+    if (!nextMeeting) return;
+    openMeetingDetail(nextMeeting.id);
+    toast("Meeting ready", {
+      description: `Opening ${nextMeeting.title} so you can jump in without losing context.`,
+    });
+  };
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (shouldIgnoreSurfaceHotkeys(event.target)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+      const key = event.key.toLowerCase();
+
+      if (!isMeetingDetailView) {
+        if (key === "f") {
+          event.preventDefault();
+          focusMeetingSearch();
+          return;
+        }
+
+        if (key === "n") {
+          event.preventDefault();
+          openNewMeeting();
+          return;
+        }
+
+        if (key === "j" && upcomingMeetings.length) {
+          event.preventDefault();
+          joinNextMeeting();
+        }
+        return;
+      }
+
+      if (key === "escape") {
+        event.preventDefault();
+        navigate("/meetings?tab=meetings-main");
+        return;
+      }
+
+      if (key === "n") {
+        event.preventDefault();
+        openNewMeeting();
+        return;
+      }
+
+      if (!commandMeeting) return;
+
+      if (key === "d") {
+        event.preventDefault();
+        setDiscussCommandOpen((open) => !open);
+        return;
+      }
+
+      if (key === "a") {
+        event.preventDefault();
+        toggleApproval(commandMeeting.id);
+        return;
+      }
+
+      if (key === "r") {
+        event.preventDefault();
+        toggleReminder(commandMeeting.id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [commandMeeting, isMeetingDetailView, navigate, toggleApproval, toggleReminder, upcomingMeetings]);
+
+  const meetingCommandBar = (
+    <div className={commandRailClass}>
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label={secondaryRailCollapsed ? "Expand meetings sidebar" : "Collapse meetings sidebar"}
+          className={commandRailIconButtonClass}
+          onClick={() => setSecondaryRailCollapsed(!secondaryRailCollapsed)}
+          type="button"
+        >
+          <SidebarSimpleIcon className="size-4" />
+        </button>
+        {isMeetingDetailView ? (
+          <>
+            <span className={commandRailDividerClass} aria-hidden="true" />
+            <button className={commandRailButtonClass} onClick={() => navigate("/meetings?tab=meetings-main")} type="button">
+              <ArrowLeftIcon className="size-4" />
+              <span>Back</span>
+              <span className={commandRailShortcutClass}>Esc</span>
+            </button>
+          </>
+        ) : null}
+        {!isMeetingDetailView ? (
+          <>
+            <span className={commandRailDividerClass} aria-hidden="true" />
+            <button className={commandRailButtonClass} onClick={focusMeetingSearch} type="button">
+              <span>Filter</span>
+              <span className={commandRailShortcutClass}>F</span>
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
+        <button
+          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
+          onClick={openNewMeeting}
+          type="button"
+        >
+          <span>New meeting</span>
+          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>N</span>
+        </button>
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        {!isMeetingDetailView && upcomingMeetings.length ? (
+          <button className={commandRailButtonClass} onClick={joinNextMeeting} type="button">
+            <span>Join next</span>
+            <span className={commandRailShortcutClass}>J</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? (
+          <Popover open={discussCommandOpen} onOpenChange={setDiscussCommandOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(commandRailButtonClass, discussCommandOpen && commandRailActiveButtonClass)}
+                disabled={!commandMeeting}
+                type="button"
+              >
+                <span>Discuss</span>
+                <span className={commandRailShortcutClass}>D</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[320px]">
+              <div className="space-y-3">
+                <div>
+                  <p className={sectionLabelClass}>Discuss this meeting</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Route {commandMeeting?.title ?? "this meeting"} into a Slack or email follow-up with the right teammate.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {(commandDiscussCandidates.length ? commandDiscussCandidates : contactCards.slice(0, 4)).map((contact) => (
+                    <button
+                      key={contact.id}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
+                      onClick={() => {
+                        setDiscussCommandOpen(false);
+                        toast("Discussion queued", {
+                          description: `${contact.name} can review ${commandMeeting?.title ?? "this meeting"} in Slack or email.`,
+                        });
+                      }}
+                      type="button"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{contact.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+                      </div>
+                      <ChatCircleTextIcon className="size-4 text-foreground/52" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        ) : null}
+        {isMeetingDetailView ? (
+          <button
+            className={cn(commandRailButtonClass, commandMeetingApproved && commandRailActiveButtonClass)}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && toggleApproval(commandMeeting.id)}
+            type="button"
+          >
+            <span>Approve</span>
+            <span className={commandRailShortcutClass}>A</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? (
+          <button
+            className={cn(commandRailButtonClass, commandMeetingReminded && commandRailActiveButtonClass)}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && toggleReminder(commandMeeting.id)}
+            type="button"
+          >
+            <span>Remind</span>
+            <span className={commandRailShortcutClass}>R</span>
+          </button>
+        ) : null}
+        {isMeetingDetailView ? <span className={commandRailDividerClass} aria-hidden="true" /> : null}
+        {isMeetingDetailView ? (
+          <button
+            className={commandRailButtonClass}
+            disabled={!commandMeeting}
+            onClick={() => commandMeeting && deleteMeetingRecord(commandMeeting.id)}
+            type="button"
+          >
+            <span>Delete</span>
+          </button>
+        ) : null}
+      </div>
+
+      <span className={commandRailDividerClass} aria-hidden="true" />
+
+      <div className={commandRailGroupClass}>
+        <button
+          aria-label="Open in Google Calendar"
+          className={commandRailIconButtonClass}
+          onClick={() =>
+            toast("Google Calendar", {
+              description: `${commandMeeting?.title ?? "Meeting"} can open in the calendar handoff next.`,
+            })
+          }
+          type="button"
+        >
+          <GoogleCalendar className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+  const meetingCommandDialog = (
+    <Dialog open={newMeetingDialogOpen} onOpenChange={setNewMeetingDialogOpen}>
+      <DialogContent className="max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>New meeting</DialogTitle>
+          <DialogDescription>Create a lightweight meeting shell and drop it straight into the right folder journey.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <InputGroup className="h-10 bg-background">
+              <InputGroupInput
+                aria-label="Meeting title"
+                onChange={(event) => setDraftMeetingTitle(event.target.value)}
+                placeholder="Meeting title"
+                value={draftMeetingTitle}
+              />
+            </InputGroup>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select value={draftMeetingSpaceId} onValueChange={(value) => setDraftMeetingSpaceId(value as MeetingSpaceId)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customerSpaces
+                    .filter((space) => space.id !== "all")
+                    .map((space) => (
+                      <SelectItem key={space.id} value={space.id}>
+                        {space.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <InputGroup className="h-10 bg-background">
+                <InputGroupInput
+                  aria-label="Meeting start time"
+                  onChange={(event) => setDraftMeetingStartClock(event.target.value)}
+                  placeholder="4:30 PM"
+                  value={draftMeetingStartClock}
+                />
+              </InputGroup>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <InputGroup className="h-10 bg-background">
+                <InputGroupInput
+                  aria-label="Meeting duration"
+                  onChange={(event) => setDraftMeetingDuration(event.target.value)}
+                  placeholder="30 min"
+                  value={draftMeetingDuration}
+                />
+              </InputGroup>
+              <InputGroup className="h-10 bg-background">
+                <InputGroupInput
+                  aria-label="Meeting attendees"
+                  onChange={(event) => setDraftMeetingAttendees(event.target.value)}
+                  placeholder="Priya, Ganesh"
+                  value={draftMeetingAttendees}
+                />
+              </InputGroup>
+            </div>
+            <Button onClick={createMeetingRecord} type="button">
+              <CalendarPlusIcon data-icon="inline-start" /> Create meeting
+            </Button>
+          </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   return (
     <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
       <PageContainer className="h-full min-h-0">
-        <div className="grid h-full min-h-0 gap-2 xl:grid-cols-[292px_minmax(0,1fr)]">
-          <Surface className="flex min-h-0 flex-col overflow-hidden bg-background">
-            <div className="border-b border-border px-3 py-3">
-              <p className={sectionLabelClass}>Customer Spaces</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <SmallButton
-                  aria-label="Invite collaborators"
-                  onClick={() =>
-                    toast("Invite ready", {
-                      description: "This would invite collaborators into a shared customer folder.",
-                    })
-                  }
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <div className="shrink-0">{meetingCommandBar}</div>
+          <div
+            className={cn(
+              "grid min-h-0 flex-1 gap-4",
+              secondaryRailCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]",
+            )}
+          >
+          {!secondaryRailCollapsed ? (
+            <Surface className="flex min-h-0 flex-col overflow-hidden bg-background">
+              <div className="border-b border-border/60 px-4 py-4">
+                <InputGroup className="h-10 bg-background">
+                  <InputGroupAddon>
+                    <InputGroupText>
+                      <MagnifyingGlassIcon />
+                    </InputGroupText>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    aria-label="Search meetings, notes, or folders"
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search meetings, notes, or folders..."
+                    value={searchQuery}
+                  />
+                </InputGroup>
+                <ToggleGroup
+                  type="single"
+                  value={sidebarMode}
+                  onValueChange={(value) => {
+                    if (value === "folders" || value === "meetings") {
+                      setSidebarMode(value);
+                    }
+                  }}
+                  className="mt-3 grid w-full grid-cols-2 gap-1"
                 >
-                  <Users className="mr-2 h-3.5 w-3.5" /> Invite
-                </SmallButton>
-                <SmallButton
-                  active
-                  aria-label="Create quick note"
-                  onClick={() =>
-                    toast("Quick note created", {
-                      description: "A new scratchpad would open inside My notes.",
-                    })
-                  }
-                >
-                  <NotebookPen className="mr-2 h-3.5 w-3.5" /> Quick note
-                </SmallButton>
+                  <ToggleGroupItem value="folders" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
+                    <span>Folders</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
+                      {spacesWithCounts.filter((space) => space.segment === "folders").length}
+                    </span>
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="meetings" className="flex w-full min-w-0 items-center justify-center gap-2 px-3">
+                    <span>Meetings</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
+                      {spacesWithCounts.filter((space) => space.segment !== "folders").length}
+                    </span>
+                  </ToggleGroupItem>
+                </ToggleGroup>
               </div>
-            </div>
 
-            <div className="border-b border-border px-3 py-3">
-              <div className="flex items-center gap-2 border border-border bg-background px-3 py-2">
-                <Search className="h-4 w-4 text-foreground/70" />
-                <input
-                  aria-label="Search meetings"
-                  className="w-full bg-transparent text-sm text-foreground outline-none"
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search meetings, customers, or labels"
-                  value={searchQuery}
-                />
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto">
-              <div className="space-y-0">
-                {spacesWithCounts.map((space) => {
-                  const active = selectedSpaceId === space.id;
-                  const movableIndex = movableCustomerSpaces.findIndex((item) => item.id === space.id);
-                  const isMovable = movableIndex !== -1;
-                  return (
-                    <div
-                      key={space.id}
-                      className={cn(
-                        "group flex items-center gap-[var(--panel-row-gap)] border-b pl-3 pr-2 transition-colors",
-                        active
-                          ? "border-b-foreground bg-foreground text-background"
-                          : "border-b-border bg-background text-foreground hover:bg-[hsl(var(--foreground)/0.03)]",
-                        isMovable && "cursor-grab active:cursor-grabbing",
-                        draggingSpaceId === space.id && "opacity-60",
-                      )}
-                      draggable={isMovable}
-                      onDragEnd={() => setDraggingSpaceId(null)}
-                      onDragOver={(event) => {
-                        if (!isMovable || !draggingSpaceId || draggingSpaceId === space.id) return;
-                        event.preventDefault();
-                      }}
-                      onDragStart={() => {
-                        if (!isMovable) return;
-                        setDraggingSpaceId(space.id);
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (!isMovable || !draggingSpaceId) return;
-                        reorderSpace(draggingSpaceId, space.id);
-                        setDraggingSpaceId(null);
-                      }}
-                    >
-                      <button
-                        className="flex min-w-0 flex-1 items-center gap-[var(--panel-row-content-gap)] py-[var(--panel-row-y)] text-left"
-                        onClick={() => setSelectedSpaceId(space.id)}
-                        type="button"
-                      >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate font-mono text-[10px] uppercase tracking-[0.14em]">{space.name}</p>
-                          {space.locked ? <Lock className="h-3.5 w-3.5 shrink-0" /> : null}
-                          {space.shared ? <Users className="h-3.5 w-3.5 shrink-0" /> : null}
-                          {space.pinned ? <Pin className="h-3.5 w-3.5 shrink-0" /> : null}
-                        </div>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-5 px-3 py-3">
+                    <section>
+                      <div className="flex items-center justify-between px-1">
+                        <p className={sectionLabelClass}>{meetingScopeMeta.railLabel}</p>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{visibleScopes.length}</span>
                       </div>
-                      </button>
-                      <div className="flex items-center gap-1">
-                        {isMovable ? (
-                          <div className="flex items-center gap-0.5">
-                            <button
-                              aria-label={space.pinned ? `Unpin ${space.name}` : `Pin ${space.name}`}
+                      <div className="mt-2 space-y-2">
+                        {visibleScopes.map((space) => {
+                          const active = selectedSpaceId === space.id;
+                          const movableIndex = movableCustomerSpaces.findIndex((item) => item.id === space.id);
+                          const isMovable = movableIndex !== -1;
+                          return (
+                            <div
+                              key={space.id}
                               className={cn(
-                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
-                                active ? "text-background/80 hover:text-background" : "text-foreground/40 hover:text-foreground",
+                                "group flex items-start gap-2 rounded-xl border bg-background px-3 py-3 transition-colors",
+                                active
+                                  ? "border-primary/35 bg-background shadow-sm ring-1 ring-primary/15"
+                                  : "border-border/70 hover:border-border hover:bg-background",
+                                isMovable && "cursor-grab active:cursor-grabbing",
+                                draggingSpaceId === space.id && "opacity-60",
                               )}
-                              onClick={() => togglePinSpace(space.id)}
-                              type="button"
+                              draggable={isMovable}
+                              onDragEnd={() => setDraggingSpaceId(null)}
+                              onDragOver={(event) => {
+                                if (!isMovable || !draggingSpaceId || draggingSpaceId === space.id) return;
+                                event.preventDefault();
+                              }}
+                              onDragStart={() => {
+                                if (!isMovable) return;
+                                setDraggingSpaceId(space.id);
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                if (!isMovable || !draggingSpaceId) return;
+                                reorderSpace(draggingSpaceId, space.id);
+                                setDraggingSpaceId(null);
+                              }}
                             >
-                              <Pin className={cn("h-3.5 w-3.5", space.pinned && "fill-current")} />
-                            </button>
-                            <button
-                              aria-label={`Delete ${space.name}`}
-                              className={cn(
-                                "inline-flex h-[var(--panel-icon-button-size)] w-[var(--panel-icon-button-size)] items-center justify-center opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100",
-                                active ? "text-background/80 hover:text-background" : "text-foreground/36 hover:text-destructive",
-                              )}
-                              onClick={() => deleteSpace(space.id)}
-                              type="button"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              <button className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => selectSpace(space.id)} type="button">
+                                <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center", active ? "text-primary" : "text-foreground/60")}>
+                                  {renderFolderIcon(space.icon)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="truncate text-sm font-medium text-foreground">{space.name}</p>
+                                    {space.locked ? <LockIcon className="h-3.5 w-3.5 shrink-0 text-foreground/45" /> : null}
+                                    {space.shared ? <UsersIcon className="h-3.5 w-3.5 shrink-0 text-foreground/45" /> : null}
+                                    {space.pinned ? <PushPinIcon className="h-3.5 w-3.5 shrink-0 text-foreground/45" /> : null}
+                                  </div>
+                                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{space.description}</p>
+                                </div>
+                              </button>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <span
+                                  className={cn(
+                                    "rounded-md border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                                    active ? "border-primary/30 bg-primary/5 text-primary" : "border-border text-foreground/60",
+                                  )}
+                                >
+                                  {space.count}
+                                </span>
+                                {isMovable ? (
+                                  <>
+                                    <Button
+                                      aria-label={space.pinned ? `Unpin ${space.name}` : `Pin ${space.name}`}
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                                      onClick={() => togglePinSpace(space.id)}
+                                      type="button"
+                                    >
+                                      <PushPinIcon className={cn("h-3.5 w-3.5", space.pinned && "fill-current")} />
+                                    </Button>
+                                    <Button
+                                      aria-label={`Delete ${space.name}`}
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                                      onClick={() => deleteSpace(space.id)}
+                                      type="button"
+                                    >
+                                      <TrashIcon className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <Collapsible className="border-t border-border/60 pt-4" open={isCreateFolderExpanded} onOpenChange={setIsCreateFolderExpanded}>
+                      <div className="flex items-center justify-between px-1">
+                        <p className={sectionLabelClass}>{meetingScopeMeta.composerLabel}</p>
+                        <CollapsibleTrigger asChild>
+                          <Button size="sm" type="button" variant="outline">
+                            <FolderPlusIcon data-icon="inline-start" /> {meetingScopeMeta.triggerLabel}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                      <CollapsibleContent>
+                        <div className="mt-3 rounded-xl border border-border/70 bg-background px-3 py-3">
+                          <div className="grid gap-3">
+                            <div>
+                              <p className={sectionLabelClass}>{meetingScopeMeta.composerLabel}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">{meetingScopeMeta.helper}</p>
+                            </div>
+                            <InputGroup className="h-10 bg-background">
+                              <InputGroupInput
+                                aria-label="New folder name"
+                                onChange={(event) => setNewFolderName(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    createFolder();
+                                  }
+                                }}
+                                placeholder={meetingScopeMeta.namePlaceholder}
+                                value={newFolderName}
+                              />
+                            </InputGroup>
+
+                            {sidebarMode === "meetings" ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className={sectionLabelClass}>Recent contacts</p>
+                                  <span className="text-xs text-muted-foreground">Seed a company from connected contacts.</span>
+                                </div>
+                                <div className="grid gap-2">
+                                  {contactCards.slice(0, 4).map((contact) => (
+                                    <button
+                                      key={contact.id}
+                                      className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
+                                      onClick={() => applyCustomerSeed(contact.id)}
+                                      type="button"
+                                    >
+                                      <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary/60 text-xs font-medium text-foreground">
+                                          {getInitials(contact.company)}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-foreground">{contact.company}</p>
+                                          <p className="truncate text-xs text-muted-foreground">{contact.name} · {contact.role}</p>
+                                        </div>
+                                      </div>
+                                      <UsersIcon className="size-4 text-foreground/45" />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button className="justify-between" type="button" variant="outline">
+                                    <span className="inline-flex items-center gap-2">
+                                      {renderFolderIcon(newFolderIcon)}
+                                      {folderIconOptions.find((option) => option.value === newFolderIcon)?.label}
+                                    </span>
+                                    <CaretDownIcon className="size-4" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-[220px]">
+                                  <div className="space-y-3">
+                                    <div>
+                                      <p className={sectionLabelClass}>Icon picker</p>
+                                      <p className="mt-1 text-sm text-muted-foreground">Pick the phosphor icon that best matches this folder journey.</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {folderIconOptions.map((option) => (
+                                        <Button
+                                          key={option.value}
+                                          className="justify-start"
+                                          onClick={() => setNewFolderIcon(option.value)}
+                                          type="button"
+                                          variant={newFolderIcon === option.value ? "default" : "outline"}
+                                        >
+                                          {renderFolderIcon(option.value)}
+                                          {option.label}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                              <InputGroup className="min-h-[88px] bg-background">
+                                <InputGroupTextarea
+                                  aria-label="Folder prompt"
+                                  className="min-h-[78px] resize-none"
+                                  onChange={(event) => setNewFolderPrompt(event.target.value)}
+                                  placeholder={meetingScopeMeta.promptPlaceholder}
+                                  rows={3}
+                                  value={newFolderPrompt}
+                                />
+                              </InputGroup>
+                            </div>
+
+                            {newFolderIcon === "people" ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className={sectionLabelClass}>Contacts</p>
+                                  <span className="text-xs text-muted-foreground">Pick who this shared folder is for.</span>
+                                </div>
+                                {selectedNewFolderMembers.length ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {selectedNewFolderMembers.map((contact) => (
+                                      <button
+                                        key={contact.id}
+                                        className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-foreground"
+                                        onClick={() => toggleFolderMember(contact.id)}
+                                        type="button"
+                                      >
+                                        {contact.name}
+                                        <span className="text-foreground/42">×</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <div className="grid gap-2">
+                                  {contactCards.slice(0, 6).map((contact) => {
+                                    const selected = newFolderMemberIds.includes(contact.id);
+                                    return (
+                                      <button
+                                        key={contact.id}
+                                        className={cn(
+                                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                                          selected ? "border-primary/25 bg-primary/5 ring-1 ring-primary/10" : "border-border/70 hover:bg-secondary/35",
+                                        )}
+                                        onClick={() => toggleFolderMember(contact.id)}
+                                        type="button"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-foreground">{contact.name}</p>
+                                          <p className="truncate text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+                                        </div>
+                                        {selected ? <CheckIcon className="size-4 text-primary" /> : <UsersIcon className="size-4 text-foreground/45" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <Button className="w-full" size="sm" onClick={createFolder} type="button">
+                              <FolderPlusIcon data-icon="inline-start" /> {meetingScopeMeta.submitLabel}
+                            </Button>
                           </div>
-                        ) : null}
-                        <span
-                          className={cn(
-                            "shrink-0 border px-[var(--panel-chip-padding-x)] py-[var(--panel-chip-padding-y)] font-mono text-[10px] uppercase tracking-[0.12em]",
-                            active ? "border-background/30 text-background" : "border-border text-foreground/65",
-                          )}
-                        >
-                          {space.count}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button
-                className="flex w-full items-center justify-between border-b border-dashed border-border px-3 py-[var(--panel-add-row-y)] text-left text-sm text-foreground/72 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
-                onClick={() => setIsCreateFolderOpen(true)}
-                type="button"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <FolderPlus className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" /> Add customer folder
-                </span>
-                <ChevronRight className="h-[var(--panel-add-icon-size)] w-[var(--panel-add-icon-size)]" />
-              </button>
-            </div>
-          </Surface>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                </div>
+              </ScrollArea>
+            </Surface>
+          ) : null}
 
           <Surface className="min-h-0 min-w-0 overflow-hidden bg-background">
             {isMeetingDetailView ? (
               routeMeeting ? (
                 <div className="flex h-full min-h-0 flex-col overflow-x-hidden">
-                  <div className="border-b border-border px-4 py-3 lg:px-4">
+                  <div className="border-b border-border/60 px-5 py-4 lg:px-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className={cn(sectionLabelClass)}>{selectedMeeting.customerName}</p>
-                        <h2 className="mt-1 text-[22px] leading-tight text-foreground">{selectedMeeting.title}</h2>
+                        <Breadcrumb>
+                          <BreadcrumbList>
+                            <BreadcrumbItem>
+                              <BreadcrumbLink asChild>
+                                <button
+                                  className="text-foreground/56 transition-colors hover:text-foreground"
+                                  onClick={closeMeetingDetail}
+                                  type="button"
+                                >
+                                  {detailBreadcrumbLabel}
+                                </button>
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                            <BreadcrumbSeparator />
+                            <BreadcrumbItem>
+                              <BreadcrumbPage>{selectedMeeting.kind === "quick_note" ? "Quick note" : "Meeting record"}</BreadcrumbPage>
+                            </BreadcrumbItem>
+                          </BreadcrumbList>
+                        </Breadcrumb>
+                        <h2 className="mt-4 text-[24px] leading-tight text-foreground">{selectedMeeting.title}</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {selectedMeeting.time} · {selectedMeeting.duration} · {selectedMeeting.participantsCount}{" "}
+                          {selectedMeeting.participantsCount === 1 ? "attendee" : "attendees"}
+                        </p>
                       </div>
-                      <button
-                        className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-foreground/58 transition-colors hover:text-foreground"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-0 text-[11px] uppercase tracking-[0.12em] text-foreground/58 hover:bg-transparent hover:text-foreground"
                         onClick={closeMeetingDetail}
                         type="button"
                       >
-                        Back to folder <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-                      </button>
+                        Back to landing <CaretRightIcon className="h-3.5 w-3.5 rotate-180" />
+                      </Button>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-foreground/78">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <CalendarDays className="h-3.5 w-3.5" /> {selectedMeeting.time}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <Clock3 className="h-3.5 w-3.5" /> {selectedMeeting.duration}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--foreground)/0.06)] px-2.5 py-1">
-                        <Users className="h-3.5 w-3.5" /> {selectedMeeting.participantsCount} attendees
-                      </span>
-                    </div>
-                    <LabelCreatorPlaceholder labels={selectedMeeting.labels} />
-                  </div>
+                    <div className="mt-4 flex items-center gap-3">
+                      <AvatarGroup>
+                        {selectedMeeting.participants.slice(0, 3).map((person) => renderPersonAvatar(person))}
+                        {selectedMeeting.participants.length > 3 ? (
+                          <AvatarGroupCount>+{selectedMeeting.participants.length - 3}</AvatarGroupCount>
+                        ) : null}
+                      </AvatarGroup>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{selectedMeeting.participants.join(", ")}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {selectedMeeting.customerName} · {selectedMeeting.kind === "quick_note" ? "Internal working note" : "Shared meeting continuity"}
+                        </p>
+                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" type="button">
+                            <PaperPlaneTiltIcon data-icon="inline-start" /> Share
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-[360px]">
+                          <div className="space-y-4">
+                            <div>
+                              <p className={sectionLabelClass}>Share meeting</p>
+                              <p className="mt-1 text-sm text-muted-foreground">Send this note over connected apps or add more contacts before sharing.</p>
+                            </div>
 
-                  <div className="min-h-0 flex-1 overflow-auto px-4 py-3 lg:px-4">
-                    <div className="grid gap-2 xl:grid-cols-[1.22fr_0.94fr]">
-                      <div className="space-y-2">
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Decisions</p>
-                          <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/86">
-                            {selectedMeeting.decisions.map((item) => (
-                              <p key={item}>- {item}</p>
-                            ))}
-                          </div>
-                        </section>
-
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Action Items</p>
-                          <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/86">
-                            {selectedMeeting.actionItems.map((item) => (
-                              <p key={item}>- {item}</p>
-                            ))}
-                          </div>
-                        </section>
-
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Transcript</p>
-                          <div className="mt-2 divide-y divide-border border border-border/80">
-                            {selectedMeeting.transcript.map((entry, index) => (
-                              <div key={`${entry.speaker}-${index}`} className="px-3 py-3 text-sm leading-6 text-foreground/86">
-                                <span className="font-medium text-foreground">{entry.speaker}:</span> {entry.text}
+                            {shareRecipients.length ? (
+                              <div className="flex flex-wrap gap-2">
+                                {shareRecipients.map((contact) => (
+                                  <button
+                                    key={contact.id}
+                                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-foreground"
+                                    onClick={() => removeShareRecipient(contact.id)}
+                                    type="button"
+                                  >
+                                    {contact.name}
+                                    <span className="text-foreground/42">×</span>
+                                  </button>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </section>
-                      </div>
+                            ) : null}
 
-                      <div className="space-y-2">
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Prep Summary</p>
-                          <p className="mt-2 text-sm leading-6 text-foreground/82">{selectedMeeting.prepSummary}</p>
-                        </section>
+                            <InputGroup className="h-10 bg-background">
+                              <InputGroupAddon>
+                                <InputGroupText>
+                                  <MagnifyingGlassIcon />
+                                </InputGroupText>
+                              </InputGroupAddon>
+                              <InputGroupInput
+                                aria-label="Search contacts to share with"
+                                onChange={(event) =>
+                                  setShareQueryByMeeting({
+                                    ...shareQueryByMeeting,
+                                    [selectedMeeting.id]: event.target.value,
+                                  })
+                                }
+                                placeholder="Add more contacts"
+                                value={shareQuery}
+                              />
+                            </InputGroup>
 
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Risks And Blockers</p>
-                          <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/82">
-                            {(selectedMeeting.risksAndBlockers ?? selectedMeeting.prepChecklist).map((item) => (
-                              <p key={item}>- {item}</p>
-                            ))}
-                          </div>
-                        </section>
+                            <div className="max-h-40 space-y-1 overflow-auto">
+                              {availableShareContacts.slice(0, 6).map((contact) => (
+                                <button
+                                  key={contact.id}
+                                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-left transition-colors hover:bg-secondary/35"
+                                  onClick={() => addShareRecipient(contact.id)}
+                                  type="button"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium text-foreground">{contact.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{contact.role} · {contact.company}</p>
+                                  </div>
+                                  <span className="text-xs uppercase tracking-[0.12em] text-foreground/52">Add</span>
+                                </button>
+                              ))}
+                            </div>
 
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Key Insights</p>
-                          <div className="mt-2 space-y-2 text-sm leading-6 text-foreground/82">
-                            {(selectedMeeting.keyInsights ?? selectedMeeting.highlights).map((item) => (
-                              <p key={item}>- {item}</p>
-                            ))}
+                            <div className="grid grid-cols-3 gap-2">
+                              <Button variant="outline" size="sm" onClick={() => triggerShare("email")} type="button">
+                                <EnvelopeSimpleIcon data-icon="inline-start" /> Email
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => triggerShare("link")} type="button">
+                                <CopyIcon data-icon="inline-start" /> Copy link
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => triggerShare("slack")} type="button">
+                                <SlackLogoIcon data-icon="inline-start" /> Slack
+                              </Button>
+                            </div>
                           </div>
-                        </section>
-
-                        <section className="border border-border/80 bg-background p-3">
-                          <p className={sectionLabelClass}>Topics Covered</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {(selectedMeeting.topicsCovered ?? selectedMeeting.labels).map((item) => (
-                              <StatusPill key={item} tone="muted">
-                                {item}
-                              </StatusPill>
-                            ))}
-                          </div>
-                        </section>
-                      </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
 
-                  <div className="border-t border-border px-4 py-2.5 lg:px-4 overflow-x-hidden">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <input
-                        aria-label="Ask about this meeting"
-                        className="h-10 min-w-0 flex-1 border border-border bg-background px-3 text-sm text-foreground outline-none"
-                        onChange={(event) => setMeetingChatPrompt(event.target.value)}
-                        placeholder="Ask follow-up questions for this meeting..."
-                        value={meetingChatPrompt}
-                      />
-                      <SmallButton
-                        active
-                        className="shrink-0"
-                        onClick={() =>
-                          toast("Meeting prompt saved", {
-                            description: "Meeting follow-up prompts stay inside this workspace in the next pass.",
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <div className="mx-auto w-full max-w-4xl px-5 py-5">
+                      <Tabs
+                        value={selectedDetailTab}
+                        onValueChange={(value) =>
+                          setDetailTabByMeeting({
+                            ...detailTabByMeeting,
+                            [selectedMeeting.id]: value as MeetingDetailTab,
                           })
                         }
                       >
-                        <AudioLines className="mr-2 h-3.5 w-3.5" /> Save prompt
-                      </SmallButton>
+                        <TabsList className="grid w-full max-w-md grid-cols-3 rounded-none">
+                          <TabsTrigger value="summary">Summary</TabsTrigger>
+                          <TabsTrigger value="transcript">Transcript</TabsTrigger>
+                          <TabsTrigger value="files">Files</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="summary" className="mt-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
+                            <RichOperatorEditor
+                              className="border-0 bg-transparent shadow-none"
+                              minHeight={440}
+                              onChange={(value) =>
+                                setSummaryDocumentByMeeting({
+                                  ...summaryDocumentByMeeting,
+                                  [selectedMeeting.id]: value,
+                                })
+                              }
+                              placeholder="Type / for headings, lists, quotes, dividers, or diagrams."
+                              showCopyActions={false}
+                              showMarkdownCopy={false}
+                              value={detailSummaryDocument}
+                            />
+
+                            <div className="mt-5 border-t border-border/60 pt-5">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className={sectionLabelClass}>Task nudges</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Keep the task push lightweight. Nudge action items into Tasks without another routing form.
+                                  </p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">{selectedMeeting.customerName}</span>
+                              </div>
+
+                              <div className="mt-4 space-y-2">
+                                {detailChecklist.map((item, index) => (
+                                  <div key={`${selectedMeeting.id}-task-${index}`} className="flex items-start gap-3 border border-border/70 bg-background px-3 py-3">
+                                    <Checkbox
+                                      checked={item.checked}
+                                      className="mt-1"
+                                      onCheckedChange={(checked) => updateChecklist(index, { checked: checked === true })}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <input
+                                        aria-label={`Action item ${index + 1}`}
+                                        className="w-full border-0 bg-transparent px-0 text-sm leading-7 text-foreground outline-none placeholder:text-muted-foreground"
+                                        onChange={(event) => updateChecklist(index, { text: event.target.value })}
+                                        value={item.text}
+                                      />
+                                      <p className="mt-1 text-xs text-muted-foreground">Open · High · Today</p>
+                                    </div>
+                                    <Button
+                                      aria-label={`Nudge ${item.text} into tasks`}
+                                      className="shrink-0"
+                                      onClick={() => routeChecklistTask(index)}
+                                      size="icon-sm"
+                                      type="button"
+                                      variant="ghost"
+                                    >
+                                      <NotePencilIcon />
+                                    </Button>
+                                    {item.routed ? <Badge variant="secondary">Added</Badge> : null}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </section>
+                        </TabsContent>
+
+                        <TabsContent value="transcript" className="mt-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
+                            <p className={sectionLabelClass}>Transcript</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Keep the raw meeting language readable without the heavy grey treatment.</p>
+                            <div className="mt-4 space-y-3">
+                              {selectedMeeting.transcript.map((entry, index) => (
+                                <div key={`${entry.speaker}-${index}`} className="border border-border/70 bg-background px-4 py-4">
+                                  <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{entry.speaker}</p>
+                                  <p className="mt-2 text-sm leading-7 text-foreground/86">{entry.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        </TabsContent>
+
+                        <TabsContent value="files" className="mt-5">
+                          <section className="border border-border/70 bg-card px-6 py-6">
+                            <p className={sectionLabelClass}>Files</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Screenshots, documents, sheets, and linked artifacts attached to this meeting.</p>
+                            <div className="mt-4 space-y-3">
+                              {selectedMeetingFiles.length ? (
+                                selectedMeetingFiles.map((file) => (
+                                  <div key={file.name} className="flex items-center gap-3 border border-border/70 bg-background px-4 py-4">
+                                    <div className="flex size-9 shrink-0 items-center justify-center border border-border/70 bg-card text-foreground/62">
+                                      {fileKindIcon(file.kind)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                                      <p className="truncate text-xs text-muted-foreground">
+                                        Added by {file.addedBy} · {file.addedAt}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
+                                  No files attached yet.
+                                </div>
+                              )}
+                            </div>
+                          </section>
+                        </TabsContent>
+                      </Tabs>
                     </div>
+                  </div>
+
+                  <div className="border-t border-border/60 px-5 py-3 lg:px-5 overflow-x-hidden">
+                    <InputGroup className="h-10 bg-background">
+                      <InputGroupInput
+                        aria-label="Ask about this meeting"
+                        onChange={(event) => setMeetingQuestion(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            toast("Question sent", {
+                              description: `Q&A is ready to reason over ${selectedMeeting.title}.`,
+                            });
+                            setMeetingQuestion("");
+                          }
+                        }}
+                        placeholder="Ask this meeting anything..."
+                        value={meetingQuestion}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            toast("Question sent", {
+                              description: `Q&A is ready to reason over ${selectedMeeting.title}.`,
+                            });
+                            setMeetingQuestion("");
+                          }}
+                          type="button"
+                        >
+                          <PaperPlaneTiltIcon data-icon="inline-start" /> Ask
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
                   </div>
                 </div>
               ) : (
                 <div className="px-5 py-6">
-                  <button
-                    className="inline-flex items-center gap-2 text-sm text-foreground/65 transition-colors hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-0 text-sm text-foreground/65 hover:bg-transparent hover:text-foreground"
                     onClick={closeMeetingDetail}
                     type="button"
                   >
-                    <ChevronRight className="h-4 w-4 rotate-180" /> Back to meetings
-                  </button>
+                    <CaretRightIcon className="h-4 w-4 rotate-180" /> Back to meetings
+                  </Button>
                   <p className="mt-4 text-sm text-foreground/72">This meeting could not be found.</p>
                 </div>
               )
             ) : (
-              <div className="flex h-[calc(100vh-12rem)] min-h-[30rem] flex-col overflow-hidden">
-                <div className="border-b border-border px-4 py-3 lg:px-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className={sectionLabelClass}>Meeting Space</p>
-                    <h2 className="mt-1 text-[20px] leading-tight text-foreground">{selectedSpace.name}</h2>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <SmallButton onClick={() => toast("Share ready", { description: `Sharing is prepared for ${selectedSpace.name}.` })}>
-                      <Share2 className="mr-2 h-3.5 w-3.5" /> Share
-                    </SmallButton>
-                    <SmallButton onClick={() => toast("Link copied", { description: "Folder link copied to clipboard." })}>
-                      <Link2 className="mr-2 h-3.5 w-3.5" /> Link
-                    </SmallButton>
-                    <SmallButton onClick={() => toast("Integrations", { description: "Folder integrations panel is ready." })}>
-                      <SearchCheck className="mr-2 h-3.5 w-3.5" /> Integrations
-                    </SmallButton>
-                  </div>
-                </div>
-                </div>
-
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
                 <div
                   className={cn(
-                    "min-h-0 flex-1 overflow-hidden px-4 lg:px-4",
+                    "min-h-0 flex-1 overflow-hidden px-4 lg:px-5",
                     folderCanvasMode === "note" && generatedFolderNote ? "" : "py-3",
                   )}
                 >
-                {folderCanvasMode === "note" && generatedFolderNote ? (
-                  <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-                    <div className="border-b border-border px-4 py-1.5">
-                      <div className="flex items-start gap-2 text-[12px] leading-5 text-foreground/50">
-                        <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-foreground/42">Prompt</span>
-                        <span className="shrink-0 text-foreground/36">--</span>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              "text-[12px] leading-5 text-foreground/56",
-                              !isGeneratedPromptExpanded &&
-                                "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
-                            )}
-                          >
-                            {generatedFolderNote.prompt}
-                          </p>
-                        </div>
-                        {generatedFolderNote.prompt.length > 120 ? (
-                          <button
-                            aria-label={isGeneratedPromptExpanded ? "Collapse prompt" : "Expand prompt"}
-                            className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.08em] text-foreground/36 transition-colors hover:text-foreground/68"
-                            onClick={() => setIsGeneratedPromptExpanded((expanded) => !expanded)}
+                  {folderCanvasMode === "note" && generatedFolderNote ? (
+                    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+                      <div className="border-b border-border/60 px-4 py-2">
+                        <div className="flex items-start gap-2 text-[12px] leading-5 text-foreground/50">
+                          <span className="shrink-0 font-mono uppercase tracking-[0.08em] text-foreground/42">Prompt</span>
+                          <span className="shrink-0 text-foreground/36">--</span>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={cn(
+                                "text-[12px] leading-5 text-foreground/56",
+                                !isGeneratedPromptExpanded &&
+                                  "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
+                              )}
+                            >
+                              {generatedFolderNote.prompt}
+                            </p>
+                          </div>
+                          {generatedFolderNote.prompt.length > 120 ? (
+                            <Button
+                              aria-label={isGeneratedPromptExpanded ? "Collapse prompt" : "Expand prompt"}
+                              variant="ghost"
+                              size="sm"
+                              className="mt-0.5 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em] text-foreground/36 hover:bg-transparent hover:text-foreground/68"
+                              onClick={() => setIsGeneratedPromptExpanded((expanded) => !expanded)}
+                              type="button"
+                            >
+                              <CaretDownIcon className={cn("h-3 w-3 transition-transform", isGeneratedPromptExpanded && "rotate-180")} />
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ml-1 shrink-0 px-1 text-xs uppercase tracking-[0.1em] text-foreground/58 hover:bg-transparent hover:text-foreground"
+                            onClick={() => setFolderCanvasMode("workspace")}
                             type="button"
                           >
-                            <ChevronsDown className={cn("h-3 w-3 transition-transform", isGeneratedPromptExpanded && "rotate-180")} />
-                          </button>
-                        ) : null}
-                        <button
-                          className="ml-1 inline-flex shrink-0 items-center gap-1 text-xs uppercase tracking-[0.1em] text-foreground/58 transition-colors hover:text-foreground"
-                          onClick={() => setFolderCanvasMode("workspace")}
-                          type="button"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-                          Back
-                        </button>
+                            <CaretRightIcon className="h-3.5 w-3.5 rotate-180" />
+                            Back
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="meeting-history-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3">
+                        <div className="space-y-3 px-4">
+                          <div className="surface-card rounded-xl p-4">
+                            <p className={sectionLabelClass}>{generatedFolderNote.contextLabel}</p>
+                            <h3 className="mt-2 text-lg text-foreground">{generatedFolderNote.title}</h3>
+                          </div>
+                          {generatedFolderNote.sections.map((section, index) => (
+                            <section
+                              key={section.heading}
+                              className={cn(
+                                "pt-3",
+                                index > 0 && "border-t border-border/70",
+                                index === 0 && "pt-0",
+                              )}
+                            >
+                              <p className={sectionLabelClass}>{section.heading}</p>
+                              <div className="mt-2 space-y-1.5">
+                                {section.items.map((item) => (
+                                  <p key={item} className="text-sm leading-6 text-foreground/84">
+                                    - {item}
+                                  </p>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="border-t border-border/60 px-4 py-2">
+                        <InputGroup className="h-11 bg-background">
+                          <InputGroupTextarea
+                            aria-label="Continue generated note"
+                            className="h-11 min-w-0 w-full resize-none overflow-hidden py-2 leading-6 [field-sizing:fixed]"
+                            onChange={(event) => setGeneratedNoteFollowUpPrompt(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                                continueGeneratedNote();
+                              }
+                            }}
+                            placeholder="Continue this note..."
+                            rows={1}
+                            value={generatedNoteFollowUpPrompt}
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupButton
+                              aria-label="Record note follow-up"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() =>
+                                toast("Voice capture", {
+                                  description: "Voice capture can be connected into this follow-up field next.",
+                                })
+                              }
+                              type="button"
+                            >
+                              <MicrophoneIcon />
+                            </InputGroupButton>
+                            <InputGroupButton
+                              aria-label="Send note follow-up"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={continueGeneratedNote}
+                              type="button"
+                            >
+                              <PaperPlaneTiltIcon />
+                            </InputGroupButton>
+                          </InputGroupAddon>
+                        </InputGroup>
                       </div>
                     </div>
-                    <div className="meeting-history-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3">
-                      <div className="space-y-3 px-4">
-                        {generatedFolderNote.sections.map((section, index) => (
-                          <section
-                            key={section.heading}
-                            className={cn(
-                              "pt-3",
-                              index > 0 && "border-t border-border/70",
-                              index === 0 && "pt-0",
-                            )}
-                          >
-                            <p className={sectionLabelClass}>{section.heading}</p>
-                            <div className="mt-2 space-y-1.5">
-                              {section.items.map((item) => (
-                                <p key={item} className="text-sm leading-6 text-foreground/84">
-                                  - {item}
-                                </p>
+                  ) : (
+                    <div className="flex h-full min-h-0 flex-col">
+                      <ScrollArea className="min-h-0 flex-1">
+                        <div className="space-y-6 pb-4">
+                          {upcomingMeetings.length ? (
+                            <section>
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className={sectionLabelClass}>Upcoming today</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">Keep the next calls visible before you open a meeting.</p>
+                                </div>
+                                {selectedSpaceId !== "all" ? (
+                                  <Badge variant="outline" className="gap-1.5 px-2.5 py-1">
+                                    <FolderOpenIcon className="h-3.5 w-3.5" /> {selectedSpace.name}
+                                  </Badge>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-3 overflow-x-auto">
+                                <div className="flex gap-3 pb-2">
+                                  {upcomingMeetings.map((meeting, index) => {
+                                    const featured = index === 0;
+                                    return (
+                                      <button
+                                        key={meeting.id}
+                                        className={cn(
+                                          "min-w-[272px] border px-4 py-4 text-left transition-colors",
+                                          featured
+                                            ? "border-primary bg-primary text-primary-foreground"
+                                            : "border-border/70 bg-background hover:bg-secondary/35",
+                                        )}
+                                        onClick={() => openMeetingDetail(meeting.id)}
+                                        type="button"
+                                      >
+                                        <div className={cn("flex items-center justify-between gap-3 text-xs", featured ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                                          <span className="inline-flex items-center gap-1.5">
+                                            <ClockIcon className="h-3.5 w-3.5" /> {meeting.startClock}
+                                          </span>
+                                          <span className="inline-flex items-center gap-1.5">
+                                            <ClockIcon className="h-3.5 w-3.5" /> {meeting.duration}
+                                          </span>
+                                          {meeting.nextJoinIn ? (
+                                            <span
+                                              className={cn(
+                                                "rounded-sm px-2 py-1 text-[10px] uppercase tracking-[0.1em]",
+                                                featured ? "bg-primary-foreground/15 text-primary-foreground" : "bg-amber-500/10 text-amber-700",
+                                              )}
+                                            >
+                                              {meeting.nextJoinIn}
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        <h3 className="mt-4 text-xl leading-tight">{meeting.title}</h3>
+                                        <p className={cn("mt-3 text-sm", featured ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                                          {meeting.customerName}
+                                        </p>
+                                        <div className="mt-5 flex items-center justify-between gap-3">
+                                          <Badge variant={featured ? "secondary" : "outline"}>{meeting.stage}</Badge>
+                                          <span className={cn("inline-flex items-center gap-1 text-sm", featured ? "text-primary-foreground" : "text-amber-700")}>
+                                            <CalendarBlankIcon className="h-3.5 w-3.5" /> Join
+                                          </span>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </section>
+                          ) : null}
+
+                          <section className="space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className={sectionLabelClass}>Timeline</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Grouped into today, upcoming, and previous so each folder scope stays scan-first.
+                                  </p>
+                                </div>
+                                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">
+                                  {landingTimelineSections.reduce((count, section) => count + section.meetings.length, 0)} items
+                                </span>
+                              </div>
+
+                              {landingTimelineSections.map((section) => (
+                                <Collapsible key={section.key} open={timelineSectionOpen[section.key]} onOpenChange={() => toggleTimelineSection(section.key)}>
+                                  <div className="overflow-hidden border border-border/70 bg-background">
+                                    <CollapsibleTrigger asChild>
+                                      <button className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" type="button">
+                                        <div>
+                                          <p className={sectionLabelClass}>{section.label}</p>
+                                          <p className="mt-1 text-sm text-muted-foreground">
+                                            {section.key === "today"
+                                              ? "Upcoming calls, quick notes, and operator continuity."
+                                              : section.key === "upcoming"
+                                                ? "The next calls stacked underneath the folder view."
+                                                : "Previously happened notes and completed meetings."}
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{section.meetings.length}</span>
+                                          <CaretDownIcon className={cn("h-4 w-4 text-foreground/48 transition-transform", timelineSectionOpen[section.key] && "rotate-180")} />
+                                        </div>
+                                      </button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="border-t border-border/60">
+                                      {section.meetings.length ? (
+                                        section.meetings.map((meeting) => (
+                                          <button
+                                            key={meeting.id}
+                                            className="flex w-full items-center gap-4 border-b border-border/60 px-4 py-4 text-left last:border-b-0 hover:bg-secondary/35"
+                                            onClick={() => openMeetingDetail(meeting.id)}
+                                            type="button"
+                                          >
+                                            <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-medium", getMeetingAccent(meeting))}>
+                                              {meeting.customerName.slice(0, 1)}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <p className="truncate text-[15px] font-medium text-foreground">{meeting.title}</p>
+                                              <p className="mt-1 truncate text-sm text-muted-foreground">
+                                                {meeting.owner}
+                                                {meeting.participants.length > 1 ? `, ${meeting.participants.slice(0, 2).join(", ")}` : ""}
+                                              </p>
+                                              <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                <FolderIcon className="h-3.5 w-3.5" /> {meeting.customerName}
+                                              </p>
+                                            </div>
+                                            <div className="shrink-0 text-right">
+                                              <p className="text-sm text-foreground/72">{meeting.startClock}</p>
+                                              <div className="mt-1 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                                                <span className={cn("size-2 rounded-full", meeting.stage === "Upcoming" ? "bg-amber-500" : "bg-emerald-500")} />
+                                                {meeting.stage === "Upcoming" ? "Upcoming" : "Done"}
+                                              </div>
+                                            </div>
+                                          </button>
+                                        ))
+                                      ) : (
+                                        <div className="px-4 py-5 text-sm text-muted-foreground">No meetings in this section yet.</div>
+                                      )}
+                                    </CollapsibleContent>
+                                  </div>
+                                </Collapsible>
                               ))}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="border-t border-border px-4 py-1.5">
-                      <div className="relative">
-                        <textarea
-                          aria-label="Continue generated note"
-                          className="h-11 min-w-0 w-full resize-none overflow-hidden bg-transparent py-2 pr-20 text-sm leading-6 text-foreground outline-none [field-sizing:fixed]"
-                          onChange={(event) => setGeneratedNoteFollowUpPrompt(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                              continueGeneratedNote();
-                            }
-                          }}
-                          placeholder="Continue this note..."
-                          rows={1}
-                          value={generatedNoteFollowUpPrompt}
-                        />
-                        <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
-                          <button
-                            aria-label="Record note follow-up"
-                            className="inline-flex h-8 w-8 items-center justify-center text-foreground/56 transition-colors hover:text-foreground"
-                            onClick={() =>
-                              toast("Voice capture", {
-                                description: "Voice capture can be connected into this follow-up field next.",
-                              })
-                            }
-                            type="button"
-                          >
-                            <Mic className="h-4 w-4" />
-                          </button>
-                          <button
-                            aria-label="Send note follow-up"
-                            className="inline-flex h-8 w-8 items-center justify-center text-foreground/72 transition-colors hover:text-foreground"
-                            onClick={continueGeneratedNote}
-                            type="button"
-                          >
-                            <Send className="h-4 w-4" />
-                          </button>
+                            </section>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex h-full min-h-0 flex-col">
-                <div className="border border-border/80 bg-background p-3">
-                  <div className="inline-flex items-center gap-2 text-sm text-foreground/76">
-                      <Folder className="h-4 w-4 text-foreground/68" />
-                      <span>{selectedSpace.name}</span>
-                  </div>
-                  <div className="mt-2.5">
-                    <div className="relative">
-                      <textarea
-                        aria-label="Ask about this folder and its meeting history"
-                        className="h-[64px] min-w-0 w-full resize-none overflow-y-auto bg-transparent py-1 pr-24 text-sm leading-6 text-foreground outline-none [field-sizing:fixed]"
-                        onChange={(event) => setFolderPrompt(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                            askFolder();
-                          }
-                        }}
-                        placeholder="Ask about this folder and its meeting history"
-                        rows={2}
-                        value={folderPrompt}
-                      />
-                      <div className="absolute bottom-1.5 right-0 flex items-center gap-1">
-                        <button
-                          aria-label="Record folder prompt"
-                          className="inline-flex h-8 w-8 items-center justify-center text-foreground/56 transition-colors hover:text-foreground"
-                          onClick={() =>
-                            toast("Voice capture", {
-                              description: "Voice capture can be connected into this prompt field next.",
-                            })
-                          }
-                          type="button"
-                        >
-                          <Mic className="h-4 w-4" />
-                        </button>
-                        <button
-                          aria-label="Send folder prompt"
-                          className="inline-flex h-8 w-8 items-center justify-center text-foreground/72 transition-colors hover:text-foreground"
-                          onClick={askFolder}
-                          type="button"
-                        >
-                          <Send className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </ScrollArea>
 
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <button
-                    className={railButtonClass}
-                    onClick={() => presetFolderPrompt("todos")}
-                    type="button"
-                  >
-                    <CheckSquare className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">List recent todos</span>
-                  </button>
-                  <button
-                    className={railButtonClass}
-                    onClick={() => presetFolderPrompt("summary")}
-                    type="button"
-                  >
-                    <AudioLines className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Summarize this folder</span>
-                  </button>
-                  <button className={railButtonClass} onClick={() => presetFolderPrompt("projects")} type="button">
-                    <SearchCheck className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Show in-flight projects</span>
-                  </button>
-                  <button
-                    className={railButtonClass}
-                    onClick={() => toast("Recipes", { description: "Folder recipes are ready for this space." })}
-                    type="button"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">All recipes</span>
-                  </button>
-                </div>
+                      <div className="border-t border-border/60 pb-4 pt-3">
+                        <div className="surface-card overflow-hidden rounded-xl">
+                          <div className="px-3 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-foreground/58">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-md bg-primary/8 px-2.5 py-1 text-primary">{landingPromptScope.label}</span>
+                                <span>{landingChatRange === "recent-25" ? "Recent meeting history in view." : "Using full meeting history."}</span>
+                              </div>
+                              <Select value={landingChatRange} onValueChange={(value) => setLandingChatRange(value as LandingChatRange)}>
+                                <SelectTrigger className="h-8 w-[128px]">
+                                  <SelectValue placeholder="Range" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="recent-25">Recent</SelectItem>
+                                  <SelectItem value="all">All</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                {showSuggestedNote ? (
-                  <div className="mt-2 flex items-center justify-between gap-3 border border-border/80 bg-background px-4 py-3">
-                    <p className="text-sm text-foreground">
-                      <span className="font-medium">1 note might belong to this folder.</span> Promote it into {selectedSpace.name} if this should become shared context.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <SmallButton
-                        active
-                        onClick={() => toast("Added note", { description: `${suggestedNote.title} moved into ${selectedSpace.name}.` })}
-                      >
-                        Add 1 note
-                      </SmallButton>
-                      <button
-                        aria-label="Dismiss suggestion"
-                        className="inline-flex h-8 w-8 items-center justify-center border border-border text-foreground/65 transition-colors hover:bg-[hsl(var(--foreground)/0.03)] hover:text-foreground"
-                        onClick={() => setSuggestionDismissed(true)}
-                        type="button"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="mt-3 flex shrink-0 flex-wrap gap-2 border-b border-border pb-3">
-                  {([
-                    ["notes", "Notes"],
-                    ["files", "Files"],
-                    ["people", "People"],
-                  ] as [FolderTab, string][]).map(([tabKey, tabLabel]) => (
-                    <SmallButton key={tabKey} active={folderTab === tabKey} onClick={() => setFolderTab(tabKey)}>
-                      {tabLabel}
-                    </SmallButton>
-                  ))}
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-hidden border border-border/70">
-                  <div className="meeting-history-scroll h-full overflow-y-auto overflow-x-hidden py-3">
-                  {folderTab === "notes"
-                    ? groupedHistory.map((group) => (
-                        <div key={group.dayGroup} className="mb-4 px-3">
-                          <p className={cn(sectionLabelClass, "px-1 pb-2")}>{group.dayGroup}</p>
-                          <div className="space-y-1.5">
-                            {group.meetings.map((meeting) => {
-                              const selected = meeting.id === selectedMeeting.id;
-                              return (
-                                <button
-                                  key={meeting.id}
-                                  className={cn(
-                                    "grid w-full gap-3 border px-3 py-3 text-left transition-colors md:grid-cols-[40px_minmax(0,1fr)_116px]",
-                                    selected
-                                      ? "border-foreground bg-[hsl(var(--foreground)/0.04)]"
-                                      : "border-border bg-background hover:bg-[hsl(var(--foreground)/0.03)]",
-                                  )}
-                                  onClick={() => openMeetingDetail(meeting.id)}
+                            <InputGroup className="mt-3 min-h-[86px] bg-background">
+                              <InputGroupTextarea
+                                aria-label="Ask about meeting folders and recent history"
+                                className="min-h-[72px] min-w-0 w-full resize-none overflow-y-auto py-2 leading-6 [field-sizing:fixed]"
+                                onChange={(event) => setFolderPrompt(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                                    askFolder();
+                                  }
+                                }}
+                                placeholder={`Ask across ${landingChatRange === "recent-25" ? "recent meetings in " : ""}${landingPromptScope.label.toLowerCase()}...`}
+                                rows={2}
+                                value={folderPrompt}
+                              />
+                              <InputGroupAddon align="block-end" className="justify-end">
+                                <InputGroupButton
+                                  aria-label="Record landing prompt"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() =>
+                                    toast("Voice capture", {
+                                      description: "Voice capture can be connected into this prompt field next.",
+                                    })
+                                  }
                                   type="button"
                                 >
-                                  <div className="flex h-10 w-10 items-center justify-center border border-border bg-card text-foreground/72">
-                                    <NotebookPen className="h-4 w-4" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-[15px] leading-6 text-foreground">{meeting.title}</p>
-                                    <p className="mt-1 text-sm text-foreground/68">
-                                      {meeting.owner}
-                                      {meeting.participants.length > 1 ? `, ${meeting.participants.slice(1).join(", ")}` : ""}
-                                    </p>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {meeting.labels.map((label) => (
-                                        <StatusPill key={label} tone="muted">
-                                          {label}
-                                        </StatusPill>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <div className="text-left text-sm text-foreground/68 md:text-right">
-                                    <p>{meeting.startClock}</p>
-                                    <p className="mt-1 inline-flex items-center gap-1 md:justify-end">
-                                      <Folder className="h-3.5 w-3.5" /> {meeting.customerName}
-                                    </p>
-                                    <p className="mt-1">{meeting.duration}</p>
-                                  </div>
-                                </button>
-                              );
-                            })}
+                                  <MicrophoneIcon />
+                                </InputGroupButton>
+                                <InputGroupButton
+                                  aria-label="Send landing prompt"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => askFolder()}
+                                  type="button"
+                                >
+                                  <PaperPlaneTiltIcon />
+                                </InputGroupButton>
+                              </InputGroupAddon>
+                            </InputGroup>
                           </div>
                         </div>
-                      ))
-                    : null}
-
-                  {folderTab === "notes" && !groupedHistory.length ? (
-                    <p className="px-6 py-4 text-sm text-foreground/68">No notes in this folder yet.</p>
-                  ) : null}
-
-                  {folderTab === "files" ? (
-                    <div className="space-y-2 px-3">
-                      {folderFiles.map((file) => (
-                        <div key={file.id} className="flex items-center justify-between border border-border bg-background px-4 py-3">
-                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                            <Files className="h-4 w-4 text-foreground/60" /> {file.name}
-                          </p>
-                          <p className="text-sm text-foreground/68">{file.time}</p>
-                        </div>
-                      ))}
+                      </div>
                     </div>
-                  ) : null}
-
-                  {folderTab === "people" ? (
-                    <div className="space-y-2 px-3">
-                      {folderPeople.map((person) => (
-                        <div key={person} className="flex items-center justify-between border border-border bg-background px-4 py-3">
-                          <p className="inline-flex items-center gap-2 text-sm text-foreground">
-                            <Users className="h-4 w-4 text-foreground/60" /> {person}
-                          </p>
-                          <p className="text-sm text-foreground/68">Member</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  </div>
-                </div>
-                  </div>
-                )}
+                  )}
                 </div>
               </div>
             )}
           </Surface>
+          </div>
+          {meetingCommandDialog}
         </div>
       </PageContainer>
-      {isCreateFolderOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/10 px-4">
-          <div className="w-full max-w-md border border-border bg-background shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-            <div className="border-b border-border px-4 py-3">
-              <p className={sectionLabelClass}>Create Folder</p>
-              <h3 className="mt-1 text-base text-foreground">Add customer folder</h3>
-            </div>
-            <div className="px-4 py-4">
-              <input
-                aria-label="New customer folder name"
-                className="h-11 w-full border border-border bg-background px-3 text-sm text-foreground outline-none"
-                onChange={(event) => setNewFolderName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    createFolder();
-                  }
-                }}
-                placeholder="Folder name"
-                value={newFolderName}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-              <SmallButton
-                onClick={() => {
-                  setIsCreateFolderOpen(false);
-                  setNewFolderName("");
-                }}
-              >
-                Cancel
-              </SmallButton>
-              <SmallButton active onClick={createFolder}>
-                Create
-              </SmallButton>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, List, ListOrdered, Minus, Pilcrow, Quote, Shapes, Type } from "lucide-react";
+import {
+  CopyIcon,
+  ListBulletsIcon,
+  ListNumbersIcon,
+  MinusIcon,
+  QuotesIcon,
+  ShapesIcon,
+  TextTIcon,
+} from "@phosphor-icons/react";
 
-import { SmallButton } from "@/components/ubik-primitives";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type EditorCommand = {
@@ -25,7 +40,7 @@ const commands: EditorCommand[] = [
     label: "Heading",
     trigger: "heading",
     aliases: ["heading", "h1", "title"],
-    icon: <Type className="h-3.5 w-3.5" />,
+    icon: <TextTIcon />,
     template: "## Heading\n",
   },
   {
@@ -33,7 +48,7 @@ const commands: EditorCommand[] = [
     label: "Subheading",
     trigger: "subheading",
     aliases: ["subheading", "h2", "subtitle"],
-    icon: <Pilcrow className="h-3.5 w-3.5" />,
+    icon: <TextTIcon />,
     template: "### Subheading\n",
   },
   {
@@ -41,7 +56,7 @@ const commands: EditorCommand[] = [
     label: "Bulleted List",
     trigger: "bullet",
     aliases: ["bullet", "list", "ul"],
-    icon: <List className="h-3.5 w-3.5" />,
+    icon: <ListBulletsIcon />,
     template: "- Item\n",
   },
   {
@@ -49,7 +64,7 @@ const commands: EditorCommand[] = [
     label: "Numbered List",
     trigger: "numbered",
     aliases: ["numbered", "list", "ol", "number"],
-    icon: <ListOrdered className="h-3.5 w-3.5" />,
+    icon: <ListNumbersIcon />,
     template: "1. Item\n",
   },
   {
@@ -57,7 +72,7 @@ const commands: EditorCommand[] = [
     label: "Quote",
     trigger: "quote",
     aliases: ["quote", "callout"],
-    icon: <Quote className="h-3.5 w-3.5" />,
+    icon: <QuotesIcon />,
     template: "> Note\n",
   },
   {
@@ -65,7 +80,7 @@ const commands: EditorCommand[] = [
     label: "Divider",
     trigger: "divider",
     aliases: ["divider", "line", "separator"],
-    icon: <Minus className="h-3.5 w-3.5" />,
+    icon: <MinusIcon />,
     template: "---\n",
   },
   {
@@ -73,7 +88,7 @@ const commands: EditorCommand[] = [
     label: "Diagram Block",
     trigger: "diagram",
     aliases: ["diagram", "mermaid", "flow"],
-    icon: <Shapes className="h-3.5 w-3.5" />,
+    icon: <ShapesIcon />,
     template: "```mermaid\ngraph LR\nA[Start] --> B[Decision]\n```\n",
   },
 ];
@@ -135,6 +150,7 @@ export function RichOperatorEditor({
   minHeight = 150,
   showInsertBlock = true,
   showMarkdownCopy = true,
+  showCopyActions = true,
   compactCopyActions = false,
   className,
 }: {
@@ -144,6 +160,7 @@ export function RichOperatorEditor({
   minHeight?: number;
   showInsertBlock?: boolean;
   showMarkdownCopy?: boolean;
+  showCopyActions?: boolean;
   compactCopyActions?: boolean;
   className?: string;
 }) {
@@ -159,7 +176,10 @@ export function RichOperatorEditor({
     if (!slashState.query) return commands;
 
     return commands.filter((command) => {
-      return command.trigger.startsWith(slashState.query) || command.aliases.some((alias) => alias.startsWith(slashState.query));
+      return (
+        command.trigger.startsWith(slashState.query) ||
+        command.aliases.some((alias) => alias.startsWith(slashState.query))
+      );
     });
   }, [slashState]);
 
@@ -209,117 +229,124 @@ export function RichOperatorEditor({
   };
 
   return (
-    <div className={cn("border border-border bg-card", className)}>
-      <div className="flex items-center justify-end gap-2 border-b border-border px-2 py-2">
-        <button
-          aria-label="Copy draft"
-          className={cn(
-            "inline-flex items-center gap-1 border border-border bg-background px-2 py-1 text-xs text-muted-foreground",
-            compactCopyActions ? "h-7 w-7 justify-center rounded-full border-border/70 p-0" : "",
-          )}
-          onClick={() => copyText("docs")}
-          title="Copy draft"
-          type="button"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {!compactCopyActions ? "Copy Docs-safe" : null}
-        </button>
-        {showMarkdownCopy ? (
-          <button
-            aria-label="Copy markdown"
-            className="inline-flex items-center gap-1 border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-            onClick={() => copyText("markdown")}
-            type="button"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            Copy Markdown
-          </button>
-        ) : null}
-      </div>
+    <Card size="sm" className={cn("surface-card gap-0 overflow-visible", className)}>
+      {showCopyActions ? (
+        <CardHeader className="border-b border-border/70 py-3">
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              aria-label="Copy draft"
+              className={cn(compactCopyActions ? "px-2" : "")}
+              onClick={() => copyText("docs")}
+              size={compactCopyActions ? "icon-sm" : "sm"}
+              title="Copy draft"
+              type="button"
+              variant="outline"
+            >
+              <CopyIcon data-icon={compactCopyActions ? undefined : "inline-start"} />
+              {!compactCopyActions ? "Copy Docs-safe" : null}
+            </Button>
+            {showMarkdownCopy ? (
+              <Button
+                aria-label="Copy markdown"
+                onClick={() => copyText("markdown")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <CopyIcon data-icon="inline-start" />
+                Copy Markdown
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
+      ) : null}
 
-      <div className="relative">
-        <textarea
-          ref={ref}
-          className="w-full resize-none bg-background px-3 py-3 text-sm text-foreground outline-none"
-          onChange={(event) => {
-            onChange(event.target.value);
-            syncCursorFromTarget(event.target);
-          }}
-          onClick={(event) => syncCursorFromTarget(event.currentTarget)}
-          onKeyDown={(event) => {
-            if (!menuOpen || filteredCommands.length === 0) {
-              if (event.key === "Escape") setMenuSuppressed(true);
-              return;
-            }
+      <CardContent className="relative py-3">
+        <div className="border border-border/70 bg-background p-3">
+          <Textarea
+            ref={ref}
+            className="min-h-0 w-full resize-none border-0 bg-transparent px-0 py-0 text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
+            onChange={(event) => {
+              onChange(event.target.value);
+              syncCursorFromTarget(event.target);
+            }}
+            onClick={(event) => syncCursorFromTarget(event.currentTarget)}
+            onKeyDown={(event) => {
+              if (!menuOpen || filteredCommands.length === 0) {
+                if (event.key === "Escape") setMenuSuppressed(true);
+                return;
+              }
 
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
-              setHighlighted((current) => (current + 1) % filteredCommands.length);
-              return;
-            }
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setHighlighted((current) => (current + 1) % filteredCommands.length);
+                return;
+              }
 
-            if (event.key === "ArrowUp") {
-              event.preventDefault();
-              setHighlighted((current) => (current - 1 + filteredCommands.length) % filteredCommands.length);
-              return;
-            }
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setHighlighted((current) => (current - 1 + filteredCommands.length) % filteredCommands.length);
+                return;
+              }
 
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              const selected = filteredCommands[Math.min(highlighted, filteredCommands.length - 1)];
-              if (selected) applyCommand(selected);
-              return;
-            }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                const selected = filteredCommands[Math.min(highlighted, filteredCommands.length - 1)];
+                if (selected) applyCommand(selected);
+                return;
+              }
 
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setMenuSuppressed(true);
-            }
-          }}
-          onSelect={(event) => syncCursorFromTarget(event.currentTarget)}
-          placeholder={placeholder ?? "Type / for headings, lists, quotes, dividers, or diagrams."}
-          style={{ minHeight }}
-          value={value}
-        />
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setMenuSuppressed(true);
+              }
+            }}
+            onSelect={(event) => syncCursorFromTarget(event.currentTarget)}
+            placeholder={placeholder ?? "Type / for headings, lists, quotes, dividers, or diagrams."}
+            style={{ minHeight }}
+            value={value}
+          />
+        </div>
 
         {menuOpen ? (
-          <div className="absolute left-3 right-3 top-3 z-20 border border-border bg-card">
-            <div className="border-b border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Commands
-            </div>
-            <div className="max-h-48 overflow-y-auto py-1">
-              {filteredCommands.map((command, index) => {
-                const active = index === highlighted;
-                return (
-                  <button
-                    key={command.key}
-                    className={cn(
-                      "flex w-full items-center justify-between px-2 py-1.5 text-left text-sm",
-                      active ? "bg-background text-foreground" : "text-muted-foreground",
-                    )}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      applyCommand(command);
-                    }}
-                    type="button"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      {command.icon}
-                      {command.label}
-                    </span>
-                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">/{command.trigger}</span>
-                  </button>
-                );
-              })}
+          <div className="absolute inset-x-6 top-6 z-20">
+            <div className="surface-card overflow-hidden border border-border/70 bg-background shadow-lg">
+              <div className="border-b border-border/70 px-3 py-2">
+                <p className="section-label">Commands</p>
+              </div>
+              <div className="max-h-56 overflow-y-auto p-2">
+                {filteredCommands.map((command, index) => {
+                  const active = index === highlighted;
+                  return (
+                    <button
+                      key={command.key}
+                      className={cn(
+                        "flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
+                        active ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/70",
+                      )}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        applyCommand(command);
+                      }}
+                      type="button"
+                    >
+                      <span className="inline-flex items-center gap-2 font-medium text-foreground">
+                        {command.icon}
+                        {command.label}
+                      </span>
+                      <span className="section-label">/{command.trigger}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : null}
-      </div>
+      </CardContent>
 
       {showInsertBlock ? (
-        <div className="border-t border-border px-2 py-2">
-          <SmallButton
-            className="text-[10px]"
+        <CardFooter className="justify-start">
+          <Button
             onClick={() => {
               const el = ref.current;
               if (!el) return;
@@ -336,12 +363,14 @@ export function RichOperatorEditor({
                 setHighlighted(0);
               });
             }}
+            size="sm"
             type="button"
+            variant="outline"
           >
             / Insert block
-          </SmallButton>
-        </div>
+          </Button>
+        </CardFooter>
       ) : null}
-    </div>
+    </Card>
   );
 }

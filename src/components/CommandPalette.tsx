@@ -1,25 +1,27 @@
 import { useEffect, useState, useMemo } from "react";
 import {
-  Search,
-  Brain,
-  Mail,
-  BarChart3,
-  Bot,
-  Calendar,
-  CheckSquare,
-} from "lucide-react";
+  BrainIcon,
+  CalendarBlankIcon,
+  ChartBarIcon,
+  CheckSquareIcon,
+  EnvelopeSimpleIcon,
+  MagnifyingGlassIcon,
+  RobotIcon,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useShellState } from "@/hooks/use-shell-state";
 import { approvals, meetings } from "@/lib/ubik-data";
 import { useLocation } from "react-router-dom";
 
 const iconMap: Record<string, React.ReactNode> = {
-  Search: <Search className="h-3.5 w-3.5" />,
-  Brain: <Brain className="h-3.5 w-3.5" />,
-  Mail: <Mail className="h-3.5 w-3.5" />,
-  BarChart3: <BarChart3 className="h-3.5 w-3.5" />,
-  Bot: <Bot className="h-3.5 w-3.5" />,
-  Calendar: <Calendar className="h-3.5 w-3.5" />,
-  CheckSquare: <CheckSquare className="h-3.5 w-3.5" />,
+  Search: <MagnifyingGlassIcon className="h-3.5 w-3.5" />,
+  Brain: <BrainIcon className="h-3.5 w-3.5" />,
+  Mail: <EnvelopeSimpleIcon className="h-3.5 w-3.5" />,
+  BarChart3: <ChartBarIcon className="h-3.5 w-3.5" />,
+  Bot: <RobotIcon className="h-3.5 w-3.5" />,
+  Calendar: <CalendarBlankIcon className="h-3.5 w-3.5" />,
+  CheckSquare: <CheckSquareIcon className="h-3.5 w-3.5" />,
 };
 
 type CommandItem = {
@@ -522,19 +524,19 @@ export function CommandPalette() {
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
 
       <div
-        className="relative mx-auto mt-[12vh] w-full max-w-[600px] border border-border bg-background shadow-[0_24px_80px_-12px_hsl(var(--foreground)/0.2)]"
+        className="relative mx-auto mt-[12vh] w-full max-w-[600px] overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_24px_80px_-12px_hsl(var(--foreground)/0.2)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="flex items-center border-b border-border px-4">
-          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-          <input
+          <MagnifyingGlassIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
-            className="flex-1 bg-transparent py-3.5 px-3 text-sm font-mono outline-none placeholder:text-muted-foreground"
+            className="h-12 flex-1 rounded-none border-0 bg-transparent px-3 py-3.5 font-mono text-sm shadow-none focus-visible:ring-0"
           />
           <kbd className="font-mono text-[10px] tracking-wider text-muted-foreground border border-border px-1.5 py-0.5">
             ESC
@@ -544,8 +546,8 @@ export function CommandPalette() {
         {/* Sections */}
         <div className="max-h-[420px] overflow-y-auto">
           {filteredSections.map((section, sIdx) => (
-            <div key={section.id} className="border-b border-border last:border-b-0">
-              <div className="px-4 py-2 font-mono text-[9px] tracking-widest text-muted-foreground">
+            <div key={section.id} className="border-b border-border/70 last:border-b-0">
+              <div className="px-4 py-2 text-[10px] font-medium tracking-widest text-muted-foreground">
                 {section.label}
               </div>
 
@@ -555,25 +557,22 @@ export function CommandPalette() {
                   {section.items.map((item, iIdx) => {
                     const isSelected = selectedSection === sIdx && selectedItem === iIdx;
                     return (
-                      <button
+                      <Button
                         key={item.id}
                         onClick={() => runCommand(item.id)}
-                        className={`shrink-0 flex flex-col items-start gap-1.5 px-3 py-2.5 border min-w-[120px] transition-colors ${
-                          isSelected
-                            ? "bg-foreground text-background border-foreground"
-                            : "border-border hover:border-foreground/30"
-                        }`}
+                        variant={isSelected ? "default" : "outline"}
+                        className="h-auto min-w-[136px] shrink-0 flex-col items-start gap-2 px-3 py-3 text-left shadow-none"
                       >
-                        <span className={isSelected ? "text-background" : "text-muted-foreground"}>
-                          {iconMap[item.icon] || <Search className="h-3.5 w-3.5" />}
+                        <span className={isSelected ? "text-primary-foreground" : "text-muted-foreground"}>
+                          {iconMap[item.icon] || <MagnifyingGlassIcon className="h-3.5 w-3.5" />}
                         </span>
-                        <span className="text-[11px] font-mono font-medium">{item.label}</span>
+                        <span className="text-xs font-medium">{item.label}</span>
                         {item.shortcut && (
-                          <kbd className={`font-mono text-[9px] ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>
+                          <kbd className={`font-mono text-[9px] ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                             {item.shortcut}
                           </kbd>
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -583,33 +582,30 @@ export function CommandPalette() {
                   {section.items.map((item, iIdx) => {
                     const isSelected = selectedSection === sIdx && selectedItem === iIdx;
                     return (
-                      <button
+                      <Button
                         key={item.id}
                         onClick={() => runCommand(item.id)}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors ${
-                          isSelected
-                            ? "bg-foreground text-background"
-                            : "hover:bg-accent/10"
-                        }`}
+                        variant={isSelected ? "secondary" : "ghost"}
+                        className="h-auto w-full items-center justify-between rounded-none px-4 py-3 text-left transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <span className={isSelected ? "text-background" : "text-muted-foreground"}>
-                            {iconMap[item.icon] || <Search className="h-3.5 w-3.5" />}
+                          <span className={isSelected ? "text-foreground" : "text-muted-foreground"}>
+                            {iconMap[item.icon] || <MagnifyingGlassIcon className="h-3.5 w-3.5" />}
                           </span>
-                          <span className="text-xs font-mono">{item.label}</span>
+                          <span className="text-sm font-medium">{item.label}</span>
                         </div>
                         {item.shortcut && (
                           <kbd
                             className={`font-mono text-[10px] px-1.5 py-0.5 ${
                               isSelected
-                                ? "text-background/60"
+                                ? "text-foreground/60"
                                 : "text-muted-foreground border border-border"
                             }`}
                           >
                             {item.shortcut}
                           </kbd>
                         )}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -620,8 +616,9 @@ export function CommandPalette() {
             <div className="px-4 py-8 text-center">
               <p className="font-mono text-xs text-muted-foreground">NO_RESULTS</p>
               <div className="mx-auto mt-5 max-w-[520px] text-left">
-                <button
-                  className="w-full border border-border bg-background px-4 py-3 text-left transition-colors hover:border-foreground/35"
+                <Button
+                  variant="outline"
+                  className="h-auto w-full justify-start rounded-none px-4 py-3 text-left transition-colors hover:bg-muted"
                   onClick={() => {
                     const nextTabId = createTab("/");
                     setCommandPaletteOpen(false);
@@ -633,14 +630,14 @@ export function CommandPalette() {
                     <kbd className="border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">↵</kbd>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground truncate">{query ? query : "Start a new task"}</p>
-                </button>
+                </Button>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border px-4 py-2 flex items-center justify-between">
+        <div className="border-t border-border/70 px-4 py-2 flex items-center justify-between bg-muted/30">
           <div className="flex items-center gap-3">
             <span className="font-mono text-[9px] text-muted-foreground">↑↓ NAVIGATE</span>
             <span className="font-mono text-[9px] text-muted-foreground">←→ SCROLL</span>
