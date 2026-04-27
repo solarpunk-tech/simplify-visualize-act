@@ -105,6 +105,52 @@ describe("Ubik shell", () => {
     expect(await screen.findByText("renewal-objections.md")).toBeInTheDocument();
   });
 
+  it("redirects Projects into the default scoped workspace", async () => {
+    window.history.pushState({}, "", "/projects");
+    render(createElement(App));
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/po-queue");
+    });
+    expect(await screen.findByText("Document Queue")).toBeInTheDocument();
+  });
+
+  it("redirects Workflows into project templates", async () => {
+    window.history.pushState({}, "", "/workflows");
+    render(createElement(App));
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/projects/templates");
+    });
+    expect(await screen.findByText("Preset library")).toBeInTheDocument();
+  });
+
+  it("renders the MR-Q2 project detail dashboard", async () => {
+    window.history.pushState({}, "", "/projects/delivery-workflow/project-mr-q2");
+    render(createElement(App));
+
+    expect((await screen.findAllByText("Mumbai-Rotterdam Q2")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Emails" })).toBeInTheDocument();
+    expect(screen.getByText("Decision trace")).toBeInTheDocument();
+    expect(screen.getByText("Operational trend")).toBeInTheDocument();
+  });
+
+  it("supports project queue multi-select and archive", async () => {
+    window.history.pushState({}, "", "/projects/po-queue");
+    render(createElement(App));
+
+    fireEvent.click(await screen.findByLabelText("Select Channel Fish PO automation"));
+    fireEvent.click(screen.getByLabelText("Select Devi Seafoods ERP confirmation"));
+
+    expect(await screen.findByText("2 selected")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Archive" }).at(-1)!);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Channel Fish PO automation")).not.toBeInTheDocument();
+    });
+  });
+
   it("renders the linear task view by default on /tasks", async () => {
     window.history.pushState({}, "", "/tasks");
     render(createElement(App));

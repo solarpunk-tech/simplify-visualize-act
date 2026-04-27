@@ -29,6 +29,14 @@ function getCanonicalPath(pathname: string) {
     return "/inbox";
   }
 
+  if (pathname === "/workflows") {
+    return "/projects/templates";
+  }
+
+  if (pathname.startsWith("/projects/")) {
+    return "/projects";
+  }
+
   return pathname;
 }
 
@@ -150,6 +158,17 @@ export function ShellStateProvider({ children }: { children: React.ReactNode }) 
   };
 
   useEffect(() => {
+    if (location.pathname === "/workflows") {
+      navigate(
+        {
+          pathname: "/projects/templates",
+          search: location.search,
+        },
+        { replace: true },
+      );
+      return;
+    }
+
     const params = new URLSearchParams(location.search);
     const requestedTabId = params.get("tab");
     const canonicalPath = getCanonicalPath(location.pathname);

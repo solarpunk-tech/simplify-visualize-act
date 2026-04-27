@@ -2,9 +2,23 @@
 
 This branch is the current consolidated unified UI pass for UBIK. It captures the design and implementation work completed across the last four UI sessions since `feature/unified-ui` was pulled, so anyone opening the repo can immediately see what changed and where the product now stands.
 
+## Development setup
+
+This repo is `pnpm`-only.
+
+- Install dependencies with `pnpm install`
+- Start the app with `pnpm run dev`
+- Build with `pnpm build`
+- Run tests with `pnpm test`
+
+Do not use `npm install` or `npm run dev` in this repo.
+
+If you have already run `npm install`, rerun `pnpm install` to repair `node_modules` and restore the expected executable shims.
+
 ## Current state
 
 - Shell, Home, Inbox, Meetings, Projects, Approvals, Workflows, and Know Anything have been brought onto the same shadcn preset language.
+- The app shell now uses the copied UBIK landing logo assets for the sidebar brand mark, favicon, Apple/mobile touch icon, and web app manifest metadata.
 - Inbox has gone through another cleanup pass:
   - the left rail header now relies only on the middle-panel collapse/expand affordance; the duplicate control inside the rail is gone
   - the reply compose surface no longer repeats an extra `Reply / To` header row

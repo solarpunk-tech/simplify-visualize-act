@@ -1,6 +1,128 @@
 # Unified UI Handoff
 
 ## Status
+- Latest completed pass: **UBIK logo and favicon asset refresh**.
+- Verification is green for this pass:
+  - `pnpm exec eslint src/components/AppSidebar.tsx`
+  - `pnpm build`
+  - `pnpm test`
+- Browser verification used Playwright against `http://127.0.0.1:8082/?tab=chat-home` because Browser plugin control was not exposed in this session.
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - replace the temporary sparkle shell mark with the real UBIK brand mark and wordmark
+  - preserve the existing sidebar geometry and nav density
+  - keep the mobile viewport stable after favicon/mobile icon metadata is added
+- Spacing:
+  - keep the logo inside the existing 32px brand mark footprint
+  - keep the wordmark and `Enterprise` label aligned with the previous brand stack
+- Typography:
+  - replace the typed `UBIK` label with the copied raster wordmark in the expanded sidebar
+  - keep `Enterprise` as the secondary workspace label
+- Color:
+  - use light/dark logo variants with the existing tokenized sidebar surfaces
+  - keep the primary blue brand accent from the copied UBIK assets
+- Interactions:
+  - the sidebar collapse trigger and brand button behavior stays unchanged
+  - favicon links include light, dark, fallback, Apple touch, and manifest entries
+- Responsive behavior:
+  - desktop sidebar and mobile viewport were both checked after the asset swap
+
+## Visual evidence
+- Before desktop (old sparkle sidebar mark): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-logo-favicon-before.png`
+- Before mobile (pre-metadata mobile viewport): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-logo-favicon-mobile-before.png`
+- After desktop (UBIK mark and wordmark in sidebar): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-logo-favicon-after.png`
+- After mobile (mobile viewport still stable after icon metadata): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-logo-favicon-mobile-after.png`
+
+## Visual delta summary
+- The sidebar brand area now uses the copied UBIK raster mark and wordmark instead of the generic sparkle icon plus typed brand name.
+- The document metadata now names the app `UBIK Unified UI` and exposes light/dark favicon links, a fallback favicon, Apple touch icon, and web app manifest for mobile install surfaces.
+- The mobile viewport remained visually stable; the favicon/mobile changes live in document metadata rather than adding mobile-only page chrome.
+
+## Status
+- Latest completed pass: **Projects Scope Router V1**.
+- Verification is green for this pass:
+  - `pnpm exec eslint src/components/shell-state.tsx src/App.tsx src/pages/Projects.tsx src/pages/Workflows.tsx src/components/AppSidebar.tsx src/components/projects/ScopeQueue.tsx src/components/projects/ProjectDetail.tsx src/components/projects/PresetGallery.tsx src/components/projects/ProjectStepper.tsx src/components/projects/DecisionTrace.tsx src/components/projects/variants/VMIDetail.tsx src/components/projects/variants/DocQueueDetail.tsx src/lib/project-presets.ts src/lib/project-types.ts src/test/example.test.ts`
+  - `pnpm exec vitest run src/test/example.test.ts -t "Projects|Workflows|project"`
+  - `pnpm test`
+  - `pnpm build`
+- Browser verification is green for this pass:
+  - `/projects` redirects to `/projects/po-queue`
+  - `/workflows` redirects to `/projects/templates`
+  - Projects sidebar scope children update the route and queue
+  - MR-Q2 opens the canonical dashboard detail
+  - VMI and Doc Queue projects render their variant detail modules
+  - bulk multi-select shows the bottom action bar and `Archive` removes selected visible rows
+  - `+ New from preset` creates a local project instance and routes to detail
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - Projects now behaves like the Inbox-style workbench: global Projects sidebar scopes, a left in-page scope rail, a middle queue, and a right detail area
+  - keep this pass Projects-only; Meetings parity stays parked
+  - fold the old Workflows surface into Projects Templates instead of keeping a separate workflow-builder page
+  - use representative dummy projects and 1-2 step preset journeys rather than a heavy workflow model
+- Spacing:
+  - keep queue rows dense and scannable with inline actions on hover
+  - keep detail dashboards organized into header, tabs, stat row, status/variant band, operational cards, and trend/trace modules
+- Typography:
+  - preserve the existing mono micro-labels and sharp operational dashboard hierarchy
+  - use project IDs, scope labels, and status badges as compact metadata rather than marketing copy
+- Color:
+  - stay inside the shadcn/Radix preset tokens, white/card surfaces, sharp radii, and blue primary accents
+  - use risk/status color only as small badges and indicators
+- Interactions:
+  - scope navigation changes URL and queue contents
+  - single rows expose inline actions
+  - Cmd/Ctrl click and Shift click support multi-select
+  - the bottom bulk bar supports `Assign`, `Delegate`, `Archive`, `Pause`, `Run`, `Tag`, and `Reassign`
+  - Templates can create a local browser/session project instance through `useWorkbenchState`
+- Responsive behavior:
+  - current verification focused on the desktop workbench viewport matching the supplied screenshot context
+
+## Visual evidence
+- Before (flat Projects page before scope-router pass): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-inbox-match-before.png`
+- After (Projects scope router with PO Queue, queue rows, and detail area): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-scope-router-after.png`
+- After (Templates scope folded in from Workflows): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-templates-after.png`
+- After (MR-Q2 canonical dashboard detail): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-mr-q2-detail-after.png`
+- After (VMI detail variant): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-vmi-variant-after.png`
+- After (Doc Queue detail variant): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-docqueue-variant-after.png`
+- After (bulk multi-select action bar): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/projects-bulk-actions-after.png`
+
+## Visual delta summary
+- Projects changed from a flat index into an Inbox-like scoped workspace with scope rails, count badges, a filterable queue, and a persistent detail canvas.
+- The global Projects sidebar now expands to the requested scopes instead of listing project instances, and the old Workflows route now lands on `/projects/templates`.
+- MR-Q2 provides the canonical project dashboard shape, while VMI and Doc Queue use lighter variant modules to prove the detail layout can swap scope-specific middle bands.
+- The queue now supports row actions, multi-select, and archive behavior without adding Kanban/Gantt chrome.
+- Templates now use small preset cards with simple 1-2 step journeys and can create local project instances without backend or source-file mutation at runtime.
+
+## Status
+- Latest completed pass: **pnpm-only package-manager cleanup**.
+- Verification is green for this pass:
+  - `pnpm install`
+  - `pnpm exec vite --version`
+  - `pnpm build`
+- `pnpm run dev` was also verified to start cleanly after reinstall, then the temporary check process was stopped.
+- No open functional blocker.
+
+## Latest workflow requirements
+- Package management:
+  - this repo now treats `pnpm` as the only supported package manager
+  - `pnpm-lock.yaml` is the single dependency source of truth
+  - the legacy npm lockfile was removed because it was scaffold carryover and caused mixed-manager installs
+- Developer entry path:
+  - use `pnpm install`
+  - use `pnpm run dev`
+  - do not use `npm install` or `npm run dev`
+  - if someone already ran `npm install`, rerun `pnpm install` to repair `node_modules`
+
+## Change summary
+- Removed `/Users/shubhranshujha/Codex/simplify-visualize-act/package-lock.json`.
+- Added an explicit `pnpm` setup section to `/Users/shubhranshujha/Codex/simplify-visualize-act/README.md`.
+- Recorded the package-manager standardization here so fresh sessions do not reintroduce dual-lockfile drift.
+
+## Status
 - Latest completed pass: **Multi-surface cleanup across Inbox, Meetings, Tasks, and Know Anything**.
 - Verification is green for this pass:
   - `pnpm exec eslint src/pages/Inbox.tsx src/pages/Meetings.tsx src/pages/Tasks.tsx src/pages/Index.tsx src/components/rich-operator-editor.tsx src/test/example.test.ts`

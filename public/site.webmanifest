@@ -1,0 +1,29 @@
+{
+  "name": "UBIK Unified UI",
+  "short_name": "UBIK",
+  "description": "Unified workspace for UBIK inbox, meetings, tasks, and projects.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2f63eb",
+  "icons": [
+    {
+      "src": "/favicon-light.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-dark.png",
+      "sizes": "250x250",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

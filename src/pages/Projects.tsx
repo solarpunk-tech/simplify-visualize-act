@@ -1,419 +1,452 @@
-import { useEffect } from "react";
-import { ArrowSquareOutIcon, PlusIcon, SidebarSimpleIcon, UsersThreeIcon } from "@phosphor-icons/react";
-import { Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
-
-import { SectionHeading, SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  ChartConfig,
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
-import { projects } from "@/lib/ubik-data";
+  ArchiveIcon,
+  LightningIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  SidebarSimpleIcon,
+} from "@phosphor-icons/react";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+
+import { PresetGallery } from "@/components/projects/PresetGallery";
+import { ProjectDetail } from "@/components/projects/ProjectDetail";
+import { ScopeQueue } from "@/components/projects/ScopeQueue";
+import { PageContainer } from "@/components/page-container";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/components/ui/sonner";
+import { useWorkbenchState } from "@/hooks/use-shell-state";
+import { projectPresets, projectScopes, seededProjectInstances } from "@/lib/project-presets";
+import type { ProjectInstance, ProjectPreset, ProjectScopeId, ProjectStatus } from "@/lib/project-types";
 import { cn, shouldIgnoreSurfaceHotkeys } from "@/lib/utils";
 
-function ProjectProgressChart({
-  progress,
-  status,
-}: {
-  progress: number;
-  status: "On track" | "At risk" | "Needs attention";
-}) {
-  const chartConfig = {
-    complete: {
-      label: "Complete",
-      color: "var(--chart-1)",
-    },
-    remaining: {
-      label: "Remaining",
-      color: "var(--muted)",
-    },
-  } satisfies ChartConfig;
+const defaultScopeId: ProjectScopeId = "po-queue";
 
-  const data = [
-    {
-      phase: "Plan",
-      complete: Math.max(0, progress - 14),
-      remaining: 100 - Math.max(0, progress - 14),
-    },
-    {
-      phase: "Build",
-      complete: progress,
-      remaining: 100 - progress,
-    },
-    {
-      phase: "Ship",
-      complete: Math.min(100, progress + (status === "On track" ? 8 : status === "At risk" ? 2 : -4)),
-      remaining: 100 - Math.min(100, progress + (status === "On track" ? 8 : status === "At risk" ? 2 : -4)),
-    },
-  ];
-
-  return (
-    <ChartContainer
-      className="h-[4.5rem] min-h-[4.5rem] w-full aspect-auto"
-      config={chartConfig}
-      initialDimension={{ width: 260, height: 72 }}
-    >
-      <BarChart accessibilityLayer data={data} margin={{ left: -12, right: 0, top: 10, bottom: 0 }}>
-        <XAxis axisLine={false} dataKey="phase" tickLine={false} tickMargin={10} />
-        <YAxis axisLine={false} domain={[0, 100]} hide tickLine={false} />
-        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-        <Bar barSize={18} dataKey="remaining" fill="var(--color-remaining)" radius={[6, 6, 0, 0]} stackId="progress" />
-        <Bar barSize={18} dataKey="complete" fill="var(--color-complete)" radius={[6, 6, 0, 0]} stackId="progress">
-          {data.map((entry) => (
-            <Cell
-              key={entry.phase}
-              fill={
-                status === "Needs attention"
-                  ? "var(--chart-3)"
-                  : status === "At risk"
-                    ? "var(--chart-4)"
-                    : "var(--chart-1)"
-              }
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ChartContainer>
-  );
+function isProjectScopeId(value: string | undefined): value is ProjectScopeId {
+  return Boolean(value && projectScopes.some((scope) => scope.id === value));
 }
 
-function MilestoneSummaryChart({
-  milestones,
-}: {
-  milestones: { label: string; state: "Done" | "Active" | "Upcoming" }[];
-}) {
-  const counts = milestones.reduce(
-    (acc, milestone) => {
-      if (milestone.state === "Done") acc.done += 1;
-      if (milestone.state === "Active") acc.active += 1;
-      if (milestone.state === "Upcoming") acc.upcoming += 1;
-      return acc;
-    },
-    { done: 0, active: 0, upcoming: 0 },
-  );
+function buildProjectFromPreset(preset: ProjectPreset): ProjectInstance {
+  const timestamp = Date.now();
+  const primarySource = preset.sources[0] ?? "New account";
+  const code = preset.name
+    .split(/\s+/)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 6);
 
-  const chartConfig = {
-    done: {
-      label: "Done",
-      color: "var(--chart-1)",
+  return {
+    id: `project-${preset.id}-${timestamp}`,
+    scope: preset.scope,
+    title: preset.name,
+    code,
+    status: "On track",
+    progress: 18,
+    owner: "Hemanth",
+    customer: primarySource,
+    dueLabel: "New",
+    priority: "Medium",
+    summary: preset.summary,
+    detailVariant: preset.detailVariant,
+    metrics: [
+      { label: "Budget", value: "New", detail: "Set after first review" },
+      { label: "Team", value: "1", detail: "Owner assigned" },
+      { label: "Days Left", value: "TBD", detail: "Waiting on schedule" },
+      { label: "Tasks", value: `${preset.journey.length}`, detail: "Seeded journey steps" },
+    ],
+    steps: preset.journey,
+    trace: [
+      { id: "trace-created", source: "Template", copy: `${preset.name} created from preset.`, timestamp: "Now" },
+      { id: "trace-trigger", source: "Trigger", copy: preset.trigger, timestamp: "Next" },
+    ],
+    cards: [
+      { title: "Human Tasks", body: preset.journey.find((step) => step.role === "human")?.label ?? "Confirm owner and first action.", owner: "Hemanth" },
+      { title: "UBIK AI Analysis", body: preset.journey.find((step) => step.role === "ai")?.label ?? "Prepare context packet.", owner: "UBIK" },
+      { title: "Operating Lane", body: `Seeded from ${primarySource}.`, owner: preset.scope },
+    ],
+    trend: [
+      { label: "Now", throughput: 18, risk: 42 },
+      { label: "Next", throughput: 32, risk: 38 },
+      { label: "Review", throughput: 48, risk: 28 },
+    ],
+    tabs: {
+      emails: [`${primarySource} source thread`],
+      meetings: ["Kickoff checkpoint"],
+      logistics: ["Operating handoff"],
+      documents: ["Preset brief"],
     },
-    active: {
-      label: "Active",
-      color: "var(--chart-3)",
-    },
-    upcoming: {
-      label: "Upcoming",
-      color: "var(--chart-2)",
-    },
-  } satisfies ChartConfig;
-
-  const data = [
-    { key: "done", label: "Done", value: counts.done, fill: "var(--color-done)" },
-    { key: "active", label: "Active", value: counts.active, fill: "var(--color-active)" },
-    { key: "upcoming", label: "Upcoming", value: counts.upcoming, fill: "var(--color-upcoming)" },
-  ];
-  const total = counts.done + counts.active + counts.upcoming;
-
-  return (
-    <div className="relative mx-auto aspect-square max-h-[13rem]">
-      <ChartContainer
-        className="h-full w-full"
-        config={chartConfig}
-        initialDimension={{ width: 220, height: 220 }}
-      >
-        <PieChart accessibilityLayer>
-          <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent hideLabel indicator="dot" nameKey="label" />}
-          />
-          <ChartLegend align="center" content={<ChartLegendContent />} verticalAlign="bottom" />
-          <Pie
-            data={data}
-            dataKey="value"
-            innerRadius={50}
-            nameKey="label"
-            outerRadius={82}
-            paddingAngle={3}
-            strokeWidth={4}
-          >
-            {data.map((entry) => (
-              <Cell key={entry.key} fill={entry.fill} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ChartContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="section-label">Milestones</span>
-        <span className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{total}</span>
-        <span className="mt-1 text-xs text-muted-foreground">done, active, upcoming</span>
-      </div>
-    </div>
-  );
+  };
 }
 
 export default function Projects() {
-  const { openDrawer } = useShellState();
-  const [selectedProjectId, setSelectedProjectId] = useWorkbenchState<string>("project-id", projects[0].id);
-  const [indexCollapsed, setIndexCollapsed] = useWorkbenchState<boolean>("projects-index-collapsed", false);
-  const project = projects.find((item) => item.id === selectedProjectId) ?? projects[0];
+  const { scope: scopeParam, projectId } = useParams<{ scope?: string; projectId?: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [customProjects, setCustomProjects] = useWorkbenchState<ProjectInstance[]>("projects-custom-instances", []);
+  const [archivedProjectIds, setArchivedProjectIds] = useWorkbenchState<string[]>("projects-archived-ids", []);
+  const [statusOverrides, setStatusOverrides] = useWorkbenchState<Record<string, ProjectStatus>>("projects-status-overrides", {});
+  const [scopeQueries, setScopeQueries] = useWorkbenchState<Record<string, string>>("projects-scope-queries", {});
+  const [scopeSearch, setScopeSearch] = useWorkbenchState<string>("projects-scope-search", "");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
-  const commandRailClass =
-    "flex w-full items-center gap-1 overflow-x-auto border border-border/70 bg-muted/30 px-1.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-  const commandRailGroupClass = "flex shrink-0 items-center gap-1";
-  const commandRailDividerClass = "h-4 w-px shrink-0 bg-border/80";
-  const commandRailButtonClass =
-    "inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground motion-reduce:transition-none";
-  const commandRailPrimaryButtonClass =
-    "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground";
-  const commandRailShortcutClass =
-    "inline-flex min-w-[1.3rem] items-center justify-center border border-border/70 bg-background px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground";
+  const scope = isProjectScopeId(scopeParam)
+    ? projectScopes.find((item) => item.id === scopeParam)
+    : null;
 
-  const openProjectDrawer = () =>
-    openDrawer({
-      title: project.name,
-      eyebrow: "Linked context",
-      description:
-        "Projects should connect workflows, chats, approvals, and reports without hiding provenance.",
-      metadata: [
-        { label: "Owner", value: project.owner },
-        { label: "Progress", value: `${project.progress}%` },
-      ],
-      actions: project.linked.map((item) => item.label),
-    });
+  const allProjects = useMemo(
+    () =>
+      [...seededProjectInstances, ...customProjects].map((project) => ({
+        ...project,
+        status: statusOverrides[project.id] ?? project.status,
+      })),
+    [customProjects, statusOverrides],
+  );
 
-  const openProjectCreation = () =>
-    openDrawer({
-      title: "New project",
-      eyebrow: "Workstream setup",
-      description: "Create a new project workstream without jumping into another surface.",
-      metadata: [
-        { label: "Owner", value: "Assign next" },
-        { label: "Scope", value: "Define milestones" },
-      ],
-      actions: ["Add owner", "Define milestones", "Link context"],
-    });
+  const activeProjects = useMemo(
+    () => allProjects.filter((project) => !archivedProjectIds.includes(project.id)),
+    [allProjects, archivedProjectIds],
+  );
+
+  const scopeCounts = useMemo(
+    () =>
+      projectScopes.reduce<Record<string, number>>((acc, item) => {
+        acc[item.id] =
+          item.id === "templates"
+            ? projectPresets.length
+            : activeProjects.filter((project) => project.scope === item.id).length;
+        return acc;
+      }, {}),
+    [activeProjects],
+  );
+
+  const visibleScopes = useMemo(() => {
+    const query = scopeSearch.trim().toLowerCase();
+    if (!query) return projectScopes;
+    return projectScopes.filter((item) => `${item.title} ${item.description}`.toLowerCase().includes(query));
+  }, [scopeSearch]);
+
+  const scopedProjects = useMemo(() => {
+    if (!scope || scope.id === "templates") return [];
+    return activeProjects.filter((project) => project.scope === scope.id);
+  }, [activeProjects, scope]);
+
+  const query = scope ? scopeQueries[scope.id] ?? "" : "";
+  const filteredProjects = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return scopedProjects;
+    return scopedProjects.filter((project) =>
+      `${project.title} ${project.code} ${project.customer} ${project.owner} ${project.summary}`.toLowerCase().includes(normalized),
+    );
+  }, [query, scopedProjects]);
+
+  const selectedProject = useMemo(
+    () =>
+      (projectId ? activeProjects.find((project) => project.id === projectId) : null) ??
+      filteredProjects[0] ??
+      scopedProjects[0] ??
+      null,
+    [activeProjects, filteredProjects, projectId, scopedProjects],
+  );
+
+  useEffect(() => {
+    setSelectedIds([]);
+    setLastSelectedId(null);
+  }, [scope?.id]);
+
+  useEffect(() => {
+    if (!scope || scope.id === "templates" || !projectId) return;
+    if (activeProjects.some((project) => project.id === projectId && project.scope === scope.id)) return;
+    navigate(`/projects/${scope.id}${location.search}`, { replace: true });
+  }, [activeProjects, location.search, navigate, projectId, scope]);
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if (shouldIgnoreSurfaceHotkeys(event.target)) return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
 
-      const key = event.key.toLowerCase();
-      if (key === "i") {
+      if (event.key.toLowerCase() === "n") {
         event.preventDefault();
-        openProjectDrawer();
-        return;
-      }
-
-      if (key === "n") {
-        event.preventDefault();
-        openProjectCreation();
+        navigate(`/projects/templates${location.search}`);
       }
     };
 
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [openDrawer, project]);
+  }, [location.search, navigate]);
 
-  const projectCommandBar = (
-    <div className={commandRailClass}>
-      <div className={commandRailGroupClass}>
+  if (!scope) {
+    return <Navigate replace to={`/projects/${defaultScopeId}${location.search}`} />;
+  }
+
+  const updateScopeQuery = (value: string) => {
+    setScopeQueries({ ...scopeQueries, [scope.id]: value });
+  };
+
+  const openProject = (nextProjectId: string) => {
+    navigate(`/projects/${scope.id}/${nextProjectId}${location.search}`);
+  };
+
+  const toggleSelected = (nextProjectId: string) => {
+    setSelectedIds((current) =>
+      current.includes(nextProjectId)
+        ? current.filter((id) => id !== nextProjectId)
+        : [...current, nextProjectId],
+    );
+    setLastSelectedId(nextProjectId);
+  };
+
+  const selectRange = (nextProjectId: string) => {
+    if (!lastSelectedId) {
+      setSelectedIds([nextProjectId]);
+      setLastSelectedId(nextProjectId);
+      return;
+    }
+
+    const start = filteredProjects.findIndex((project) => project.id === lastSelectedId);
+    const end = filteredProjects.findIndex((project) => project.id === nextProjectId);
+    if (start === -1 || end === -1) {
+      setSelectedIds([nextProjectId]);
+      setLastSelectedId(nextProjectId);
+      return;
+    }
+
+    const [from, to] = start < end ? [start, end] : [end, start];
+    setSelectedIds(filteredProjects.slice(from, to + 1).map((project) => project.id));
+    setLastSelectedId(nextProjectId);
+  };
+
+  const handleProjectClick = (nextProjectId: string, event: MouseEvent<HTMLButtonElement>) => {
+    if (event.shiftKey) {
+      selectRange(nextProjectId);
+      return;
+    }
+
+    if (event.metaKey || event.ctrlKey) {
+      toggleSelected(nextProjectId);
+      return;
+    }
+
+    openProject(nextProjectId);
+    setLastSelectedId(nextProjectId);
+  };
+
+  const archiveProjects = (ids: string[]) => {
+    setArchivedProjectIds([...new Set([...archivedProjectIds, ...ids])]);
+    setSelectedIds([]);
+    toast("Projects archived", {
+      description: `${ids.length} project${ids.length === 1 ? "" : "s"} removed from this queue.`,
+    });
+  };
+
+  const handleRowAction = (action: string, targetProjectId: string) => {
+    if (action === "Archive") {
+      archiveProjects([targetProjectId]);
+      return;
+    }
+    if (action === "Pause") {
+      setStatusOverrides({ ...statusOverrides, [targetProjectId]: "Paused" });
+    }
+    if (action === "Run") {
+      setStatusOverrides({ ...statusOverrides, [targetProjectId]: "On track" });
+    }
+    if (action === "Tag") {
+      toggleSelected(targetProjectId);
+      return;
+    }
+    toast(`${action} queued`, {
+      description: activeProjects.find((project) => project.id === targetProjectId)?.title ?? "Project",
+    });
+  };
+
+  const handleBulkAction = (action: string) => {
+    if (!selectedIds.length) return;
+    if (action === "Archive") {
+      archiveProjects(selectedIds);
+      return;
+    }
+    if (action === "Pause") {
+      setStatusOverrides({
+        ...statusOverrides,
+        ...Object.fromEntries(selectedIds.map((id) => [id, "Paused" as ProjectStatus])),
+      });
+    }
+    if (action === "Run") {
+      setStatusOverrides({
+        ...statusOverrides,
+        ...Object.fromEntries(selectedIds.map((id) => [id, "On track" as ProjectStatus])),
+      });
+    }
+    toast(`${action} queued`, {
+      description: `${selectedIds.length} selected project${selectedIds.length === 1 ? "" : "s"}.`,
+    });
+  };
+
+  const createFromPreset = (preset: ProjectPreset) => {
+    const project = buildProjectFromPreset(preset);
+    setCustomProjects([project, ...customProjects]);
+    toast("Project created", {
+      description: `${project.title} is ready in ${projectScopes.find((item) => item.id === project.scope)?.title ?? "Projects"}.`,
+    });
+    navigate(`/projects/${project.scope}/${project.id}${location.search}`);
+  };
+
+  const commandRail = (
+    <div className="flex w-full items-center gap-1 overflow-x-auto border border-border/70 bg-muted/30 px-1.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex shrink-0 items-center gap-1">
         <button
-          aria-label={indexCollapsed ? "Expand projects index" : "Collapse projects index"}
-          className={commandRailButtonClass}
-          onClick={() => setIndexCollapsed(!indexCollapsed)}
+          aria-label="Projects scope rail"
+          className="inline-flex size-7 shrink-0 items-center justify-center border border-transparent text-foreground/75"
           type="button"
         >
           <SidebarSimpleIcon className="size-4" />
         </button>
-        <button className={commandRailButtonClass} onClick={openProjectDrawer} type="button">
-          <span>Inspect</span>
-          <span className={commandRailShortcutClass}>I</span>
-        </button>
-      </div>
-
-      <span className={commandRailDividerClass} aria-hidden="true" />
-
-      <div className={cn(commandRailGroupClass, "min-w-0 flex-1 justify-center gap-1 pr-1")}>
         <button
-          className={cn(commandRailButtonClass, commandRailPrimaryButtonClass)}
-          onClick={openProjectCreation}
+          className="inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground"
+          onClick={() => navigate(`/projects/templates${location.search}`)}
           type="button"
         >
           <PlusIcon className="size-4" />
-          <span>New project</span>
-          <span className={cn(commandRailShortcutClass, "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground")}>N</span>
+          <span>New from preset</span>
+          <span className="inline-flex min-w-[1.3rem] items-center justify-center border border-border/70 bg-background px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">N</span>
+        </button>
+      </div>
+      <span className="h-4 w-px shrink-0 bg-border/80" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-2">
+        <span className="truncate text-xs text-muted-foreground">{scope.title}</span>
+        <Badge variant="outline" className="bg-background font-mono text-[10px]">{scopeCounts[scope.id] ?? 0}</Badge>
+      </div>
+      <span className="h-4 w-px shrink-0 bg-border/80" aria-hidden="true" />
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          className="inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground"
+          onClick={() => selectedProject && handleRowAction("Run", selectedProject.id)}
+          type="button"
+        >
+          <LightningIcon className="size-4" />
+          <span>Run</span>
+        </button>
+        <button
+          className="inline-flex h-7 shrink-0 items-center gap-1 border border-transparent px-1.5 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-background hover:text-foreground"
+          onClick={() => selectedProject && handleRowAction("Archive", selectedProject.id)}
+          type="button"
+        >
+          <ArchiveIcon className="size-4" />
+          <span>Archive</span>
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="px-4 py-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="shrink-0">{projectCommandBar}</div>
-        <SectionHeading
-          eyebrow="Operational Workstreams"
-          title="Projects keep workstream, context, and next actions in one readable place."
-        />
-
-        <div className={cn("grid gap-4", indexCollapsed ? "xl:grid-cols-[minmax(0,1fr)]" : "xl:grid-cols-[320px_minmax(0,1fr)]")}>
-          {!indexCollapsed ? (
-          <Surface className="gap-0 overflow-hidden">
-            <CardHeader className="border-b border-border/70">
-              <p className="section-label">Project index</p>
-              <CardTitle>Active workstreams</CardTitle>
-              <CardDescription>Select a project to inspect progress, milestones, and linked context.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 py-3">
-              {projects.map((item) => {
-                const isActive = item.id === project.id;
-                return (
-                  <button
-                    key={item.id}
-                    className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${
-                      isActive
-                        ? "surface-active"
-                        : "border-border/70 bg-background hover:bg-secondary/70"
-                    }`}
-                    onClick={() => setSelectedProjectId(item.id)}
-                    type="button"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="section-label">{item.code}</p>
-                      <StatusPill tone={item.status === "On track" ? "default" : "alert"}>{item.status}</StatusPill>
-                    </div>
-                    <p className="mt-2 text-base font-semibold tracking-tight text-foreground">{item.name}</p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.summary}</p>
-                    <div className="surface-well mt-4 rounded-xl px-3 py-3">
-                      <ProjectProgressChart progress={item.progress} status={item.status} />
-                    </div>
-                  </button>
-                );
-              })}
-            </CardContent>
-          </Surface>
-          ) : null}
-
-          <div className="space-y-4">
-            <Surface className="gap-0 overflow-hidden">
-              <CardHeader className="border-b border-border/70">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="section-label">{project.code}</p>
-                    <div className="space-y-1">
-                      <CardTitle className="text-2xl font-semibold tracking-tight">{project.name}</CardTitle>
-                      <CardDescription className="max-w-3xl text-sm leading-6">
-                        {project.summary}
-                      </CardDescription>
-                    </div>
+    <div className="h-[calc(100vh-3.5rem)] min-h-0 overflow-hidden px-3 py-4 lg:px-6 lg:py-5">
+      <PageContainer className="h-full min-h-0">
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <div className="shrink-0">{commandRail}</div>
+          <div
+            className={cn(
+              "grid min-h-0 flex-1 gap-4",
+              scope.id === "templates"
+                ? "xl:grid-cols-[260px_minmax(0,1fr)]"
+                : "xl:grid-cols-[260px_360px_minmax(0,1fr)]",
+            )}
+          >
+            <aside className="flex min-h-0 flex-col overflow-hidden border border-border/70 bg-card shadow-sm">
+              <div className="border-b border-border/60 px-4 py-4">
+                <InputGroup className="h-10 bg-background">
+                  <InputGroupAddon>
+                    <InputGroupText>
+                      <MagnifyingGlassIcon />
+                    </InputGroupText>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    aria-label="Search project scopes"
+                    onChange={(event) => setScopeSearch(event.target.value)}
+                    placeholder="Search project scopes..."
+                    value={scopeSearch}
+                  />
+                </InputGroup>
+              </div>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-2 px-3 py-3">
+                  <div className="flex items-center justify-between px-1">
+                    <p className="section-label">Project scopes</p>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/48">{visibleScopes.length}</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusPill>{project.owner}</StatusPill>
-                    <StatusPill tone={project.status === "On track" ? "success" : "alert"}>{project.status}</StatusPill>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
-                <Surface size="sm" className="gap-0 overflow-hidden">
-                  <CardHeader className="border-b border-border/70">
-                    <p className="section-label">Milestones</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4 py-3">
-                    <div className="surface-well rounded-xl px-3 py-3">
-                      <MilestoneSummaryChart milestones={project.milestones} />
-                    </div>
-                    <div className="space-y-3">
-                      {project.milestones.map((milestone) => (
-                        <div
-                          key={milestone.label}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background px-3 py-3"
+                  {visibleScopes.map((item) => {
+                    const active = item.id === scope.id;
+                    return (
+                      <button
+                        key={item.id}
+                        className={cn(
+                          "flex w-full items-start justify-between gap-3 border bg-background px-3 py-3 text-left transition-colors",
+                          active
+                            ? "border-primary/35 shadow-sm ring-1 ring-primary/15"
+                            : "border-border/70 hover:border-border",
+                        )}
+                        onClick={() => navigate(`/projects/${item.id}${location.search}`)}
+                        type="button"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-foreground">{item.title}</span>
+                          <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{item.sidebarHint}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "border bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em]",
+                            active ? "border-primary/30 bg-primary/5 text-primary" : "border-border text-foreground/60",
+                          )}
                         >
-                          <p className="text-sm font-medium text-foreground">{milestone.label}</p>
-                          <StatusPill
-                            tone={
-                              milestone.state === "Active"
-                                ? "alert"
-                                : milestone.state === "Done"
-                                  ? "success"
-                                  : "muted"
-                            }
-                          >
-                            {milestone.state}
-                          </StatusPill>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Surface>
-
-                <Surface size="sm" className="gap-0 overflow-hidden">
-                  <CardHeader className="border-b border-border/70">
-                    <div className="flex items-center gap-2">
-                      <UsersThreeIcon className="size-4 text-muted-foreground" />
-                      <p className="section-label">Team and next actions</p>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {project.team.map((member) => (
-                        <StatusPill key={member}>{member}</StatusPill>
-                      ))}
-                    </div>
-                    <div className="space-y-2">
-                      <p className="section-label">Next actions</p>
-                      <div className="space-y-2">
-                        {project.nextActions.map((item) => (
-                          <div key={item} className="surface-well rounded-xl p-3 text-sm leading-6 text-foreground">
-                            {item}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Surface>
-              </CardContent>
-            </Surface>
-
-            <Surface className="gap-0 overflow-hidden">
-              <CardHeader className="border-b border-border/70">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="section-label">Linked context</p>
-                    <CardTitle>Connected artifacts and workstreams</CardTitle>
-                  </div>
-                  <SmallButton onClick={openProjectDrawer}>
-                    Inspect
-                  </SmallButton>
+                          {scopeCounts[item.id] ?? 0}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              </CardHeader>
-              <CardContent className="grid gap-3 py-4 md:grid-cols-2">
-                {project.linked.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-border/70 bg-background px-4 py-4">
-                    <p className="section-label">{item.kind}</p>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-foreground">{item.label}</p>
-                      <ArrowSquareOutIcon className="size-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-              <CardFooter className="justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {project.linked.length} linked artifacts across this workstream
-                </span>
-                <span className="text-sm font-medium text-foreground">{project.progress}% complete</span>
-              </CardFooter>
-            </Surface>
+              </ScrollArea>
+            </aside>
+
+            {scope.id === "templates" ? (
+              <div className="min-h-0">
+                <PresetGallery presets={projectPresets} scopes={projectScopes} onCreate={createFromPreset} />
+              </div>
+            ) : (
+              <>
+                <ScopeQueue
+                  scope={scope}
+                  projects={filteredProjects}
+                  selectedProjectId={selectedProject?.id}
+                  selectedIds={selectedIds}
+                  query={query}
+                  onQueryChange={updateScopeQuery}
+                  onOpenProject={openProject}
+                  onProjectClick={handleProjectClick}
+                  onToggleSelected={toggleSelected}
+                  onRowAction={handleRowAction}
+                  onBulkAction={handleBulkAction}
+                />
+                {selectedProject ? (
+                  <ProjectDetail
+                    project={selectedProject}
+                    onBack={projectId ? () => navigate(`/projects/${scope.id}${location.search}`) : undefined}
+                  />
+                ) : (
+                  <section className="flex min-h-0 items-center justify-center border border-dashed border-border/70 bg-card px-6 py-8 text-center text-sm text-muted-foreground">
+                    Select a scope or create a project from a preset.
+                  </section>
+                )}
+              </>
+            )}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

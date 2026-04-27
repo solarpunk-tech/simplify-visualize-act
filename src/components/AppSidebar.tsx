@@ -15,7 +15,6 @@ import {
   NotePencilIcon,
   ShieldCheckIcon,
   SignOutIcon,
-  SparkleIcon,
   StackIcon,
   StackSimpleIcon,
   TrayIcon,
@@ -58,7 +57,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
-import { approvals, contactCards, inboxThreads, meetings, navigationItems, pinnedItems, projects, recentItems, unifiedTasks } from "@/lib/ubik-data";
+import { projectPresets, projectScopes, seededProjectInstances } from "@/lib/project-presets";
+import type { ProjectInstance } from "@/lib/project-types";
+import { approvals, contactCards, inboxThreads, meetings, navigationItems, pinnedItems, recentItems, unifiedTasks } from "@/lib/ubik-data";
 import { cn } from "@/lib/utils";
 
 type MasterItemKey =
@@ -77,6 +78,7 @@ type ContextChild = {
   label: string;
   meta: string;
   path: string;
+  badge?: string;
 };
 
 type MasterNavItem = {
@@ -117,6 +119,8 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const currentUser = contactCards.find((contact) => contact.id === "contact-hemanth") ?? contactCards[0];
   const [navSearch, setNavSearch] = useWorkbenchState("sidebar-nav-search", "");
+  const [customProjectInstances] = useWorkbenchState<ProjectInstance[]>("projects-custom-instances", []);
+  const [archivedProjectIds] = useWorkbenchState<string[]>("projects-archived-ids", []);
   const [openItems, setOpenItems] = useState<Record<MasterItemKey, boolean>>(() => {
     const initial = {
       home: false,
@@ -138,6 +142,17 @@ export function AppSidebar() {
   const waitingOnYouCount = inboxThreads.filter((thread) => thread.waitingState === "Waiting on you").length;
   const blockedByApprovalCount = inboxThreads.filter((thread) => thread.followUpStatus === "blocked_by_approval").length;
   const urgentApprovals = approvals.filter((item) => item.status === "Urgent").length;
+  const projectScopeCounts = useMemo(() => {
+    const activeProjects = [...seededProjectInstances, ...customProjectInstances].filter((project) => !archivedProjectIds.includes(project.id));
+    return Object.fromEntries(
+      projectScopes.map((scope) => [
+        scope.id,
+        scope.id === "templates"
+          ? projectPresets.length
+          : activeProjects.filter((project) => project.scope === scope.id).length,
+      ]),
+    );
+  }, [archivedProjectIds, customProjectInstances]);
 
   const navItemsByKey = useMemo(
     () => Object.fromEntries(navigationItems.map((item) => [item.key, item])),
@@ -207,11 +222,13 @@ export function AppSidebar() {
         title: projectsNav.title,
         icon: FolderOpenIcon,
         paths: [projectsNav.path],
-        children: limitChildren([
-          { id: "projects-primary", label: projects[0]?.name ?? "Mumbai-Rotterdam Q2", meta: projects[0]?.code ?? "Project", path: "/projects" },
-          { id: "projects-secondary", label: projects[1]?.name ?? "Supplier Compliance Audit", meta: projects[1]?.code ?? "Project", path: "/projects" },
-          { id: "projects-tertiary", label: projects[2]?.name ?? "Atlantic Fresh Q3", meta: projects[2]?.code ?? "Project", path: "/projects" },
-        ]),
+        children: projectScopes.map((scope) => ({
+          id: `projects-${scope.id}`,
+          label: scope.title,
+          meta: scope.sidebarHint,
+          path: `/projects/${scope.id}`,
+          badge: `${projectScopeCounts[scope.id] ?? 0}`,
+        })),
       },
       {
         key: "intelligence",
@@ -240,10 +257,10 @@ export function AppSidebar() {
         key: "playbooks",
         title: "Playbooks",
         icon: StackSimpleIcon,
-        paths: ["/workflows", "/agents"],
+        paths: ["/projects/templates", "/agents"],
       },
     ];
-  }, [navItemsByKey, upcomingMeetings, waitingOnYouCount, blockedByApprovalCount, urgentApprovals]);
+  }, [navItemsByKey, upcomingMeetings, waitingOnYouCount, blockedByApprovalCount, urgentApprovals, projectScopeCounts]);
 
   const visibleMasterItems = masterItems.filter((item) => {
     if (!normalizedSearch) return true;
@@ -342,12 +359,14 @@ export function AppSidebar() {
             onClick={collapsed ? () => toggleSidebar() : undefined}
             type="button"
           >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground text-sidebar">
-              <SparkleIcon className="size-4" />
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden border border-sidebar-border bg-background">
+              <img src="/ubik-mark-light.png" alt="UBIK" className="size-7 object-contain dark:hidden" />
+              <img src="/ubik-mark-dark.png" alt="UBIK" className="hidden size-7 object-contain dark:block" />
             </span>
             {!collapsed ? (
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-sidebar-foreground">UBIK</span>
+                <img src="/ubik-wordmark-light.png" alt="UBIK" className="h-5 w-[92px] object-contain object-left dark:hidden" />
+                <img src="/ubik-wordmark-dark.png" alt="UBIK" className="hidden h-5 w-[92px] object-contain object-left dark:block" />
                 <span className="block truncate text-xs text-sidebar-foreground/50">Enterprise</span>
               </span>
             ) : null}
@@ -457,7 +476,7 @@ export function AppSidebar() {
                         <SidebarMenuSub>
                           {item.children?.map((child) => (
                             <SidebarMenuSubItem key={child.id}>
-                              <SidebarMenuSubButton asChild className="h-auto items-start py-1.5">
+                              <SidebarMenuSubButton asChild className="h-auto items-start py-1.5" isActive={isPathActive(child.path)}>
                                 <NavLink
                                   to={child.path}
                                   onClick={(event) => {
@@ -465,13 +484,20 @@ export function AppSidebar() {
                                     navigateCurrentTab(child.path);
                                   }}
                                 >
-                                  <span className="min-w-0">
-                                    <span className="block truncate text-[13px] font-medium text-sidebar-foreground">
-                                      {child.label}
+                                  <span className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-[13px] font-medium text-sidebar-foreground">
+                                        {child.label}
+                                      </span>
+                                      <span className="mt-0.5 block truncate text-[11px] text-sidebar-foreground/45">
+                                        {child.meta}
+                                      </span>
                                     </span>
-                                    <span className="mt-0.5 block truncate text-[11px] text-sidebar-foreground/45">
-                                      {child.meta}
-                                    </span>
+                                    {child.badge ? (
+                                      <span className="mt-0.5 shrink-0 font-mono text-[10px] text-sidebar-foreground/45">
+                                        {child.badge}
+                                      </span>
+                                    ) : null}
                                   </span>
                                 </NavLink>
                               </SidebarMenuSubButton>

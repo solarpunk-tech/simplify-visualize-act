@@ -115,13 +115,13 @@ export const routeMetas: RouteMeta[] = [
   },
   {
     key: "workflows",
-    title: "Workflows",
-    path: "/workflows",
-    description: "Deployable playbooks with runs, schedules, and queue visibility.",
-    actions: [{ label: "New Workflow", kind: "primary" }, { label: "Queue", kind: "secondary" }],
+    title: "Project Templates",
+    path: "/projects/templates",
+    description: "Project templates for repeatable operating journeys.",
+    actions: [{ label: "New From Preset", kind: "primary" }, { label: "Open Projects", kind: "secondary" }],
     search: {
-      placeholder: "Search workflows, runs, and queue actions",
-      sections: ["Actions", "Notes"],
+      placeholder: "Search project templates, scopes, and queue actions",
+      sections: ["Templates", "Scopes"],
     },
   },
   {
@@ -179,7 +179,7 @@ export const navigationItems: NavigationItem[] = [
   { key: "projects", title: "Projects", path: "/projects", section: "navigate" },
   { key: "intelligence", title: "Intelligence", path: "/intelligence", section: "navigate", status: "watching" },
   { key: "approvals", title: "Approvals", path: "/approvals", section: "navigate", badge: "4", status: "urgent" },
-  { key: "workflows", title: "Workflows", path: "/workflows", section: "playbooks", status: "live" },
+  { key: "workflows", title: "Templates", path: "/projects/templates", section: "playbooks", status: "live" },
   { key: "agents", title: "Agents", path: "/agents", section: "playbooks", status: "healthy" },
   { key: "archive", title: "Archive", path: "/archive", section: "support" },
   { key: "settings", title: "Settings", path: "/settings", section: "support" },
@@ -310,7 +310,7 @@ export const chatSignals: SignalItem[] = [
     label: "Workflow runs live",
     value: "2 executing",
     description: "Automations currently moving work or waiting on review.",
-    href: "/workflows",
+    href: "/projects/templates",
   },
 ];
 
@@ -2342,7 +2342,7 @@ export const unifiedTasks: UnifiedTask[] = [
       source: "workflows" as const,
       sourceLabel: "Workflow run",
       href: `/tasks?task=workflow-task-${run.id}`,
-      originHref: "/workflows",
+      originHref: "/projects/templates",
       section: run.status === "Awaiting approval" || index === 0 ? "Today" : "No deadline",
       dueLabel: run.startedAt,
       category: "Automation follow-through",

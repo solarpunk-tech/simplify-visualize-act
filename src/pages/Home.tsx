@@ -732,7 +732,7 @@ export default function Home() {
               id: `chip-${topArtifact.id}`,
               source: "drive" as const,
               label: topArtifact.title,
-              href: "/workflows",
+              href: "/projects/templates",
             },
           ]
         : []),
@@ -764,7 +764,7 @@ export default function Home() {
             : item.linkedThreadId
               ? `/inbox/${item.linkedThreadId}`
               : item.type === "artifact"
-                ? "/workflows"
+                ? "/projects/templates"
                 : item.type === "approval"
                   ? "/approvals"
                   : "/inbox",
@@ -998,7 +998,7 @@ export default function Home() {
           source: "workspace" as const,
           title: run.name,
           body: run.summary,
-          href: "/workflows",
+          href: "/projects/templates",
           meta: run.startedAt,
           tone: "alert" as const,
           links: [
@@ -1006,14 +1006,14 @@ export default function Home() {
               id: `${run.id}-workspace`,
               source: "workspace" as const,
               label: run.owner,
-              href: "/workflows",
+              href: "/projects/templates",
               meta: run.status,
             },
             {
               id: `${run.id}-artifact`,
               source: "drive" as const,
               label: "Generated artifact",
-              href: "/workflows",
+              href: "/projects/templates",
             },
           ],
         })),
@@ -1059,7 +1059,7 @@ export default function Home() {
         id: "summary-workflows",
         source: "drive" as const,
         label: "Workflow artifact",
-        href: "/workflows",
+        href: "/projects/templates",
         meta: `${workflowRuns.filter((run) => run.status !== "Completed").length} active`,
       },
     ].slice(0, 4),
