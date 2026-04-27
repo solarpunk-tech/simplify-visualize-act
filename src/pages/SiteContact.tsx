@@ -2,11 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { marketingSectionInner } from "@/lib/marketing-content";
+import { cn } from "@/lib/utils";
 
 export default function SiteContact() {
   return (
     <div className="space-y-8">
-      <section className="space-y-4 border border-border/60 bg-card px-6 py-10 md:px-10 md:py-14">
+      <section className={cn("space-y-4 border border-border/60 bg-card py-10 md:py-14", marketingSectionInner)}>
         <p className="section-label">Contact</p>
         <h1 className="font-heading text-4xl tracking-tight">Let&apos;s design your rollout</h1>
         <p className="max-w-3xl text-muted-foreground">
@@ -14,7 +16,7 @@ export default function SiteContact() {
         </p>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className={cn("grid gap-4 md:grid-cols-3", marketingSectionInner)}>
         <Card className="surface-card rounded-none border-border/70 md:col-span-2">
           <CardHeader>
             <CardTitle>Request a walkthrough</CardTitle>
