@@ -353,23 +353,23 @@ export function AppSidebar() {
           <Button
             variant="ghost"
             className={cn(
-              "h-auto min-w-0 justify-start gap-3 px-1 py-1 text-left hover:bg-transparent",
+              "h-9 min-w-0 justify-start px-1 py-0 text-left hover:bg-transparent",
               collapsed && "w-full justify-center px-0",
             )}
             onClick={collapsed ? () => toggleSidebar() : undefined}
             type="button"
           >
-            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden border border-sidebar-border bg-background">
-              <img src="/ubik-mark-light.png" alt="UBIK" className="size-7 object-contain dark:hidden" />
-              <img src="/ubik-mark-dark.png" alt="UBIK" className="hidden size-7 object-contain dark:block" />
-            </span>
-            {!collapsed ? (
-              <span className="min-w-0">
-                <img src="/ubik-wordmark-light.png" alt="UBIK" className="h-5 w-[92px] object-contain object-left dark:hidden" />
-                <img src="/ubik-wordmark-dark.png" alt="UBIK" className="hidden h-5 w-[92px] object-contain object-left dark:block" />
-                <span className="block truncate text-xs text-sidebar-foreground/50">Enterprise</span>
+            {collapsed ? (
+              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden">
+                <img src="/ubik-mark-light.png" alt="UBIK" className="size-7 object-contain dark:hidden" />
+                <img src="/ubik-mark-dark.png" alt="UBIK" className="hidden size-7 object-contain dark:block" />
               </span>
-            ) : null}
+            ) : (
+              <span className="flex min-w-0 items-center">
+                <img src="/ubik-wordmark-light.png" alt="UBIK" className="w-[96px] object-contain object-left dark:hidden" />
+                <img src="/ubik-wordmark-dark.png" alt="UBIK" className="hidden w-[96px] object-contain object-left dark:block" />
+              </span>
+            )}
           </Button>
 
           {!collapsed ? (

@@ -1,6 +1,41 @@
 # Unified UI Handoff
 
 ## Status
+- Latest completed pass: **Sidebar UBIK wordmark cleanup**.
+- Verification is green for this pass:
+  - `pnpm exec eslint src/components/AppSidebar.tsx`
+  - `pnpm build`
+- Browser verification used Playwright against `http://127.0.0.1:8082/?tab=chat-home`.
+- No open functional blocker.
+
+## Latest visual requirements
+- Layout:
+  - remove the extra favicon square from the expanded sidebar brand area
+  - remove the `Enterprise` sublabel so the wordmark can occupy the header space cleanly
+  - keep the collapsed-sidebar mark available without affecting the expanded header
+- Spacing:
+  - align the wordmark with the sidebar header controls
+  - avoid the previous cramped two-logo stack
+- Typography:
+  - do not mix raster wordmark with typed brand text in the expanded state
+- Color:
+  - use transparent light/dark wordmark variants directly on the sidebar surface
+  - avoid pulling a favicon-style mark with a visible dark background into the expanded header
+- Interactions:
+  - sidebar collapse behavior stays unchanged
+- Responsive behavior:
+  - desktop light and dark modes were checked for the sidebar brand area
+
+## Visual evidence
+- After light mode (expanded sidebar wordmark only): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-wordmark-sidebar-light-after.png`
+- After dark mode (transparent dark-mode wordmark, no favicon square): `/Users/shubhranshujha/Codex/simplify-visualize-act/output/playwright/ubik-wordmark-sidebar-dark-after.png`
+
+## Visual delta summary
+- The expanded sidebar no longer shows a separate favicon square beside the wordmark.
+- The `Enterprise` label is gone, giving the wordmark the full brand row.
+- Dark mode now renders the transparent white wordmark on the sidebar surface instead of showing a favicon-like asset with an unwanted background.
+
+## Status
 - Latest completed pass: **UBIK logo and favicon asset refresh**.
 - Verification is green for this pass:
   - `pnpm exec eslint src/components/AppSidebar.tsx`
