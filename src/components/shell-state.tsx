@@ -10,10 +10,18 @@ const MAX_WORKBENCH_TABS = 8;
 
 const KNOW_ANYTHING_DEFAULTS = {
   composer: "",
-  mode: "speed",
+  mode: "listening",
   sources: ["org_knowledge"] as string[],
   attachments: [] as string[],
   connectorScope: null as string | null,
+  references: [] as { id: string; label: string; kind: string; href?: string }[],
+  scheduledPrompt: null as null | {
+    title: string;
+    cadence: string;
+    date: string;
+    time: string;
+    mode: string;
+  },
 };
 
 function getCanonicalPath(pathname: string) {
@@ -83,6 +91,12 @@ function getKnowAnythingPageState(pageState: ShellPageStateMap, tabId: string) {
     connectorScope:
       (pageState[`${tabId}:chat-connector-scope`] as string | null | undefined) ??
       KNOW_ANYTHING_DEFAULTS.connectorScope,
+    references:
+      (pageState[`${tabId}:chat-context-references`] as typeof KNOW_ANYTHING_DEFAULTS.references | undefined) ??
+      KNOW_ANYTHING_DEFAULTS.references,
+    scheduledPrompt:
+      (pageState[`${tabId}:chat-scheduled-prompt`] as typeof KNOW_ANYTHING_DEFAULTS.scheduledPrompt | undefined) ??
+      KNOW_ANYTHING_DEFAULTS.scheduledPrompt,
   };
 }
 
@@ -95,6 +109,8 @@ function isKnowAnythingTabPristine(tab: WorkbenchTab | undefined, pageState: She
     chatState.mode === KNOW_ANYTHING_DEFAULTS.mode &&
     chatState.attachments.length === 0 &&
     chatState.connectorScope === null &&
+    chatState.references.length === 0 &&
+    chatState.scheduledPrompt === null &&
     chatState.sources.length === 1 &&
     chatState.sources[0] === "org_knowledge"
   );
@@ -108,6 +124,8 @@ function resetKnowAnythingPageState(pageState: ShellPageStateMap, tabId: string)
     [`${tabId}:chat-sources`]: [...KNOW_ANYTHING_DEFAULTS.sources],
     [`${tabId}:chat-attachments`]: [...KNOW_ANYTHING_DEFAULTS.attachments],
     [`${tabId}:chat-connector-scope`]: KNOW_ANYTHING_DEFAULTS.connectorScope,
+    [`${tabId}:chat-context-references`]: [...KNOW_ANYTHING_DEFAULTS.references],
+    [`${tabId}:chat-scheduled-prompt`]: KNOW_ANYTHING_DEFAULTS.scheduledPrompt,
   };
 }
 

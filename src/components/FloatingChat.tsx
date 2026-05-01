@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, ChevronDown } from "lucide-react";
+import { CaretDownIcon, PaperPlaneTiltIcon, PaperclipIcon } from "@phosphor-icons/react";
+
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface MentionSuggestion {
   id: string;
@@ -145,27 +148,28 @@ export function FloatingChat({ onFocusChange }: FloatingChatProps) {
     >
       {/* @ Mention dropdown */}
       {showMentions && flatFiltered.length > 0 && (
-        <div className="mb-1 border border-border bg-background max-h-[280px] overflow-y-auto shadow-[0_-8px_30px_-12px_hsl(var(--foreground)/0.12)]">
+        <div className="mb-2 max-h-[280px] overflow-y-auto rounded-xl border border-border/70 bg-card shadow-lg shadow-foreground/10">
           {Object.entries(grouped).map(([type, items]) => (
             <div key={type}>
-              <div className="px-3 py-1.5 font-mono text-[9px] tracking-widest text-muted-foreground border-b border-border">
+              <div className="border-b border-border/70 px-3 py-1.5 font-mono text-[9px] tracking-widest text-muted-foreground">
                 {typeLabels[type] || type.toUpperCase()}
               </div>
               {items.map((item) => {
                 const globalIdx = flatFiltered.indexOf(item);
                 return (
-                  <button
+                  <Button
                     key={item.id}
                     onClick={() => insertMention(item)}
-                    className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center gap-2 transition-colors ${
+                    variant={globalIdx === selectedIndex ? "secondary" : "ghost"}
+                    className={`h-auto w-full justify-start rounded-none px-3 py-2 text-left text-xs ${
                       globalIdx === selectedIndex
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-accent/10"
+                        ? "text-foreground"
+                        : "hover:bg-muted"
                     }`}
                   >
                     <span className="text-[10px] text-muted-foreground">@</span>
                     {item.label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -174,17 +178,17 @@ export function FloatingChat({ onFocusChange }: FloatingChatProps) {
       )}
 
       {/* Chat input */}
-      <div className={`border bg-background transition-all duration-200 ${
+      <div className={`rounded-2xl border bg-card transition-all duration-200 ${
         isFocused 
-          ? "border-foreground shadow-[0_-4px_24px_-8px_hsl(var(--foreground)/0.15)]" 
-          : "border-border shadow-[0_-4px_24px_-8px_hsl(var(--foreground)/0.08)]"
+          ? "border-ring shadow-xl shadow-primary/10" 
+          : "border-border/70 shadow-lg shadow-foreground/10"
       }`}>
         <div className="flex items-end gap-2 p-3">
-          <button className="h-8 w-8 flex items-center justify-center border border-border hover:bg-accent/10 transition-colors shrink-0 mb-0.5">
-            <Paperclip className="h-3.5 w-3.5" />
-          </button>
+          <Button variant="outline" size="icon-sm" className="mb-0.5 shrink-0">
+            <PaperclipIcon />
+          </Button>
 
-          <textarea
+          <Textarea
             ref={textareaRef}
             value={message}
             onChange={handleChange}
@@ -193,20 +197,20 @@ export function FloatingChat({ onFocusChange }: FloatingChatProps) {
             onBlur={handleBlur}
             placeholder="Ask anything... use @ to mention tabs, skills, agents"
             rows={1}
-            className="flex-1 bg-transparent text-sm resize-none outline-none placeholder:text-muted-foreground font-mono min-h-[32px] max-h-[120px] py-1.5"
+            className="min-h-[32px] max-h-[120px] flex-1 resize-none border-0 bg-transparent py-1.5 text-sm shadow-none focus-visible:ring-0"
           />
 
           <div className="flex items-center gap-1.5 shrink-0 mb-0.5">
-            <button className="h-8 flex items-center gap-1 px-2 border border-border font-mono text-[10px] tracking-wider hover:bg-accent/10 transition-colors">
+            <Button variant="outline" size="sm" className="h-8 text-[11px]">
               <span>GPT-4</span>
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            <button
-              className="h-8 w-8 flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              <CaretDownIcon />
+            </Button>
+            <Button
+              size="icon-sm"
               onClick={() => setMessage("")}
             >
-              <Send className="h-3.5 w-3.5" />
-            </button>
+              <PaperPlaneTiltIcon />
+            </Button>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import type {
   ArchiveRecord,
   ContactCard,
   HelpResource,
+  HomeUsageOverview,
   InboxThread,
   IntelligenceRecord,
   MeetingRecord,
@@ -17,6 +18,7 @@ import type {
   SettingsSection,
   SignalItem,
   StarterAction,
+  UnifiedTask,
   WorkbenchTab,
   WorkflowDefinition,
   WorkflowRun,
@@ -27,15 +29,23 @@ export const routeMetas: RouteMeta[] = [
     key: "home",
     title: "Home",
     path: "/home",
-    description: "Daily operating brief with widgets, actions, and execution signals.",
+    description: "Daily operating brief with compact usage intelligence and linked execution signals.",
     actions: [{ label: "Refresh", kind: "secondary" }],
+    search: {
+      placeholder: "Search home intelligence, activity, and follow-through",
+      sections: ["Usage", "Activity", "Tasks"],
+    },
   },
   {
     key: "chat",
     title: "Know Anything",
     path: "/",
-    description: "Ask across organization, inbox, meetings, projects or internet, when you need them.",
+    description: "Ask across organization knowledge, inbox, meetings, projects, chats, and linked work.",
     actions: [{ label: "New Thread", kind: "primary" }, { label: "Share", kind: "secondary" }],
+    search: {
+      placeholder: "Search chat history, artifacts, and starter prompts",
+      sections: ["History", "Artifacts", "Prompts"],
+    },
   },
   {
     key: "inbox",
@@ -43,6 +53,21 @@ export const routeMetas: RouteMeta[] = [
     path: "/inbox",
     description: "Unified thread intelligence across inbound channels and extracted tasks.",
     actions: [{ label: "Sort", kind: "secondary" }, { label: "Filter", kind: "secondary" }],
+    search: {
+      placeholder: "Search threads, inbox artifacts, and action prompts",
+      sections: ["Threads", "Artifacts", "Prompts"],
+    },
+  },
+  {
+    key: "tasks",
+    title: "Tasks",
+    path: "/tasks",
+    description: "AI-routed follow-through across meetings, inbox, approvals, and workflow coverage.",
+    actions: [{ label: "New Task", kind: "primary" }, { label: "Filter", kind: "secondary" }],
+    search: {
+      placeholder: "Search tasks, projects, assignees, and linked context",
+      sections: ["Tasks", "Projects", "Context"],
+    },
   },
   {
     key: "meetings",
@@ -50,6 +75,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/meetings",
     description: "Meeting continuity, decisions, and follow-through.",
     actions: [{ label: "Schedule", kind: "primary" }, { label: "Prep", kind: "secondary" }],
+    search: {
+      placeholder: "Search meeting history, files, and people",
+      sections: ["History", "Artifacts", "People"],
+    },
   },
   {
     key: "projects",
@@ -57,6 +86,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/projects",
     description: "Operational workstreams connected to people, files, and approvals.",
     actions: [{ label: "New Project", kind: "primary" }, { label: "Review", kind: "secondary" }],
+    search: {
+      placeholder: "Search projects, linked artifacts, and next actions",
+      sections: ["Projects", "Artifacts", "Next actions"],
+    },
   },
   {
     key: "intelligence",
@@ -64,6 +97,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/intelligence",
     description: "Research, monitoring, policy watch, and saved briefings.",
     actions: [{ label: "Research", kind: "primary" }, { label: "Monitor", kind: "secondary" }],
+    search: {
+      placeholder: "Search briefs, monitors, and saved research",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "approvals",
@@ -71,6 +108,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/approvals",
     description: "Human-in-the-loop review queue with auditable recommendations.",
     actions: [{ label: "Review", kind: "primary" }, { label: "Filter", kind: "secondary" }],
+    search: {
+      placeholder: "Search approval packets and review actions",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "workflows",
@@ -78,6 +119,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/workflows",
     description: "Deployable playbooks with runs, schedules, and queue visibility.",
     actions: [{ label: "New Workflow", kind: "primary" }, { label: "Queue", kind: "secondary" }],
+    search: {
+      placeholder: "Search workflows, runs, and queue actions",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "agents",
@@ -85,6 +130,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/agents",
     description: "Specialist agents monitored for health, outcomes, and approval mode.",
     actions: [{ label: "New Agent", kind: "primary" }, { label: "Inspect", kind: "secondary" }],
+    search: {
+      placeholder: "Search agent tasks, health, and inspections",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "archive",
@@ -92,6 +141,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/archive",
     description: "Historical records, completed runs, and prior conversations.",
     actions: [{ label: "Browse", kind: "secondary" }],
+    search: {
+      placeholder: "Search archived records and past conversations",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "settings",
@@ -99,6 +152,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/settings",
     description: "Workspace preferences, connectors, and environment details.",
     actions: [{ label: "Preferences", kind: "secondary" }],
+    search: {
+      placeholder: "Search preferences, connectors, and runtime details",
+      sections: ["Actions", "Notes"],
+    },
   },
   {
     key: "help",
@@ -106,6 +163,10 @@ export const routeMetas: RouteMeta[] = [
     path: "/help",
     description: "Operator guides, escalation paths, and implementation notes.",
     actions: [{ label: "Support", kind: "secondary" }],
+    search: {
+      placeholder: "Search guides, escalation notes, and support actions",
+      sections: ["Actions", "Notes"],
+    },
   },
 ];
 
@@ -113,6 +174,7 @@ export const navigationItems: NavigationItem[] = [
   { key: "home", title: "Home", path: "/home", section: "navigate" },
   { key: "chat", title: "Know Anything", path: "/", section: "navigate" },
   { key: "inbox", title: "Inbox", path: "/inbox", section: "navigate", badge: "12" },
+  { key: "tasks", title: "Tasks", path: "/tasks", section: "navigate", badge: "5" },
   { key: "meetings", title: "Meetings", path: "/meetings", section: "navigate" },
   { key: "projects", title: "Projects", path: "/projects", section: "navigate" },
   { key: "intelligence", title: "Intelligence", path: "/intelligence", section: "navigate", status: "watching" },
@@ -132,7 +194,7 @@ export const initialWorkbenchTabs: WorkbenchTab[] = [
 ];
 
 export const workbenchLauncherRoutes = routeMetas.filter((route) =>
-  ["/home", "/", "/inbox", "/meetings", "/projects", "/intelligence", "/approvals"].includes(route.path),
+  ["/home", "/", "/inbox", "/tasks", "/meetings", "/projects", "/intelligence", "/approvals"].includes(route.path),
 );
 
 export const pinnedItems: PinnedItem[] = [
@@ -163,17 +225,93 @@ export const quickConnections: QuickConnection[] = [
 ];
 
 export const starterActions: StarterAction[] = [
-  { id: "start-1", title: "Analyze recent emails", description: "Assemble context and flag what needs a response now." },
-  { id: "start-2", title: "Continue project thread", description: "Reopen the last project conversation with linked files and approvals." },
-  { id: "start-3", title: "Review pending approvals", description: "Open the human review queue with recommendations and provenance." },
-  { id: "start-4", title: "Start market research", description: "Create a fresh research thread with saved monitors attached." },
+  {
+    id: "start-1",
+    title: "Carry a project forward",
+    description: "Pull linked threads, files, workflows, and next actions before drafting an update.",
+    category: "Project continuity",
+    icon: "project",
+    seedPrompt:
+      "Continue the Mumbai-Rotterdam Q2 workstream. Pull the latest linked threads, approvals, and workflow artifacts, then tell me what moved, what is blocked, and the next operator actions.",
+  },
+  {
+    id: "start-2",
+    title: "Close a multi-app follow-up",
+    description: "Assemble the inbox, Slack, and meeting trail before sending the next response.",
+    category: "Multi-app follow-up",
+    icon: "follow-up",
+    seedPrompt:
+      "Trace the latest customer follow-up across Gmail, Slack, and meeting notes. Show what changed, what still needs a response, and draft the cleanest next action.",
+  },
+  {
+    id: "start-3",
+    title: "Review an approval packet",
+    description: "Open the human review context with provenance, recommendation, and business risk.",
+    category: "Approval packet",
+    icon: "approval",
+    seedPrompt:
+      "Open the highest-risk approval packet in the queue. Summarize the recommendation, confidence, business impact, and what I should approve, edit, or reject.",
+  },
+  {
+    id: "start-4",
+    title: "Prep the next meeting",
+    description: "Turn linked email, project, and task context into a meeting pre-read.",
+    category: "Meeting pre-read",
+    icon: "meeting",
+    seedPrompt:
+      "Prepare a pre-read for the next meeting. Pull the open inbox threads, project context, and approvals that should be carried into the conversation.",
+  },
+  {
+    id: "start-5",
+    title: "Diagnose a workflow",
+    description: "Inspect the latest run, artifacts, and approval state before deciding intervention.",
+    category: "Workflow diagnosis",
+    icon: "workflow",
+    seedPrompt:
+      "Diagnose the workflow that needs operator attention today. Show the current run state, recent artifacts, approval blockers, and the best next intervention.",
+  },
+  {
+    id: "start-6",
+    title: "Research with connectors",
+    description: "Ground a fresh question in Drive, Calendar, and recent operational signals.",
+    category: "Connector-grounded research",
+    icon: "research",
+    seedPrompt:
+      "Start a connector-grounded research thread. Use Drive, Calendar, and recent operating signals to answer the question with sources and recommended next actions.",
+  },
 ];
 
 export const chatSignals: SignalItem[] = [
-  { id: "signal-1", label: "Inbox requiring response", value: "12 items", tone: "alert" },
-  { id: "signal-2", label: "Approvals waiting", value: "4 reviews", tone: "alert" },
-  { id: "signal-3", label: "Meetings today", value: "3 sessions" },
-  { id: "signal-4", label: "Workflow runs live", value: "2 executing" },
+  {
+    id: "signal-1",
+    label: "Inbox requiring response",
+    value: "12 items",
+    description: "Open threads that still need a human response now.",
+    href: "/inbox",
+    tone: "alert",
+  },
+  {
+    id: "signal-2",
+    label: "Approvals waiting",
+    value: "4 reviews",
+    description: "Human-in-the-loop packets that are blocking downstream work.",
+    href: "/approvals",
+    tone: "alert",
+  },
+  {
+    id: "signal-3",
+    label: "Meetings today",
+    value: "3 sessions",
+    description: "Upcoming prep surfaces and follow-through that should stay linked.",
+    href: "/meetings",
+  },
+  {
+    id: "signal-4",
+    label: "Workflow runs live",
+    value: "2 executing",
+    description: "Automations currently moving work or waiting on review.",
+    href: "/workflows",
+  },
 ];
 
 export const chatRecentWork = [
@@ -1671,6 +1809,105 @@ export const homeActivityFeed: ActivityFeedItem[] = [
   },
 ];
 
+export const homeUsageOverview: HomeUsageOverview = {
+  stats: [
+    {
+      id: "usage-stat-1",
+      label: "Revenue influenced",
+      value: "$54.9K",
+      detail: "Commercial value kept inside the active operating loop",
+      trend: { direction: "up", label: "+12%", tone: "positive" },
+    },
+    {
+      id: "usage-stat-2",
+      label: "Working capital protected",
+      value: "$18.2K",
+      detail: "Cash release risk pulled back inside target payment terms",
+      trend: { direction: "up", label: "+$4.6K", tone: "positive" },
+    },
+    {
+      id: "usage-stat-3",
+      label: "Operating margin defended",
+      value: "+2.4 pts",
+      detail: "Pricing exceptions resolved before quote discipline slipped",
+      trend: { direction: "up", label: "+0.6 pts", tone: "positive" },
+    },
+    {
+      id: "usage-stat-4",
+      label: "Morning brief hit rate",
+      value: "87%",
+      detail: "Brief-linked actions cleared before noon",
+      trend: { direction: "up", label: "+9 pts", tone: "positive" },
+    },
+    {
+      id: "usage-stat-5",
+      label: "Decisions shipped",
+      value: "18",
+      detail: "Approvals, escalations, and outbound moves completed",
+      trend: { direction: "up", label: "+4", tone: "positive" },
+    },
+    {
+      id: "usage-stat-6",
+      label: "Hours returned",
+      value: "31.4h",
+      detail: "Operator capacity shifted out of trace work and into customer execution",
+      trend: { direction: "up", label: "+6.2h", tone: "positive" },
+    },
+  ],
+  activity: [
+    { id: "activity-grid-1", level: 0, label: "Apr 1" },
+    { id: "activity-grid-2", level: 1, label: "Apr 2" },
+    { id: "activity-grid-3", level: 1, label: "Apr 3" },
+    { id: "activity-grid-4", level: 0, label: "Apr 4" },
+    { id: "activity-grid-5", level: 2, label: "Apr 5" },
+    { id: "activity-grid-6", level: 2, label: "Apr 6" },
+    { id: "activity-grid-7", level: 1, label: "Apr 7" },
+    { id: "activity-grid-8", level: 0, label: "Apr 8" },
+    { id: "activity-grid-9", level: 1, label: "Apr 9" },
+    { id: "activity-grid-10", level: 2, label: "Apr 10" },
+    { id: "activity-grid-11", level: 1, label: "Apr 11" },
+    { id: "activity-grid-12", level: 0, label: "Apr 12" },
+    { id: "activity-grid-13", level: 1, label: "Apr 13" },
+    { id: "activity-grid-14", level: 2, label: "Apr 14" },
+    { id: "activity-grid-15", level: 1, label: "Apr 15" },
+    { id: "activity-grid-16", level: 0, label: "Apr 16" },
+    { id: "activity-grid-17", level: 0, label: "Apr 17" },
+    { id: "activity-grid-18", level: 1, label: "Apr 18" },
+    { id: "activity-grid-19", level: 0, label: "Apr 19" },
+    { id: "activity-grid-20", level: 0, label: "Apr 20" },
+    { id: "activity-grid-21", level: 1, label: "Apr 21" },
+    { id: "activity-grid-22", level: 2, label: "Apr 22" },
+    { id: "activity-grid-23", level: 3, label: "Apr 23" },
+    { id: "activity-grid-24", level: 2, label: "Apr 24" },
+    { id: "activity-grid-25", level: 0, label: "Apr 25" },
+    { id: "activity-grid-26", level: 1, label: "Apr 26" },
+    { id: "activity-grid-27", level: 2, label: "Apr 27" },
+    { id: "activity-grid-28", level: 3, label: "Apr 28" },
+    { id: "activity-grid-29", level: 4, label: "Apr 29" },
+    { id: "activity-grid-30", level: 3, label: "Apr 30" },
+    { id: "activity-grid-31", level: 1, label: "May 1" },
+    { id: "activity-grid-32", level: 2, label: "May 2" },
+    { id: "activity-grid-33", level: 0, label: "May 3" },
+    { id: "activity-grid-34", level: 1, label: "May 4" },
+    { id: "activity-grid-35", level: 0, label: "May 5" },
+    { id: "activity-grid-36", level: 2, label: "May 6" },
+    { id: "activity-grid-37", level: 3, label: "May 7" },
+    { id: "activity-grid-38", level: 4, label: "May 8" },
+    { id: "activity-grid-39", level: 3, label: "May 9" },
+    { id: "activity-grid-40", level: 2, label: "May 10" },
+    { id: "activity-grid-41", level: 1, label: "May 11" },
+    { id: "activity-grid-42", level: 2, label: "May 12" },
+    { id: "activity-grid-43", level: 3, label: "May 13" },
+    { id: "activity-grid-44", level: 4, label: "May 14" },
+    { id: "activity-grid-45", level: 2, label: "May 15" },
+    { id: "activity-grid-46", level: 1, label: "May 16" },
+    { id: "activity-grid-47", level: 0, label: "May 17" },
+    { id: "activity-grid-48", level: 1, label: "May 18" },
+  ],
+  footer:
+    "UBIK is carrying more operating load without adding coordination drag: $54.9K of revenue, $18.2K of working capital, and 2.4 margin points stayed onside while 87% of brief-linked actions cleared before noon.",
+};
+
 export const activeOrders = [
   {
     id: "PO-2847",
@@ -2009,6 +2246,116 @@ export const helpResources: HelpResource[] = [
     action: "Contact support",
   },
 ];
+
+function getUnifiedTaskPriorityWeight(priority: UnifiedTask["priority"]) {
+  if (priority === "Urgent") return 4;
+  if (priority === "High") return 3;
+  if (priority === "Medium") return 2;
+  return 1;
+}
+
+function getUnifiedTaskSection(task: UnifiedTask): number {
+  return task.section === "Today" ? 0 : 1;
+}
+
+function buildTaskTimeline(dayOffset: number, startHour: number, durationHours: number) {
+  const start = new Date(2026, 3, 17 + dayOffset, startHour, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(end.getHours() + durationHours);
+
+  return {
+    timelineStart: start.toISOString(),
+    timelineEnd: end.toISOString(),
+  };
+}
+
+export const unifiedTasks: UnifiedTask[] = [
+  ...meetings.flatMap((meeting, index) =>
+    meeting.actionItems.map((action, actionIndex) => ({
+      id: `meeting-task-${meeting.id}-${actionIndex}`,
+      title: action,
+      summary: `${meeting.title} still needs an explicit operator follow-through.`,
+      project: meeting.title,
+      owner: meeting.owner,
+      priority: meeting.stage === "Upcoming" ? "High" : "Medium",
+      source: "meetings" as const,
+      sourceLabel: "Meeting brief",
+      href: `/tasks?task=meeting-task-${meeting.id}-${actionIndex}`,
+      originHref: `/meetings/${meeting.id}`,
+      section: meeting.stage === "Upcoming" && index < 2 ? "Today" : "No deadline",
+      dueLabel: meeting.time,
+      category: "Meeting carry-forward",
+      ...buildTaskTimeline(index, 9 + actionIndex * 2, 4),
+    })),
+  ),
+  ...approvals.map((approval, index) => ({
+    id: `approval-task-${approval.id}`,
+    title: approval.title,
+    summary: approval.recommendation,
+    project: approval.workflow,
+    owner: "Approval queue",
+    priority: approval.status === "Urgent" ? "Urgent" : "High",
+    source: "approvals" as const,
+    sourceLabel: "Approval packet",
+    href: `/tasks?task=approval-task-${approval.id}`,
+    originHref: "/approvals",
+    section: index < 3 ? "Today" : "No deadline",
+    dueLabel: approval.status,
+    category: "Approval gating",
+    ...buildTaskTimeline(index === 0 ? 0 : index - 1, 11 + index, 6),
+  })),
+  ...inboxThreads
+    .filter(
+      (thread) =>
+        thread.priorityBand === "needs_attention" ||
+        thread.priorityBand === "waiting_on_you" ||
+        thread.followUpStatus === "blocked_by_approval" ||
+        thread.followUpStatus === "due_soon" ||
+        thread.priority === "Critical",
+    )
+    .map((thread, index) => ({
+      id: `inbox-task-${thread.id}`,
+      title: thread.linkedTask?.label ?? thread.taskPacket.taskTitle ?? thread.extractedTasks[0] ?? thread.subject,
+      summary: thread.preview,
+      project: thread.project,
+      owner: thread.sender,
+      priority: thread.priority === "Critical" ? "Urgent" : thread.priority,
+      source: "inbox" as const,
+      sourceLabel: thread.source === "Email" ? "Inbox / Gmail" : thread.source === "Slack" ? "Inbox / Slack" : "Inbox",
+      href: `/tasks?task=inbox-task-${thread.id}`,
+      originHref: `/inbox/${thread.id}`,
+      section:
+        thread.priority === "Critical" || thread.followUpStatus === "due_soon" || index < 2 ? "Today" : "No deadline",
+      dueLabel: thread.dueRisk,
+      category: "Follow-up",
+      ...buildTaskTimeline(index, 10 + (index % 3) * 2, 3),
+    })),
+  ...workflowRuns
+    .filter((run) => run.status !== "Completed")
+    .map((run, index) => ({
+      id: `workflow-task-${run.id}`,
+      title: run.name,
+      summary: run.summary,
+      project: run.owner,
+      owner: run.owner,
+      priority: run.status === "Awaiting approval" ? "High" : "Low",
+      source: "workflows" as const,
+      sourceLabel: "Workflow run",
+      href: `/tasks?task=workflow-task-${run.id}`,
+      originHref: "/workflows",
+      section: run.status === "Awaiting approval" || index === 0 ? "Today" : "No deadline",
+      dueLabel: run.startedAt,
+      category: "Automation follow-through",
+      ...buildTaskTimeline(index + 1, 8 + index, 8),
+    })),
+]
+  .sort((left, right) => {
+    if (getUnifiedTaskSection(left) !== getUnifiedTaskSection(right)) {
+      return getUnifiedTaskSection(left) - getUnifiedTaskSection(right);
+    }
+    return getUnifiedTaskPriorityWeight(right.priority) - getUnifiedTaskPriorityWeight(left.priority);
+  })
+  .slice(0, 12);
 
 export function getRouteMeta(pathname: string) {
   const exactMatch = routeMetas.find((route) => route.path === pathname);

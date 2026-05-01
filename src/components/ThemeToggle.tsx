@@ -1,26 +1,21 @@
-import { useState, useEffect } from "react";
-import { Sun, Moon } from "lucide-react";
+import { MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { useTheme } from "next-themes";
+
+import { Button } from "@/components/ui/button";
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ubik-theme") === "dark";
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("ubik-theme", dark ? "dark" : "light");
-  }, [dark]);
+  const { resolvedTheme, setTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
 
   return (
-    <button
-      onClick={() => setDark(!dark)}
-      className="flex h-9 w-9 items-center justify-center border border-[#ddd7cf] bg-[#fbfaf7] text-[#b4372f] transition-colors hover:border-[#c9c1b6] hover:bg-white"
+    <Button
+      variant="outline"
+      size="icon-sm"
+      className="rounded-none border-border/70 bg-background hover:bg-secondary"
+      onClick={() => setTheme(dark ? "light" : "dark")}
       aria-label="Toggle theme"
     >
-      {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-    </button>
+      {dark ? <SunIcon className="h-3.5 w-3.5" /> : <MoonIcon className="h-3.5 w-3.5" />}
+    </Button>
   );
 }

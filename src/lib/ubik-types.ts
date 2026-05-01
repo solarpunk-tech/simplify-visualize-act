@@ -16,6 +16,11 @@ export type PageAction = {
   kind?: "primary" | "secondary";
 };
 
+export type RouteSearchConfig = {
+  placeholder: string;
+  sections: string[];
+};
+
 export type RouteMeta = {
   key: string;
   title: string;
@@ -23,6 +28,7 @@ export type RouteMeta = {
   path: string;
   description: string;
   actions: PageAction[];
+  search: RouteSearchConfig;
 };
 
 export type WorkbenchTab = {
@@ -59,13 +65,79 @@ export type StarterAction = {
   id: string;
   title: string;
   description: string;
+  category: string;
+  icon:
+    | "project"
+    | "follow-up"
+    | "approval"
+    | "meeting"
+    | "workflow"
+    | "research";
+  seedPrompt: string;
 };
 
 export type SignalItem = {
   id: string;
   label: string;
   value: string;
+  description?: string;
+  href?: string;
   tone?: "default" | "alert";
+};
+
+export type HomeUsageStat = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  trend?: HomeUsageTrend;
+};
+
+export type HomeUsageActivityDay = {
+  id: string;
+  level: 0 | 1 | 2 | 3 | 4;
+  label: string;
+};
+
+export type HomeUsageTrend = {
+  direction: "up" | "down" | "flat";
+  label: string;
+  tone?: "positive" | "negative" | "neutral";
+};
+
+export type HomeUsageOverview = {
+  stats: HomeUsageStat[];
+  activity: HomeUsageActivityDay[];
+  footer: string;
+};
+
+export type UnifiedTaskPriority = "Urgent" | "High" | "Medium" | "Low";
+
+export type UnifiedTaskSourceKey =
+  | "inbox"
+  | "meetings"
+  | "approvals"
+  | "workflows"
+  | "workspace";
+
+export type UnifiedTaskSection = "Today" | "No deadline";
+
+export type UnifiedTask = {
+  id: string;
+  title: string;
+  summary: string;
+  project: string;
+  owner: string;
+  priority: UnifiedTaskPriority;
+  source: UnifiedTaskSourceKey;
+  sourceLabel: string;
+  href: string;
+  originHref: string;
+  section: UnifiedTaskSection;
+  dueLabel: string;
+  category: string;
+  timelineStart: string;
+  timelineEnd: string;
 };
 
 export type InboxSource = "Email" | "Slack" | "WhatsApp" | "System";
@@ -243,6 +315,14 @@ export type ContactCard = {
   domain?: string;
   avatarSrc?: string;
   avatarFallback: string;
+};
+
+export type ContextualSearchItem = {
+  id: string;
+  section: string;
+  kind: "record" | "artifact" | "person" | "prompt" | "action";
+  label: string;
+  supportingText?: string;
 };
 
 export type LinkedItem = {

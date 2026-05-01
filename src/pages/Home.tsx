@@ -1,494 +1,1295 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType, type SVGProps } from "react";
+import { format, parseISO, startOfDay } from "date-fns";
 import {
-  ArrowUpRight,
-  EyeOff,
-  MessageSquare,
-  MoreHorizontal,
-  Plus,
-  ShieldAlert,
-  Trash2,
-  Workflow,
-} from "lucide-react";
+  BooksIcon,
+  CaretDownIcon,
+  CaretRightIcon,
+  CheckCircleIcon,
+  ChatsIcon,
+  EnvelopeSimpleIcon,
+  FilesIcon,
+  FolderOpenIcon,
+  MinusIcon,
+  NotePencilIcon,
+  RadioButtonIcon,
+  SparkleIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 
 import { PageContainer } from "@/components/page-container";
-import { SmallButton, StatusPill, Surface } from "@/components/ubik-primitives";
-import { useShellState, useWorkbenchState } from "@/hooks/use-shell-state";
+import { CompactTaskActions, PriorityPill, TaskOwner } from "@/components/task-controls";
+import { Drive } from "@/components/ui/svgs/drive";
+import { Gmail } from "@/components/ui/svgs/gmail";
+import { GoogleCalendar } from "@/components/ui/svgs/googleCalendar";
+import { Salesforce } from "@/components/ui/svgs/salesforce";
+import { Slack } from "@/components/ui/svgs/slack";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
+import { useWorkbenchState } from "@/hooks/use-shell-state";
 import {
-  activeOrders,
   approvals,
-  cargoMovements,
   contactCards,
   homeActivityFeed,
+  homeUsageOverview,
   inboxThreads,
   meetings,
+  unifiedTasks,
+  workflowRuns,
 } from "@/lib/ubik-data";
+import {
+  formatScheduleLabel,
+  formatTaskDate,
+  getTaskDisplayStatus,
+  type TaskPriorityOption,
+  type TaskRecord,
+  type TaskScheduleDraft,
+} from "@/lib/task-helpers";
+import type { HomeUsageTrend, UnifiedTask } from "@/lib/ubik-types";
+import { cn } from "@/lib/utils";
 
-type WidgetAction = "chat" | "hide" | "delete";
+type BriefSourceKey = "calendar" | "gmail" | "slack" | "drive" | "salesforce" | "workspace";
 
-type WidgetKind = "spark" | "progress" | "bars" | "meter";
-
-type Widget = {
+type BriefChip = {
   id: string;
+  source: BriefSourceKey;
   label: string;
-  domain: string;
-  value: string;
-  delta: string;
-  detailA: string;
-  detailB: string;
-  tone?: "alert";
-  chartKind: WidgetKind;
-  chartData: number[];
+  href: string;
+  meta?: string;
 };
 
-function Sparkline({ data }: { data: number[] }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const points = data
-    .map((value, index) => {
-      const x = (index / Math.max(data.length - 1, 1)) * 100;
-      const y = 100 - ((value - min) / Math.max(max - min, 1)) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
+type BriefNarrative = {
+  id: string;
+  source: BriefSourceKey;
+  title: string;
+  body: string;
+  owner: string;
+  href: string;
+  meta: string;
+};
 
+type MorningBriefViewModel = {
+  todayLabel: string;
+  headline: string;
+  summary: string;
+  metricsLabel: string;
+  collapsedChips: BriefChip[];
+  narratives: BriefNarrative[];
+  tasks: UnifiedTask[];
+  taskCount: number;
+};
+
+type BriefDocumentLink = {
+  id: string;
+  source: BriefSourceKey;
+  label: string;
+  href: string;
+  meta?: string;
+};
+
+type BriefDocumentEntry = {
+  id: string;
+  source: BriefSourceKey;
+  title: string;
+  body: string;
+  href: string;
+  meta: string;
+  owner?: string;
+  tone?: "alert";
+  links: BriefDocumentLink[];
+};
+
+type HomeTaskPreviewGroup = {
+  id: string;
+  title: string;
+  tasks: TaskRecord[];
+  totalCount: number;
+  emptyLabel: string;
+};
+
+const contactCardByName = new Map(contactCards.map((contact) => [contact.name.toLowerCase(), contact]));
+
+const sourceMeta: Record<
+  BriefSourceKey,
+  {
+    label: string;
+    Graphic: ComponentType<SVGProps<SVGSVGElement>>;
+  }
+> = {
+  calendar: { label: "Google Calendar", Graphic: GoogleCalendar },
+  gmail: { label: "Gmail", Graphic: Gmail },
+  slack: { label: "Slack", Graphic: Slack },
+  drive: { label: "Drive", Graphic: Drive },
+  salesforce: { label: "Salesforce", Graphic: Salesforce },
+  workspace: { label: "Ubik", Graphic: BooksIcon },
+};
+
+function getGreetingLabel() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatTimeLabel(value: string) {
+  const [, time = value] = value.split("·");
+  return time.replace("PST", "").trim();
+}
+
+function getSourceForFeedItem(item: (typeof homeActivityFeed)[number]): BriefSourceKey {
+  if (item.type === "meeting") return "calendar";
+  if (item.type === "approval") return "salesforce";
+  if (item.type === "artifact") return "drive";
+  return item.source === "Inbox" ? "slack" : "workspace";
+}
+
+function getSourceForThread(thread: (typeof inboxThreads)[number]): BriefSourceKey {
+  if (thread.source === "Slack") return "slack";
+  if (thread.source === "Email") return "gmail";
+  return "workspace";
+}
+
+function getBriefSourceForTask(task: UnifiedTask): BriefSourceKey {
+  if (task.source === "meetings") return "calendar";
+  if (task.source === "approvals") return "salesforce";
+  if (task.source === "inbox") return "gmail";
+  if (task.source === "workflows") return "drive";
+  return "workspace";
+}
+
+function getSourceForApproval(workflow: string) {
+  return workflow.toLowerCase().includes("sales") ? ("salesforce" as const) : ("drive" as const);
+}
+
+function getContactCard(owner: string) {
   return (
-    <svg className="h-16 w-full" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="trend">
-      <polyline fill="none" points={points} stroke="hsl(var(--foreground))" strokeWidth="2" />
-      {data.map((value, index) => {
-        const x = (index / Math.max(data.length - 1, 1)) * 100;
-        const y = 100 - ((value - min) / Math.max(max - min, 1)) * 100;
-        return <circle key={`${value}-${index}`} cx={x} cy={y} fill="hsl(var(--foreground))" r="1.8" />;
-      })}
-    </svg>
+    contactCardByName.get(owner.toLowerCase()) ??
+    contactCards.find((contact) => owner.toLowerCase().includes(contact.name.toLowerCase().split(" ")[0]))
   );
 }
 
-function ProgressRows({ data }: { data: number[] }) {
+function getInitials(value: string) {
+  return value
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function truncateMeta(value: string) {
+  return value.length > 42 ? `${value.slice(0, 39)}...` : value;
+}
+
+const briefShellClass =
+  "rounded-none border border-border/80 bg-card shadow-[0_1px_0_hsl(var(--foreground)/0.04),0_24px_60px_hsl(var(--foreground)/0.08)]";
+
+const briefPanelClass = "rounded-none border border-border/70 bg-card shadow-sm";
+
+const briefInteractivePanelClass =
+  "rounded-none border border-border/70 bg-card transition-colors duration-200 hover:border-primary/35 hover:bg-primary/[0.03] motion-reduce:transition-none";
+
+const briefMetaClass = "text-xs text-muted-foreground";
+
+function BriefSourcePill({
+  source,
+  label,
+  meta,
+  compact = false,
+}: {
+  source: BriefSourceKey;
+  label?: string;
+  meta?: string;
+  compact?: boolean;
+}) {
+  const metaInfo = sourceMeta[source];
+  const Graphic = metaInfo.Graphic;
+
   return (
-    <div className="space-y-2">
-      {data.slice(0, 3).map((value, index) => (
-        <div key={`${value}-${index}`}>
-          <div className="h-2 w-full bg-muted">
-            <div className="h-full bg-foreground" style={{ width: `${Math.max(8, Math.min(100, value))}%` }} />
-          </div>
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 rounded-none border border-border bg-background px-2.5 py-1 text-xs text-foreground",
+        compact && "px-2 py-0.5 text-[11px]",
+      )}
+    >
+      <Graphic className={cn("size-4 shrink-0", compact && "size-3.5")} />
+      <span className="truncate">{label ?? metaInfo.label}</span>
+      {meta ? <span className="truncate text-muted-foreground">· {meta}</span> : null}
+    </span>
+  );
+}
+
+function ContactBadge({ owner }: { owner: string }) {
+  const contact = getContactCard(owner);
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-none border border-border bg-secondary px-2 py-1 text-xs text-muted-foreground">
+      <Avatar size="sm">
+        {contact?.avatarSrc ? <AvatarImage alt={contact.name} src={contact.avatarSrc} /> : null}
+        <AvatarFallback>{getInitials(contact?.name ?? owner)}</AvatarFallback>
+      </Avatar>
+      <span className="truncate">{owner}</span>
+    </div>
+  );
+}
+
+function TrendChip({ trend }: { trend?: HomeUsageTrend }) {
+  if (!trend) return null;
+
+  const tone = trend.tone ?? (trend.direction === "up" ? "positive" : trend.direction === "down" ? "negative" : "neutral");
+  const Icon = trend.direction === "up" ? CaretDownIcon : trend.direction === "down" ? CaretDownIcon : MinusIcon;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium",
+        tone === "positive" && "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+        tone === "negative" && "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
+        tone === "neutral" && "border-border/70 bg-muted/60 text-muted-foreground",
+      )}
+    >
+      <Icon className={cn("h-3 w-3", trend.direction === "up" && "rotate-180")} />
+      <span>{trend.label}</span>
+    </span>
+  );
+}
+
+function UsageActivityGrid() {
+  const rows = Array.from({ length: 4 }, (_, rowIndex) =>
+    homeUsageOverview.activity.slice(rowIndex * 12, rowIndex * 12 + 12),
+  );
+
+  return (
+    <div className="space-y-1">
+      {rows.map((row, rowIndex) => (
+        <div key={`usage-row-${rowIndex}`} className="grid grid-cols-12 gap-1">
+          {row.map((day) => (
+            <div
+              key={day.id}
+              aria-label={`${day.label}: level ${day.level}`}
+              className={cn(
+                "h-4 border border-border/55",
+                day.level === 0 && "bg-muted/50",
+                day.level === 1 && "bg-primary/16",
+                day.level === 2 && "bg-primary/28",
+                day.level === 3 && "bg-primary/48",
+                day.level === 4 && "bg-primary",
+              )}
+              title={`${day.label}: level ${day.level}`}
+            />
+          ))}
         </div>
       ))}
     </div>
   );
 }
 
-function MiniBars({ data }: { data: number[] }) {
-  const max = Math.max(...data);
+function CompactUsageStatCard({
+  label,
+  value,
+  detail,
+  trend,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  trend?: HomeUsageTrend;
+}) {
   return (
-    <div className="flex h-16 items-end gap-1">
-      {data.map((value, index) => (
-        <div
-          key={`${value}-${index}`}
-          className="w-full bg-foreground"
-          style={{ height: `${Math.max(12, (value / Math.max(max, 1)) * 100)}%` }}
-        />
-      ))}
+    <div className="flex min-h-[7.25rem] flex-col justify-between border border-border/70 bg-card px-3 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] leading-5 text-muted-foreground">{label}</p>
+        <TrendChip trend={trend} />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[1.65rem] font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="text-xs leading-5 text-muted-foreground">{detail}</p>
+      </div>
     </div>
   );
 }
 
-function SegmentedMeter({ data }: { data: number[] }) {
-  const max = Math.max(...data);
-  const normalized = data.map((item) => Math.max(0.12, item / Math.max(max, 1)));
+function HomeUsageSecondaryStat({
+  label,
+  value,
+  trend,
+}: {
+  label: string;
+  value: string;
+  trend?: HomeUsageTrend;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border border-border/70 bg-background px-3 py-2">
+      <div>
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+        <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
+      </div>
+      <TrendChip trend={trend} />
+    </div>
+  );
+}
+
+function CompactUsageCard() {
+  const primaryStats = homeUsageOverview.stats.slice(0, 2).concat(homeUsageOverview.stats.slice(4, 6));
+  const secondaryStats = homeUsageOverview.stats.slice(2, 4);
 
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1">
-        {normalized.map((value, index) => (
-          <div
-            key={`${value}-${index}`}
-            className="h-2.5 flex-1 bg-foreground"
-            style={{ opacity: Math.min(1, value) }}
+    <Card size="sm" className="surface-card overflow-hidden">
+      <CardHeader className="border-b border-border/60 pb-3">
+        <div className="space-y-0.5">
+          <p className="section-label">Usage intelligence</p>
+          <CardTitle className="text-lg">Operator leverage</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Compact operating outcomes from briefing, approvals, and execution coverage.
+          </CardDescription>
+        </div>
+        <CardAction>
+          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+            Overview
+          </Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-3 py-4">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {primaryStats.map((stat) => (
+            <CompactUsageStatCard key={stat.id} detail={stat.detail} label={stat.label} trend={stat.trend} value={stat.value} />
+          ))}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {secondaryStats.map((stat) => (
+            <HomeUsageSecondaryStat key={stat.id} label={stat.label} trend={stat.trend} value={stat.value} />
+          ))}
+        </div>
+        <div className="border border-border/70 bg-card px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="section-label">Operational intensity</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Briefing, approvals, pricing escalation, and workflow intervention.
+              </p>
+            </div>
+            <Badge variant="outline" className="rounded-none">
+              Last 7 weeks
+            </Badge>
+          </div>
+          <div className="mt-3">
+            <UsageActivityGrid />
+          </div>
+          <div className="mt-3 border-t border-border/70 pt-2.5">
+            <p className="text-xs leading-5 text-muted-foreground">{homeUsageOverview.footer}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BriefDocumentLinkChip({
+  link,
+  onOpen,
+}: {
+  link: BriefDocumentLink;
+  onOpen: (href: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 rounded-none border border-border bg-background px-2.5 py-1 text-xs text-foreground transition-colors hover:border-primary/30 hover:bg-primary/[0.04]"
+      onClick={() => onOpen(link.href)}
+    >
+      <BriefSourcePill compact source={link.source} label={link.label} meta={link.meta} />
+    </button>
+  );
+}
+
+function BriefDocumentEntryCard({
+  entry,
+  onOpen,
+}: {
+  entry: BriefDocumentEntry;
+  onOpen: (href: string) => void;
+}) {
+  return (
+    <article
+      className={cn(
+        "border-b border-border/60 py-3 last:border-b-0",
+        entry.tone === "alert" && "border-primary/20",
+      )}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <BriefSourcePill compact source={entry.source} />
+            <span className={briefMetaClass}>{entry.meta}</span>
+            {entry.tone === "alert" ? (
+              <Badge variant="outline" className="rounded-none border-primary/25 bg-primary/[0.06] text-primary">
+                Attention
+              </Badge>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="mt-2 text-left"
+            onClick={() => onOpen(entry.href)}
+          >
+            <p className="font-heading text-base font-medium text-foreground transition-colors hover:text-primary">
+              {entry.title}
+            </p>
+          </button>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{entry.body}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {entry.owner ? <ContactBadge owner={entry.owner} /> : null}
+            {entry.links.map((link) => (
+              <BriefDocumentLinkChip key={link.id} link={link} onOpen={onOpen} />
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-none border border-border bg-background text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
+          onClick={() => onOpen(entry.href)}
+        >
+          <CaretRightIcon className="size-4" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function MorningBriefDocumentSection({
+  label,
+  title,
+  summary,
+  badge,
+  children,
+}: {
+  label: string;
+  title: string;
+  summary: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/70 pt-5 first:border-t-0 first:pt-0">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1">
+          <p className="section-label">{label}</p>
+          <p className="font-heading text-lg font-medium text-foreground">{title}</p>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{summary}</p>
+        </div>
+        {badge ? <div className="w-fit">{badge}</div> : null}
+      </div>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function buildHomeTaskMeta(task: TaskRecord) {
+  return Array.from(
+    new Set(
+      [
+        task.displayProject,
+        task.sourceLabel,
+        task.schedule ? formatScheduleLabel(task.schedule) : formatTaskDate(task),
+      ].filter(Boolean),
+    ),
+  );
+}
+
+function HomeTaskPreviewRow({
+  task,
+  onNavigate,
+  ownerOptions,
+  onPriorityChange,
+  onProjectChange,
+  onOwnerChange,
+  onScheduleSave,
+  onToggleChecked,
+}: {
+  task: TaskRecord;
+  onNavigate: (href: string) => void;
+  ownerOptions: string[];
+  onPriorityChange: (value: TaskPriorityOption) => void;
+  onProjectChange: (value: string) => void;
+  onOwnerChange: (value: string) => void;
+  onScheduleSave: (value: TaskScheduleDraft) => void;
+  onToggleChecked: () => void;
+}) {
+  const metaItems = buildHomeTaskMeta(task);
+
+  return (
+    <div className="flex items-start gap-3 border-b border-border/50 py-3 last:border-b-0">
+      <Checkbox
+        checked={task.isChecked}
+        className="mt-1 rounded-none"
+        onCheckedChange={onToggleChecked}
+      />
+      <TaskOwner
+        owner={task.displayOwner}
+        showName={false}
+        className="mt-0.5 shrink-0"
+        avatarClassName="size-7"
+      />
+      <button
+        className="group/task min-w-0 flex-1 text-left"
+        onClick={() => onNavigate(task.href)}
+        type="button"
+      >
+        <p
+          className={cn(
+            "truncate text-sm font-medium text-foreground transition-colors group-hover/task:text-primary",
+            task.isChecked && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {metaItems.map((item) => (
+            <span key={`${task.id}-${item}`}>{item}</span>
+          ))}
+        </div>
+      </button>
+      <div className="flex items-center gap-2 pl-2">
+        {task.displayPriority !== "None" ? (
+          <PriorityPill priority={task.displayPriority} />
+        ) : null}
+        <CompactTaskActions
+          ownerOptions={ownerOptions}
+          onOwnerChange={onOwnerChange}
+          onPriorityChange={onPriorityChange}
+          onProjectChange={onProjectChange}
+          onScheduleSave={onScheduleSave}
+          task={task}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HomeTaskPreviewSection({
+  group,
+  ownerOptions,
+  onNavigate,
+  onPriorityChange,
+  onProjectChange,
+  onOwnerChange,
+  onScheduleSave,
+  onToggleChecked,
+}: {
+  group: HomeTaskPreviewGroup;
+  ownerOptions: string[];
+  onNavigate: (href: string) => void;
+  onPriorityChange: (taskId: string, value: TaskPriorityOption) => void;
+  onProjectChange: (taskId: string, value: string) => void;
+  onOwnerChange: (taskId: string, value: string) => void;
+  onScheduleSave: (taskId: string, value: TaskScheduleDraft) => void;
+  onToggleChecked: (taskId: string) => void;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3 border-b border-border/70 pb-2">
+        <p className="text-sm font-medium text-foreground">{group.title}</p>
+        <span className="text-xs text-muted-foreground">{group.totalCount}</span>
+      </div>
+      {group.tasks.length ? (
+        <div>
+          {group.tasks.map((task) => (
+            <HomeTaskPreviewRow
+              key={task.id}
+              onNavigate={onNavigate}
+              onOwnerChange={(value) => onOwnerChange(task.id, value)}
+              onPriorityChange={(value) => onPriorityChange(task.id, value)}
+              onProjectChange={(value) => onProjectChange(task.id, value)}
+              onScheduleSave={(value) => onScheduleSave(task.id, value)}
+              onToggleChecked={() => onToggleChecked(task.id)}
+              ownerOptions={ownerOptions}
+              task={task}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="py-4 text-sm text-muted-foreground">{group.emptyLabel}</p>
+      )}
+    </section>
+  );
+}
+
+function HomeTaskPreviewCard({
+  groups,
+  totalCount,
+  ownerOptions,
+  onNavigate,
+  onPriorityChange,
+  onProjectChange,
+  onOwnerChange,
+  onScheduleSave,
+  onToggleChecked,
+}: {
+  groups: HomeTaskPreviewGroup[];
+  totalCount: number;
+  ownerOptions: string[];
+  onNavigate: (href: string) => void;
+  onPriorityChange: (taskId: string, value: TaskPriorityOption) => void;
+  onProjectChange: (taskId: string, value: string) => void;
+  onOwnerChange: (taskId: string, value: string) => void;
+  onScheduleSave: (taskId: string, value: TaskScheduleDraft) => void;
+  onToggleChecked: (taskId: string) => void;
+}) {
+  return (
+    <Card size="sm" className="surface-card overflow-hidden">
+      <CardHeader className="border-b border-border/60 pb-3">
+        <div className="space-y-0.5">
+          <p className="section-label">Task list</p>
+          <CardTitle className="text-lg">Execution queue</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Keep the Home queue scan-first, then jump into Tasks only when you need the full document view.
+          </CardDescription>
+        </div>
+        <CardAction className="flex items-center gap-2">
+          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+            {totalCount} active
+          </Badge>
+          <Button className="rounded-none" onClick={() => onNavigate("/tasks")} size="sm" type="button" variant="outline">
+            Open tasks
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-5 py-4">
+        {groups.map((group) => (
+          <HomeTaskPreviewSection
+            key={group.id}
+            group={group}
+            onNavigate={onNavigate}
+            onOwnerChange={onOwnerChange}
+            onPriorityChange={onPriorityChange}
+            onProjectChange={onProjectChange}
+            onScheduleSave={onScheduleSave}
+            onToggleChecked={onToggleChecked}
+            ownerOptions={ownerOptions}
           />
         ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
-        <p>Scope</p>
-        <p className="text-center">Risk</p>
-        <p className="text-right">Due</p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
-}
-
-function WidgetChart({ kind, data }: { kind: WidgetKind; data: number[] }) {
-  if (kind === "spark") return <Sparkline data={data} />;
-  if (kind === "progress") return <ProgressRows data={data} />;
-  if (kind === "bars") return <MiniBars data={data} />;
-  return <SegmentedMeter data={data} />;
 }
 
 export default function Home() {
   const navigate = useNavigate();
-  const { createTab, setPageState } = useShellState();
-  const [hiddenWidgets, setHiddenWidgets] = useWorkbenchState<string[]>("home-hidden-widgets", []);
-  const [deletedWidgets, setDeletedWidgets] = useWorkbenchState<string[]>("home-deleted-widgets", []);
-  const [quickNotesByMeeting, setQuickNotesByMeeting] = useWorkbenchState<Record<string, string[]>>(
-    "meeting-quick-notes",
-    {},
-  );
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [isMorningBriefOpen, setIsMorningBriefOpen] = useWorkbenchState<boolean>("home-morning-brief-open", false);
+  const [checkedTaskIds, setCheckedTaskIds] = useState<string[]>([]);
+  const [taskPriorityOverrides, setTaskPriorityOverrides] = useState<Record<string, TaskPriorityOption>>({});
+  const [taskProjects, setTaskProjects] = useState<Record<string, string>>({});
+  const [taskOwners, setTaskOwners] = useState<Record<string, string>>({});
+  const [taskSchedules, setTaskSchedules] = useState<Record<string, TaskScheduleDraft>>({});
+  const today = startOfDay(new Date());
 
-  const delayedFleet = cargoMovements.filter((cargo) => cargo.delayDays > 3).length;
   const urgentApprovals = approvals.filter((item) => item.status === "Urgent").length;
-  const nextMeeting = meetings.find((meeting) => meeting.stage === "Upcoming");
-  const actionRequiredCount = inboxThreads.filter(
-    (thread) =>
-      thread.priorityBand === "needs_attention" ||
-      thread.priorityBand === "waiting_on_you" ||
-      thread.followUpStatus === "due_soon" ||
-      thread.followUpStatus === "overdue" ||
-      thread.followUpStatus === "blocked_by_approval",
-  ).length;
 
-  const widgets = useMemo<Widget[]>(
+  const morningBriefViewModel = useMemo<MorningBriefViewModel>(() => {
+    const todayLabel = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }).format(new Date());
+
+    const upcomingMeetings = meetings.filter((meeting) => meeting.stage === "Upcoming");
+    const completedBrief = meetings.find((meeting) => meeting.title === "Morning operator brief");
+    const topFeedItems = homeActivityFeed.slice(0, 4);
+    const topArtifact = topFeedItems.find((item) => item.type === "artifact");
+    const topApproval = approvals[0];
+    const surfacedTasks = unifiedTasks.slice(0, 5);
+
+    const collapsedChips: BriefChip[] = [
+      ...(upcomingMeetings[0]
+        ? [
+            {
+              id: `chip-${upcomingMeetings[0].id}`,
+              source: "calendar" as const,
+              label: upcomingMeetings[0].title,
+              meta: formatTimeLabel(upcomingMeetings[0].time),
+              href: `/meetings/${upcomingMeetings[0].id}`,
+            },
+          ]
+        : []),
+      ...(urgentApprovals
+        ? [
+            {
+              id: "chip-approvals",
+              source: "salesforce" as const,
+              label: `${urgentApprovals} urgent approval${urgentApprovals === 1 ? "" : "s"}`,
+              href: "/approvals",
+            },
+          ]
+        : []),
+      ...(topArtifact
+        ? [
+            {
+              id: `chip-${topArtifact.id}`,
+              source: "drive" as const,
+              label: topArtifact.title,
+              href: "/workflows",
+            },
+          ]
+        : []),
+    ].slice(0, 3);
+
+    const narratives: BriefNarrative[] = [
+      ...(completedBrief
+        ? [
+            {
+              id: completedBrief.id,
+              source: "calendar" as const,
+              title: completedBrief.title,
+              body: completedBrief.summary,
+              owner: completedBrief.owner,
+              href: `/meetings/${completedBrief.id}`,
+              meta: completedBrief.time,
+            },
+          ]
+        : []),
+      ...topFeedItems.map((item) => ({
+        id: item.id,
+        source: getSourceForFeedItem(item),
+        title: item.title,
+        body: item.insight,
+        owner: item.owner,
+        href:
+          item.linkedMeetingId
+            ? `/meetings/${item.linkedMeetingId}`
+            : item.linkedThreadId
+              ? `/inbox/${item.linkedThreadId}`
+              : item.type === "artifact"
+                ? "/workflows"
+                : item.type === "approval"
+                  ? "/approvals"
+                  : "/inbox",
+        meta: item.time,
+      })),
+    ].slice(0, 5);
+
+    const headline = `${getGreetingLabel()}, Hemanth.`;
+    const metricsLabel = `${upcomingMeetings.length} meeting${upcomingMeetings.length === 1 ? "" : "s"} before noon · ${urgentApprovals} urgent approval${urgentApprovals === 1 ? "" : "s"} · ${unifiedTasks.length} tasks detected`;
+    const summary = [
+      topApproval ? `${topApproval.title} should clear first.` : null,
+      upcomingMeetings[0] ? `${upcomingMeetings[0].title} is next at ${formatTimeLabel(upcomingMeetings[0].time)}.` : null,
+      `${unifiedTasks.length} follow-through items are already linked across inbox, meetings, approvals, and workflows.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return {
+      todayLabel,
+      headline,
+      summary,
+      metricsLabel,
+      collapsedChips,
+      narratives,
+      tasks: surfacedTasks,
+      taskCount: unifiedTasks.length,
+    };
+  }, [urgentApprovals]);
+
+  const allHomeTasks = useMemo<TaskRecord[]>(
+    () =>
+      unifiedTasks.map((task) => ({
+        ...task,
+        displayOwner: taskOwners[task.id] ?? task.owner,
+        displayPriority: taskPriorityOverrides[task.id] ?? task.priority,
+        displayStatus: getTaskDisplayStatus(
+          task,
+          today,
+          checkedTaskIds.includes(task.id),
+          taskSchedules[task.id] ?? null,
+        ),
+        displayProject: taskProjects[task.id] ?? task.project,
+        isChecked: checkedTaskIds.includes(task.id),
+        schedule: taskSchedules[task.id] ?? null,
+        startDate: parseISO(task.timelineStart),
+        endDate: parseISO(task.timelineEnd),
+      })),
+    [checkedTaskIds, taskOwners, taskPriorityOverrides, taskProjects, taskSchedules, today],
+  );
+
+  const ownerOptions = useMemo(
+    () => Array.from(new Set(["You", ...allHomeTasks.map((task) => task.displayOwner)])).sort(),
+    [allHomeTasks],
+  );
+
+  const getTaskLinks = (task: TaskRecord): BriefDocumentLink[] => {
+    const source = getBriefSourceForTask(task);
+    const baseLinks: BriefDocumentLink[] = [
+      {
+        id: `${task.id}-source`,
+        source,
+        label: task.sourceLabel,
+        href: task.originHref,
+        meta: task.category,
+      },
+      {
+        id: `${task.id}-project`,
+        source: "workspace",
+        label: task.displayProject,
+        href: "/projects",
+        meta: "Project context",
+      },
+    ];
+
+    if (task.source === "approvals") {
+      baseLinks.push({
+        id: `${task.id}-approval`,
+        source: "salesforce",
+        label: "Approval queue",
+        href: "/approvals",
+        meta: task.displayPriority,
+      });
+    } else if (task.source === "meetings") {
+      baseLinks.push({
+        id: `${task.id}-meeting`,
+        source: "calendar",
+        label: "Meeting brief",
+        href: "/meetings",
+        meta: formatTaskDate(task),
+      });
+    } else if (task.source === "inbox") {
+      baseLinks.push({
+        id: `${task.id}-thread`,
+        source,
+        label: "Active thread",
+        href: "/inbox",
+        meta: "Needs reply",
+      });
+    } else {
+      baseLinks.push({
+        id: `${task.id}-artifact`,
+        source: "drive",
+        label: "Linked artifact",
+        href: task.originHref,
+        meta: "Reference",
+      });
+    }
+
+    return baseLinks.slice(0, 3);
+  };
+
+  const preReadEntries = useMemo<BriefDocumentEntry[]>(
+    () =>
+      meetings
+        .filter((meeting) => meeting.stage === "Upcoming")
+        .map((meeting) => ({
+          id: `pre-read-${meeting.id}`,
+          source: "calendar" as const,
+          title: meeting.title,
+          body: meeting.summary,
+          href: `/meetings/${meeting.id}`,
+          meta: meeting.time,
+          owner: meeting.owner,
+          links: [
+            {
+              id: `${meeting.id}-calendar`,
+              source: "calendar" as const,
+              label: "Calendar hold",
+              href: `/meetings/${meeting.id}`,
+              meta: formatTimeLabel(meeting.time),
+            },
+            {
+              id: `${meeting.id}-participants`,
+              source: "workspace" as const,
+              label: meeting.participants[1] ?? "Meeting packet",
+              href: "/projects",
+              meta: `${meeting.agenda.length} agenda items`,
+            },
+          ],
+        })),
+    [],
+  );
+
+  const followUpEntries = useMemo<BriefDocumentEntry[]>(
+    () =>
+      inboxThreads
+        .filter(
+          (thread) =>
+            thread.followUpStatus === "due_soon" ||
+            thread.followUpStatus === "blocked_by_approval" ||
+            thread.priorityBand === "needs_attention",
+        )
+        .slice(0, 4)
+        .map((thread) => ({
+          id: `followup-${thread.id}`,
+          source: getSourceForThread(thread),
+          title: thread.subject,
+          body: thread.preview,
+          href: `/inbox/${thread.id}`,
+          meta: thread.time,
+          owner: thread.owner,
+          tone: thread.priority === "Critical" ? "alert" : undefined,
+          links: [
+            {
+              id: `${thread.id}-source`,
+              source: getSourceForThread(thread),
+              label: thread.source,
+              href: `/inbox/${thread.id}`,
+              meta: thread.dueRisk,
+            },
+            {
+              id: `${thread.id}-project`,
+              source: "workspace" as const,
+              label: truncateMeta(thread.project),
+              href: "/projects",
+              meta: "Linked workstream",
+            },
+          ],
+        })),
+    [],
+  );
+
+  const taskDocumentEntries = useMemo<BriefDocumentEntry[]>(
+    () =>
+      allHomeTasks.slice(0, 4).map((task) => ({
+        id: `brief-task-${task.id}`,
+        source: getBriefSourceForTask(task),
+        title: task.title,
+        body: `${task.displayOwner} owns the next move across ${task.sourceLabel.toLowerCase()} and linked work.`,
+        href: task.href,
+        meta: formatTaskDate(task),
+        owner: task.displayOwner,
+        tone: task.displayPriority === "Urgent" ? "alert" : undefined,
+        links: getTaskLinks(task),
+      })),
+    [allHomeTasks],
+  );
+
+  const approvalEntries = useMemo<BriefDocumentEntry[]>(
     () => [
-      {
-        id: "revenue-pulse",
-        label: "Revenue Pulse",
-        domain: "Sales",
-        value: `$${(activeOrders.reduce((sum, order) => sum + order.value, 0) / 1000).toFixed(1)}K`,
-        delta: "+12%",
-        detailA: `${activeOrders.length} active orders`,
-        detailB: "Weekly trend",
-        chartKind: "spark",
-        chartData: [18, 24, 22, 29, 31, 35, 39],
-      },
-      {
-        id: "account-health",
-        label: "Account Reliability",
-        domain: "Account Mgmt",
-        value: "91%",
-        delta: "+4 pts",
-        detailA: "Renewal readiness",
-        detailB: "Top 3 accounts",
-        chartKind: "progress",
-        chartData: [91, 84, 76],
-      },
-      {
-        id: "fleet-health",
-        label: "Fleet Continuity",
-        domain: "Plant Ops",
-        value: `${cargoMovements.length - delayedFleet}/${cargoMovements.length}`,
-        delta: delayedFleet ? `${delayedFleet} delayed` : "On track",
-        detailA: "Container movements",
-        detailB: "Last 7 checks",
-        tone: delayedFleet ? "alert" : undefined,
-        chartKind: "bars",
-        chartData: [72, 78, 74, 83, 88, 84, 86],
-      },
-      {
-        id: "compliance-risk",
-        label: "Packaging & Finance",
-        domain: "Sustainability / Finance",
-        value: `${urgentApprovals}`,
-        delta: urgentApprovals ? "Needs action" : "Stable",
-        detailA: "Expiring certs + approvals",
-        detailB: `${actionRequiredCount} follow-ups`,
-        tone: urgentApprovals ? "alert" : undefined,
-        chartKind: "meter",
-        chartData: [9, 8, 7, 6, 7, 8, 9],
-      },
+      ...approvals.slice(0, 3).map((approval) => ({
+        id: `approval-card-${approval.id}`,
+        source: getSourceForApproval(approval.workflow),
+        title: approval.title,
+        body: approval.recommendation,
+        href: "/approvals",
+        meta: `${approval.confidence}% confidence`,
+        tone: approval.status === "Urgent" ? "alert" : undefined,
+        links: [
+          {
+            id: `${approval.id}-workflow`,
+            source: getSourceForApproval(approval.workflow),
+            label: approval.workflow,
+            href: "/approvals",
+            meta: approval.status,
+          },
+          {
+            id: `${approval.id}-trace`,
+            source: "drive" as const,
+            label: "Packet trace",
+            href: "/approvals",
+            meta: "Editable output",
+          },
+        ],
+      })),
+      ...workflowRuns
+        .filter((run) => run.status === "Awaiting approval")
+        .slice(0, 1)
+        .map((run) => ({
+          id: `approval-run-${run.id}`,
+          source: "workspace" as const,
+          title: run.name,
+          body: run.summary,
+          href: "/workflows",
+          meta: run.startedAt,
+          tone: "alert" as const,
+          links: [
+            {
+              id: `${run.id}-workspace`,
+              source: "workspace" as const,
+              label: run.owner,
+              href: "/workflows",
+              meta: run.status,
+            },
+            {
+              id: `${run.id}-artifact`,
+              source: "drive" as const,
+              label: "Generated artifact",
+              href: "/workflows",
+            },
+          ],
+        })),
     ],
-    [actionRequiredCount, delayedFleet, urgentApprovals],
+    [],
   );
 
-  const visibleWidgets = widgets.filter(
-    (widget) => !hiddenWidgets.includes(widget.id) && !deletedWidgets.includes(widget.id),
+  const homeTaskPreviewGroups = useMemo<HomeTaskPreviewGroup[]>(
+    () => {
+      const todayTasks = allHomeTasks.filter((task) => task.section === "Today");
+      const noDeadlineTasks = allHomeTasks.filter((task) => task.section === "No deadline");
+
+      return [
+        {
+          id: "today",
+          title: "Today",
+          tasks: todayTasks.slice(0, 3),
+          totalCount: todayTasks.length,
+          emptyLabel: "No tasks due today.",
+        },
+        {
+          id: "no-deadline",
+          title: "No deadline",
+          tasks: noDeadlineTasks.slice(0, 2),
+          totalCount: noDeadlineTasks.length,
+          emptyLabel: "No open backlog items right now.",
+        },
+      ];
+    },
+    [allHomeTasks],
   );
 
-  const contactsByName = useMemo(() => {
-    return contactCards.reduce<Record<string, (typeof contactCards)[number]>>((acc, card) => {
-      acc[card.name] = card;
-      return acc;
-    }, {});
-  }, []);
+  const summaryLinks = useMemo<BriefDocumentLink[]>(
+    () => [
+      ...morningBriefViewModel.collapsedChips.map((chip) => ({
+        id: `summary-${chip.id}`,
+        source: chip.source,
+        label: chip.label,
+        href: chip.href,
+        meta: chip.meta,
+      })),
+      {
+        id: "summary-workflows",
+        source: "drive" as const,
+        label: "Workflow artifact",
+        href: "/workflows",
+        meta: `${workflowRuns.filter((run) => run.status !== "Completed").length} active`,
+      },
+    ].slice(0, 4),
+    [morningBriefViewModel.collapsedChips],
+  );
 
-  const launchWidgetCreator = (widget: Widget) => {
-    const tabId = createTab("/");
-    if (!tabId) return;
-
-    const prompt = `/widget creator ${widget.label} for ${widget.domain}. Build a clean operator card with chart, key risk, and one action.`;
-    setPageState(`${tabId}:chat-composer`, prompt);
-    setPageState(`${tabId}:chat-mode`, "speed");
-    setPageState(`${tabId}:chat-sources`, ["org_knowledge", "files"]);
-    setPageState(`${tabId}:chat-widget-context`, {
-      widgetId: widget.id,
-      metric: widget.value,
-      domain: widget.domain,
-      window: "7d",
-    });
-  };
-
-  const onWidgetAction = (widgetId: string, action: WidgetAction) => {
-    const widget = widgets.find((item) => item.id === widgetId);
-    if (!widget) return;
-
-    if (action === "chat") {
-      launchWidgetCreator(widget);
-      return;
-    }
-    if (action === "hide") {
-      if (!hiddenWidgets.includes(widgetId)) setHiddenWidgets([...hiddenWidgets, widgetId]);
-      return;
-    }
-    if (!deletedWidgets.includes(widgetId)) setDeletedWidgets([...deletedWidgets, widgetId]);
-  };
-
-  const addQuickNote = (meetingId: string) => {
-    const notes = quickNotesByMeeting[meetingId] ?? [];
-    const stamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setQuickNotesByMeeting({
-      ...quickNotesByMeeting,
-      [meetingId]: [`Quick note ${stamp}`, ...notes].slice(0, 5),
-    });
-  };
-
-  const heroItems = homeActivityFeed.filter((item) => item.displayMode === "hero");
-  const rowItems = homeActivityFeed.filter((item) => item.displayMode !== "hero");
-
-  const renderFeedAction = (item: (typeof homeActivityFeed)[number], linkedMeetingId?: string) => {
-    if (item.type === "meeting" && linkedMeetingId) {
-      return (
-        <>
-          <SmallButton active onClick={() => navigate(`/meetings/${linkedMeetingId}`)}>
-            Join now <ArrowUpRight className="ml-2 h-3.5 w-3.5" />
-          </SmallButton>
-          <SmallButton onClick={() => addQuickNote(linkedMeetingId)}>
-            <Plus className="mr-2 h-3.5 w-3.5" /> Quick note
-          </SmallButton>
-        </>
-      );
-    }
-
-    if (item.type === "artifact") {
-      return (
-        <SmallButton active onClick={() => navigate("/workflows")}>
-          <Workflow className="mr-2 h-3.5 w-3.5" /> {item.ctaLabel}
-        </SmallButton>
-      );
-    }
-
-    if (item.type === "approval") {
-      return (
-        <SmallButton active onClick={() => navigate(item.linkedThreadId ? `/inbox/${item.linkedThreadId}` : "/approvals")}>
-          <ShieldAlert className="mr-2 h-3.5 w-3.5" /> {item.ctaLabel}
-        </SmallButton>
-      );
-    }
-
-    return (
-      <SmallButton active onClick={() => navigate(item.linkedThreadId ? `/inbox/${item.linkedThreadId}` : "/inbox")}>
-        <MessageSquare className="mr-2 h-3.5 w-3.5" /> {item.ctaLabel}
-      </SmallButton>
+  const toggleTaskChecked = (taskId: string) => {
+    setCheckedTaskIds((existing) =>
+      existing.includes(taskId) ? existing.filter((id) => id !== taskId) : [...existing, taskId],
     );
+  };
+
+  const setTaskPriority = (taskId: string, priority: TaskPriorityOption) => {
+    setTaskPriorityOverrides((existing) => ({ ...existing, [taskId]: priority }));
+  };
+
+  const setTaskProject = (taskId: string, project: string) => {
+    setTaskProjects((existing) => ({ ...existing, [taskId]: project }));
+  };
+
+  const setTaskOwner = (taskId: string, owner: string) => {
+    setTaskOwners((existing) => ({ ...existing, [taskId]: owner }));
+  };
+
+  const setTaskSchedule = (taskId: string, schedule: TaskScheduleDraft) => {
+    setTaskSchedules((existing) => ({ ...existing, [taskId]: schedule }));
   };
 
   return (
     <div className="px-4 py-6 lg:px-8">
-      <PageContainer className="space-y-6">
-        <section>
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Operator Brief</p>
-          <h1 className="mt-2 text-4xl text-primary">Back at it, Hemanth</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {actionRequiredCount} inbox actions, {urgentApprovals} urgent approvals, next meeting {nextMeeting?.time ?? "Not scheduled"}.
-          </p>
-        </section>
-
-        <Surface className="overflow-hidden">
-          <div className="grid gap-0 xl:grid-cols-4">
-            {visibleWidgets.map((widget) => (
-              <div
-                key={widget.id}
-                className="border-r border-border p-4 last:border-r-0"
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setMenu({ id: widget.id, x: event.clientX, y: event.clientY });
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{widget.domain}</p>
-                    <p className="mt-1 text-[15px] text-foreground">{widget.label}</p>
+      <PageContainer className="space-y-5">
+        <Card className={cn(briefShellClass, "relative overflow-hidden rounded-none py-0 ring-0")}>
+          <CardContent className="relative px-5 py-4 lg:px-6 lg:py-5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />
+            <Collapsible open={isMorningBriefOpen} onOpenChange={setIsMorningBriefOpen}>
+              <div className="flex flex-col gap-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(16rem,0.6fr)] lg:items-start">
+                  <div className="max-w-xl">
+                    <p className="section-label">Operator home · {morningBriefViewModel.todayLabel}</p>
+                    <h1 className="mt-1.5 max-w-[10ch] font-heading text-[3.2rem] font-medium tracking-tight text-foreground leading-[0.96] lg:text-[2.95rem] lg:leading-[0.94]">
+                      {morningBriefViewModel.headline}
+                    </h1>
+                    <p className="mt-1.5 text-sm leading-6 text-foreground/80">{morningBriefViewModel.metricsLabel}</p>
+                    <p className="mt-1.5 max-w-lg text-sm leading-6 text-muted-foreground">{morningBriefViewModel.summary}</p>
                   </div>
-                  <button
-                    className="inline-flex h-6 w-6 items-center justify-center border border-border bg-card"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setMenu({ id: widget.id, x: event.clientX, y: event.clientY });
-                    }}
-                    type="button"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </button>
+
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end lg:pt-0.5">
+                    <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-0.75 text-[11px] text-foreground">
+                      Morning brief
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-none px-3 text-[11px]"
+                      onClick={() => navigate("/inbox")}
+                    >
+                      Open Inbox
+                    </Button>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="default" size="sm" className="h-8 rounded-none px-3 text-[11px]">
+                        {isMorningBriefOpen ? "Collapse" : "Expand"}
+                        <CaretDownIcon
+                          data-icon="inline-end"
+                          className={cn(
+                            "transition-transform duration-200 motion-reduce:transition-none",
+                            isMorningBriefOpen && "rotate-180",
+                          )}
+                        />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
                 </div>
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <p className="font-mono text-3xl text-foreground">{widget.value}</p>
-                  <p
-                    className={`font-mono text-[11px] uppercase tracking-[0.12em] ${
-                      widget.tone === "alert" ? "text-primary" : "text-foreground"
-                    }`}
-                  >
-                    {widget.delta}
-                  </p>
-                </div>
-                <div className="mt-3 pt-2">
-                  <WidgetChart kind={widget.chartKind} data={widget.chartData} />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[12px] text-muted-foreground">
-                  <span>{widget.detailA}</span>
-                  <span>{widget.detailB}</span>
-                </div>
-              </div>
-            ))}
-          </div>
 
-          <div className="border-t border-border px-4 py-3">
-            <SmallButton
-              className="mr-2"
-              onClick={() =>
-                launchWidgetCreator({
-                  id: "new-widget",
-                  label: "Custom Widget",
-                  domain: "Operator",
-                  value: "",
-                  delta: "",
-                  detailA: "",
-                  detailB: "",
-                  chartKind: "spark",
-                  chartData: [1, 2, 3],
-                })
-              }
-            >
-              <Plus className="mr-2 h-3.5 w-3.5" /> New
-            </SmallButton>
-          </div>
-        </Surface>
-
-        <Surface className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-foreground">Activity Feed</p>
-            <SmallButton onClick={() => navigate("/inbox")}>Open Inbox</SmallButton>
-          </div>
-
-          <div className="mt-5 space-y-7">
-            {["Today", "Yesterday"].map((group) => {
-              const groupHeroes = heroItems.filter((item) => item.dayGroup === group);
-              const groupRows = rowItems.filter((item) => item.dayGroup === group);
-              if (!groupHeroes.length && !groupRows.length) return null;
-
-              return (
-                <section key={group}>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{group}</p>
-
-                  {groupHeroes.length ? (
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      {groupHeroes.map((item) => {
-                        return (
-                          <article key={item.id} className="relative border border-border/80 bg-background px-4 py-4">
-                            <span className="absolute left-0 top-0 h-full w-1 bg-primary" />
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="line-clamp-2 text-[19px] leading-7 text-foreground">{item.title}</p>
-                              {item.priority === "Critical" ? <StatusPill tone="alert">Critical</StatusPill> : null}
-                            </div>
-
-                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-foreground/80">{item.insight}</p>
-
-                            <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                              <span className="inline-flex items-center border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.11em] text-foreground/70">
-                                {item.source}
-                              </span>
-                              <span className="inline-flex items-center border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.11em] text-foreground/70">
-                                {item.owner}
-                              </span>
-                              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/65">{item.time}</span>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap items-center gap-2">
-                              {renderFeedAction(item, item.linkedMeetingId)}
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {morningBriefViewModel.collapsedChips.map((chip) => (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      className="transition-colors duration-200 hover:border-primary/35 motion-reduce:transition-none"
+                      onClick={() => navigate(chip.href)}
+                    >
+                      <BriefSourcePill compact label={chip.label} meta={chip.meta} source={chip.source} />
+                    </button>
+                  ))}
+                  {morningBriefViewModel.taskCount ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-none border-primary/25 bg-primary/[0.06] px-2 py-0.75 text-[11px] text-primary"
+                    >
+                      <CheckCircleIcon data-icon="inline-start" />
+                      {morningBriefViewModel.taskCount} tasks detected
+                    </Badge>
                   ) : null}
+                </div>
 
-                  {groupRows.length ? (
-                    <div className="mt-3 border border-border/80 bg-background">
-                      {groupRows.map((item) => {
-                        return (
-                          <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-border/80 px-3 py-3 first:border-t-0">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="line-clamp-1 text-sm text-foreground">{item.title}</p>
-                                {item.priority === "Critical" ? <StatusPill tone="alert">Critical</StatusPill> : null}
-                              </div>
-                              <p className="mt-1 line-clamp-1 text-sm text-foreground/75">{item.insight}</p>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="inline-flex items-center border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.11em] text-foreground/70">
-                                {item.source}
-                              </span>
-                              <span className="inline-flex items-center border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.11em] text-foreground/70">
-                                {item.owner}
-                              </span>
-                              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-foreground/65">{item.time}</span>
-                              {renderFeedAction(item, item.linkedMeetingId)}
-                            </div>
+                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none">
+                  <Separator className="bg-border/80" />
+
+                  <section className={cn(briefPanelClass, "mt-3 p-4 lg:p-5")}>
+                    <div className="space-y-5">
+                      <MorningBriefDocumentSection
+                        label="Morning brief"
+                        title="Today’s operator summary"
+                        summary="A cleaner operator note: linked context, routed tasks, and app-smart references presented as one working document instead of separate tabs."
+                        badge={
+                          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+                            Document view
+                          </Badge>
+                        }
+                      >
+                        <div className="space-y-3">
+                          <p className="text-sm leading-7 text-muted-foreground">
+                            {morningBriefViewModel.summary} The goal is to keep this view editable-feeling and scannable while still carrying the same meeting, inbox, and approval context.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {summaryLinks.map((link) => (
+                              <BriefDocumentLinkChip key={link.id} link={link} onOpen={navigate} />
+                            ))}
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </section>
-              );
-            })}
-          </div>
-        </Surface>
-      </PageContainer>
+                        </div>
+                      </MorningBriefDocumentSection>
 
-      {menu ? (
-        <div className="fixed z-50 border border-border bg-card" style={{ left: menu.x, top: menu.y }}>
-          <button
-            className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left text-sm text-foreground"
-            onClick={() => {
-              onWidgetAction(menu.id, "chat");
-              setMenu(null);
-            }}
-            type="button"
-          >
-            <MessageSquare className="h-3.5 w-3.5" /> Chat
-          </button>
-          <button
-            className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left text-sm text-foreground"
-            onClick={() => {
-              onWidgetAction(menu.id, "hide");
-              setMenu(null);
-            }}
-            type="button"
-          >
-            <EyeOff className="h-3.5 w-3.5" /> Hide
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground"
-            onClick={() => {
-              onWidgetAction(menu.id, "delete");
-              setMenu(null);
-            }}
-            type="button"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Delete
-          </button>
+                      <MorningBriefDocumentSection
+                        label="Pre-reads"
+                        title="Meeting prep packets"
+                        summary="Skim the linked packets before the next conversation starts. These surface the calendar hold, agenda, and the most relevant workstream context."
+                        badge={
+                          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+                            {preReadEntries.length} ready
+                          </Badge>
+                        }
+                      >
+                        <div>
+                          {preReadEntries.map((entry) => (
+                            <BriefDocumentEntryCard key={entry.id} entry={entry} onOpen={navigate} />
+                          ))}
+                        </div>
+                      </MorningBriefDocumentSection>
+
+                      <MorningBriefDocumentSection
+                        label="Follow-ups"
+                        title="Threads that still need motion"
+                        summary="These are the conversations most likely to slip without a human nudge, so the brief keeps them inline with the context that matters."
+                        badge={
+                          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+                            {followUpEntries.length} surfaced
+                          </Badge>
+                        }
+                      >
+                        <div>
+                          {followUpEntries.map((entry) => (
+                            <BriefDocumentEntryCard key={entry.id} entry={entry} onOpen={navigate} />
+                          ))}
+                        </div>
+                      </MorningBriefDocumentSection>
+
+                      <MorningBriefDocumentSection
+                        label="Linked tasks"
+                        title="Routed follow-through"
+                        summary="Task context now reads like a document note with logo-led smart links instead of another kanban-like card rail."
+                        badge={
+                          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+                            {taskDocumentEntries.length} linked
+                          </Badge>
+                        }
+                      >
+                        <div>
+                          {taskDocumentEntries.map((entry) => (
+                            <BriefDocumentEntryCard key={entry.id} entry={entry} onOpen={navigate} />
+                          ))}
+                        </div>
+                      </MorningBriefDocumentSection>
+
+                      <MorningBriefDocumentSection
+                        label="Approvals"
+                        title="Human review gates"
+                        summary="The review queue stays in the same document flow so packet risk, editable output, and workflow artifacts remain visible without another UI mode switch."
+                        badge={
+                          <Badge variant="outline" className="rounded-none border-border bg-secondary px-2 py-1 text-foreground">
+                            {approvalEntries.length} awaiting review
+                          </Badge>
+                        }
+                      >
+                        <div>
+                          {approvalEntries.map((entry) => (
+                            <BriefDocumentEntryCard key={entry.id} entry={entry} onOpen={navigate} />
+                          ))}
+                        </div>
+                      </MorningBriefDocumentSection>
+
+                      <div className="border-t border-border/70 pt-4">
+                        <div className="flex flex-wrap gap-2">
+                          {morningBriefViewModel.narratives.slice(0, 4).map((item) => (
+                            <BriefDocumentLinkChip
+                              key={`narrative-link-${item.id}`}
+                              link={{
+                                id: `narrative-link-${item.id}`,
+                                source: item.source,
+                                label: item.title,
+                                href: item.href,
+                                meta: item.meta,
+                              }}
+                              onOpen={navigate}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(24rem,0.78fr)]">
+          <CompactUsageCard />
+          <HomeTaskPreviewCard
+            groups={homeTaskPreviewGroups}
+            onNavigate={navigate}
+            onOwnerChange={setTaskOwner}
+            onPriorityChange={setTaskPriority}
+            onProjectChange={setTaskProject}
+            onScheduleSave={setTaskSchedule}
+            onToggleChecked={toggleTaskChecked}
+            ownerOptions={ownerOptions}
+            totalCount={allHomeTasks.length}
+          />
         </div>
-      ) : null}
+      </PageContainer>
     </div>
   );
 }
